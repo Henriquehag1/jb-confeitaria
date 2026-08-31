@@ -305,6 +305,36 @@ button{font-family:inherit;font-size:inherit;cursor:pointer;}
 .check{display:flex;align-items:flex-start;gap:9px;margin-top:11px;font-size:.88rem;font-weight:300;line-height:1.4;}
 .check input{width:21px;height:21px;flex:0 0 auto;accent-color:var(--coral-forte);margin:0;}
 
+/* ---------- formulário curto (ingrediente novo, canal novo, editar insumo) ---------- */
+.novoing{
+  background:var(--creme);border:1px solid var(--coral);border-radius:13px;
+  padding:13px 14px;margin-bottom:10px;
+}
+.novoing h4{font-family:"Playfair Display",serif;font-size:1rem;font-weight:600;margin:0 0 9px;}
+.novoing .lin2{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:8px;}
+.novoing label{flex:1 1 46%;font-size:.68rem;letter-spacing:.07em;text-transform:uppercase;color:var(--tinta-3);font-weight:500;}
+.novoing label.wide{flex:1 1 100%;}
+.novoing input, .novoing select{
+  width:100%;height:38px;margin-top:4px;border-radius:10px;border:1px solid var(--linha-2);
+  background:var(--areia);font-family:inherit;font-size:.95rem;color:var(--tinta);
+  padding:0 10px;text-transform:none;letter-spacing:0;
+}
+.novoing input:focus, .novoing select:focus{outline:2px solid var(--coral);outline-offset:1px;border-color:var(--coral);}
+.novoing .acoes{display:flex;gap:8px;align-items:center;margin-top:4px;}
+.novoing .acoes button{
+  border:none;border-radius:10px;padding:10px 15px;background:var(--coral-forte);
+  color:var(--creme);font-size:.9rem;font-weight:500;
+}
+.novoing .acoes button.sec{background:none;color:var(--tinta-3);text-decoration:underline;padding:10px 4px;}
+.novoing .acoes button.perigo{background:none;color:var(--coral-fundo);text-decoration:underline;padding:10px 4px;margin-left:auto;}
+.novoing p.nota{margin:2px 0 0;font-size:.79rem;color:var(--tinta-3);font-weight:300;line-height:1.45;}
+
+.grupo{
+  font-size:.68rem;letter-spacing:.22em;text-transform:uppercase;color:var(--tinta-3);
+  font-weight:600;margin:18px 2px 9px;
+}
+.grupo:first-child{margin-top:2px;}
+
 /* ---------- produção ---------- */
 .prod{
   display:flex;align-items:center;gap:11px;background:var(--creme);
@@ -488,6 +518,7 @@ button{font-family:inherit;font-size:inherit;cursor:pointer;}
       <div class="chips" id="precoCanais"></div>
       <div class="placar" id="precoPlacar"></div>
     </div>
+    <div id="formCustos" class="novoing hide"></div>
     <div id="listaCustos"></div>
     <div class="foot"><button id="btnCustosVoltar">Voltar</button></div>
   </section>
@@ -504,11 +535,12 @@ button{font-family:inherit;font-size:inherit;cursor:pointer;}
       <input id="fNome" type="text" placeholder="Ex.: Bolo de Pote de Ninho">
     </label>
     <div class="campos">
-      <label>Rende (unidades)<input id="fRend" type="tel" inputmode="decimal"></label>
-      <label>Tempo por un. (min)<input id="fTempo" type="tel" inputmode="decimal"></label>
+      <label id="lbRend">Rende (unidades)<input id="fRend" type="tel" inputmode="decimal"></label>
+      <label id="lbTempo">Tempo por un. (min)<input id="fTempo" type="tel" inputmode="decimal"></label>
     </div>
     <div id="fichaItens"></div>
     <select class="busca" id="addIng"><option value="">+ adicionar ingrediente</option></select>
+    <div id="novoIng" class="novoing hide"></div>
     <div class="resumo" id="fichaResumo"></div>
 
     <div class="preparo">
@@ -521,6 +553,7 @@ button{font-family:inherit;font-size:inherit;cursor:pointer;}
     <div class="foot">
       <button id="btnFichaSalvar">Salvar ficha</button>
       <button class="link" id="btnFichaVoltar">Voltar sem salvar</button>
+      <button class="link" id="btnFichaApagar">Apagar esta receita</button>
     </div>
   </section>
 
@@ -779,8 +812,9 @@ async function carregarHome(){
    ============================================================ */
 let ABA = "fichas";
 let CATALOGO = [];   // insumos + sub-receitas, para o seletor
-let FICHA = null;    // ficha aberta
-let FITENS = [];     // itens da ficha aberta
+let FICHA = null;    // receita aberta
+let FITENS = [];     // itens da receita aberta
+let TIPO = "ficha";  // "ficha" (produto) ou "sub" (massa ou recheio)
 
 const dinheiro = v => (v === null || v === undefined || isNaN(v))
   ? "sem custo"
@@ -812,6 +846,7 @@ function trocarAba(a){
   $("abaGeladeira").setAttribute("aria-pressed", String(a === "geladeira"));
   $("buscaInsumo").classList.toggle("hide", a !== "insumos");
   $("precoCab").classList.toggle("hide", a !== "preco");
+  $("formCustos").classList.add("hide");
   if(a === "fichas") listarFichas();
   else if(a === "insumos") listarInsumos();
   else if(a === "geladeira") listarGeladeira();
@@ -918,56 +953,97 @@ async function recarregarProdutos(){
   PRODUTOS = data || [];
 }
 
+function linhaLista(titulo, sub, valor, classe, onclick){
+  const b = document.createElement("button");
+  b.type = "button";
+  b.className = "lin " + (classe || "");
+  const n = document.createElement("span"); n.className = "n";
+  n.textContent = titulo;
+  if(sub){ const s = document.createElement("small"); s.textContent = sub; n.appendChild(s); }
+  const v = document.createElement("span");
+  v.className = "v" + (classe === "falta" ? " vazio" : "");
+  v.textContent = valor;
+  b.append(n, v);
+  b.onclick = onclick;
+  return b;
+}
+
 async function listarFichas(){
   const box = $("listaCustos");
   box.innerHTML = "<p class='tip'>Carregando...</p>";
-  const { data, error } = await sb.from("jb_ficha_custo").select("*").order("nome");
-  if(error){ box.innerHTML=""; aviso("custosMsg","Não consegui carregar as fichas agora.","err"); return; }
+  const [fc, sc] = await Promise.all([
+    sb.from("jb_ficha_custo").select("*").order("nome"),
+    sb.from("jb_subreceita_custo").select("*").order("nome")
+  ]);
+  if(fc.error){ box.innerHTML=""; aviso("custosMsg","Não consegui carregar as receitas agora.","err"); return; }
   box.innerHTML = "";
 
-  const nova = document.createElement("button");
-  nova.type = "button"; nova.className = "lin";
-  nova.style.borderLeftColor = "var(--coral)";
-  const nn = document.createElement("span"); nn.className = "n";
-  nn.textContent = "Nova ficha técnica";
-  const ns = document.createElement("small");
-  ns.textContent = "Produto novo: nome, ingredientes, rendimento e passo a passo";
-  nn.appendChild(ns);
-  const nv = document.createElement("span"); nv.className = "v"; nv.textContent = "+";
-  nova.append(nn, nv);
-  nova.onclick = () => abrirFicha(null);
-  box.appendChild(nova);
+  const h1 = document.createElement("div"); h1.className = "grupo"; h1.textContent = "Produtos";
+  box.appendChild(h1);
+  box.appendChild(linhaLista("Nova ficha técnica",
+    "Produto novo: nome, ingredientes, rendimento e passo a passo", "+", "", () => abrirFicha(null,"ficha")));
 
-  (data || []).forEach(f => {
+  (fc.data || []).forEach(f => {
     const incompleta = f.rascunho || f.itens_sem_quantidade > 0 || f.itens_sem_preco > 0 || !f.itens;
-    const b = document.createElement("button");
-    b.type = "button";
-    b.className = "lin " + (incompleta ? "falta" : "ok");
-    const n = document.createElement("span"); n.className = "n";
-    n.textContent = f.nome;
-    const s = document.createElement("small");
-    s.textContent =
+    const sub =
       f.itens_sem_quantidade > 0 ? f.itens_sem_quantidade + " ingrediente(s) sem quantidade"
     : f.itens_sem_preco > 0      ? f.itens_sem_preco + " ingrediente(s) sem preço"
     : f.rascunho                 ? "receita ainda não preenchida"
     : f.itens + " ingredientes · " + (f.tempo_mo_min || 0) + " min por unidade";
-    n.appendChild(s);
-    const v = document.createElement("span");
-    v.className = "v" + (incompleta ? " vazio" : "");
-    v.textContent = f.rascunho && !f.itens_sem_quantidade ? "rascunho"
-                  : incompleta ? "incompleta" : dinheiro(f.custo_unit);
-    b.append(n, v);
-    b.onclick = () => abrirFicha(f.id);
-    box.appendChild(b);
+    const valor = f.rascunho && !f.itens_sem_quantidade ? "rascunho"
+                : incompleta ? "incompleta" : dinheiro(f.custo_unit);
+    box.appendChild(linhaLista(f.nome, sub, valor, incompleta ? "falta" : "ok",
+      () => abrirFicha(f.id, "ficha")));
+  });
+
+  const h2 = document.createElement("div"); h2.className = "grupo";
+  h2.textContent = "Massas e recheios";
+  box.appendChild(h2);
+  box.appendChild(linhaLista("Nova massa ou recheio",
+    "O que é feito em quilo e entra dentro dos produtos", "+", "", () => abrirFicha(null,"sub")));
+
+  (sc.data || []).forEach(s => {
+    const custo = s.custo_kg_calculado ?? s.custo_kg_planilha;
+    box.appendChild(linhaLista(s.nome,
+      "rende " + Number(s.rendimento_kg || 0).toLocaleString("pt-BR",{maximumFractionDigits:3}) + " kg",
+      custo == null ? "sem custo" : dinheiro(custo) + " / kg",
+      custo == null ? "falta" : "ok",
+      () => abrirFicha(s.id, "sub")));
   });
 }
 
 async function listarInsumos(){
   const box = $("listaCustos");
   box.innerHTML = "<p class='tip'>Carregando...</p>";
-  const { data } = await sb.from("jb_insumo").select("id,nome,unidade,custo_unit,fornecedor").order("nome");
+  const [ins, uso] = await Promise.all([
+    sb.from("jb_insumo").select("id,nome,unidade,custo_unit,fornecedor,categoria,equiv_g,ativo").order("nome"),
+    sb.from("jb_uso_ingrediente").select("nome,em_fichas,em_subreceitas")
+  ]);
+  const USOS = {};
+  (uso.data || []).forEach(u => USOS[u.nome] = Number(u.em_fichas) + Number(u.em_subreceitas));
+  const data = ins.data;
   const termo = ($("buscaInsumo").value || "").toLowerCase().trim();
   box.innerHTML = "";
+
+  box.appendChild(linhaLista("Novo ingrediente",
+    "Nome, unidade de compra e preço", "+", "",
+    () => miniForm("formCustos", "Ingrediente novo", [
+      { chave:"nome", rotulo:"Nome", largo:true, dica:"Ex.: Pistache moído" },
+      { chave:"unidade", rotulo:"Comprado por", opcoes:UNIDADES, valor:"kg" },
+      { chave:"custo", rotulo:"Preço por essa unidade", numero:true, dica:"0,00" },
+      { chave:"categoria", rotulo:"É o quê", opcoes:[["ingrediente","ingrediente"],["embalagem","embalagem"]], valor:"ingrediente" },
+      { chave:"fornecedor", rotulo:"Fornecedor (opcional)", dica:"" }
+    ], async v => {
+      if(!v.nome){ aviso("custosMsg","Dê um nome ao ingrediente.","warn"); return false; }
+      const { error } = await sb.from("jb_insumo").insert({
+        nome:v.nome, unidade:v.unidade, custo_unit:numBR(v.custo),
+        categoria:v.categoria, fornecedor:v.fornecedor || null, ativo:true });
+      if(error){ aviso("custosMsg","Não consegui criar. Talvez já exista um com esse nome.","err"); return false; }
+      CATALOGO = [];
+      aviso("custosMsg", v.nome + " cadastrado.","ok");
+      listarInsumos();
+    }, { rotuloSalvar:"Criar" })));
+
   (data || []).filter(i => !termo || i.nome.toLowerCase().includes(termo)).forEach(i => {
     const row = document.createElement("div");
     row.className = "ing" + (i.custo_unit === null ? " semq" : "");
@@ -996,9 +1072,65 @@ async function listarInsumos(){
     inp.addEventListener("keydown", e => { if(e.key === "Enter") inp.blur(); });
     const un = document.createElement("span"); un.className = "cst";
     un.textContent = "reais por " + (i.unidade || "un");
-    bot.append(inp, un);
+
+    const editar = document.createElement("button");
+    editar.type = "button"; editar.className = "rm"; editar.textContent = "editar";
+    editar.onclick = () => formEditarInsumo(i, USOS[i.nome] || 0);
+
+    bot.append(inp, un, editar);
     row.append(top, bot);
     box.appendChild(row);
+  });
+}
+
+function formEditarInsumo(i, usos){
+  const campos = [
+    { chave:"nome", rotulo:"Nome", largo:true, valor:i.nome },
+    { chave:"unidade", rotulo:"Comprado por", opcoes:UNIDADES, valor:i.unidade || "kg" },
+    { chave:"custo", rotulo:"Preço por essa unidade", numero:true,
+      valor: i.custo_unit == null ? "" : Number(i.custo_unit).toFixed(2) },
+    { chave:"categoria", rotulo:"É o quê",
+      opcoes:[["ingrediente","ingrediente"],["embalagem","embalagem"]], valor:i.categoria || "ingrediente" },
+    { chave:"equiv_g", rotulo:"Peso do pacote em g", numero:true,
+      valor: i.equiv_g == null ? "" : String(i.equiv_g) },
+    { chave:"fornecedor", rotulo:"Fornecedor", valor:i.fornecedor || "", largo:true }
+  ];
+  miniForm("formCustos", i.nome, campos, async v => {
+    if(!v.nome){ aviso("custosMsg","O nome não pode ficar vazio.","warn"); return false; }
+    if(v.nome !== i.nome){
+      const { error } = await sb.rpc("jb_renomear_ingrediente", { p_antigo: i.nome, p_novo: v.nome });
+      if(error){
+        aviso("custosMsg", String(error.message||"").includes("ja existe")
+          ? "Já existe outro item com esse nome." : "Não consegui renomear.","err");
+        return false;
+      }
+    }
+    const { error } = await sb.from("jb_insumo").update({
+      unidade: v.unidade, custo_unit: numBR(v.custo), categoria: v.categoria,
+      equiv_g: numBR(v.equiv_g), fornecedor: v.fornecedor || null
+    }).eq("id", i.id);
+    if(error){ aviso("custosMsg","Não consegui salvar.","err"); return false; }
+    CATALOGO = [];
+    aviso("custosMsg", v.nome + " atualizado. As receitas que usam já recalcularam.","ok");
+    listarInsumos();
+  }, {
+    nota: "Peso do pacote só importa quando você compra por unidade e usa por grama, como o Kinder e o Oreo."
+        + (usos ? " Este item está em " + usos + " receita(s)." : " Não está em nenhuma receita."),
+    aoApagar: async () => {
+      if(usos > 0){
+        aviso("custosMsg","Não dá para apagar: " + i.nome + " está em " + usos +
+              " receita(s). Tire das receitas primeiro.","warn");
+        return;
+      }
+      if(!confirm("Apagar " + i.nome + " de vez?")) return;
+      const { error } = await sb.from("jb_insumo").delete().eq("id", i.id);
+      if(error){ aviso("custosMsg","Não consegui apagar.","err"); return; }
+      CATALOGO = [];
+      $("formCustos").classList.add("hide");
+      aviso("custosMsg", i.nome + " apagado.","ok");
+      listarInsumos();
+    },
+    rotuloApagar: "apagar ingrediente"
   });
 }
 
@@ -1072,6 +1204,57 @@ function montarChips(){
     b.onclick = () => { CANAL = c; ajustesAbertos = false; listarPrecos(); };
     box.appendChild(b);
   });
+  const mais = document.createElement("button");
+  mais.type = "button"; mais.textContent = "+ canal";
+  mais.setAttribute("aria-pressed","false");
+  mais.onclick = () => formCanal(null);
+  box.appendChild(mais);
+}
+
+function formCanal(canal){
+  const novo = !canal;
+  miniForm("formCustos", novo ? "Canal novo" : canal.nome, [
+    { chave:"nome", rotulo:"Nome do canal", largo:true, valor: novo ? "" : canal.nome, dica:"Ex.: Rappi" },
+    { chave:"taxa", rotulo:"Taxa do app (%)", numero:true, valor: novo ? "" : (Number(canal.taxa)*100).toFixed(2) },
+    { chave:"promo", rotulo:"Promoção (%)", numero:true, valor: novo ? "" : (Number(canal.promo)*100).toFixed(2) }
+  ], async v => {
+    if(!v.nome){ aviso("custosMsg","Dê um nome ao canal.","warn"); return false; }
+    const taxa  = (numBR(v.taxa)  || 0) / 100;
+    const promo = (numBR(v.promo) || 0) / 100;
+    if(taxa + promo >= 1){ aviso("custosMsg","Taxa mais promoção não pode chegar a 100%.","warn"); return false; }
+    if(novo){
+      const ordem = Math.max(0, ...CANAIS.map(c => c.ordem || 0)) + 1;
+      const { data, error } = await sb.from("jb_canal")
+        .insert({ nome:v.nome, taxa, promo, ordem, ativo:true }).select("id").single();
+      if(error){ aviso("custosMsg","Não consegui criar o canal.","err"); return false; }
+      CANAIS = []; CANAL = null;
+      await listarPrecos();
+      const novoCanal = CANAIS.find(c => c.id === data.id);
+      if(novoCanal){ CANAL = novoCanal; await listarPrecos(); }
+      aviso("custosMsg", v.nome + " criado. Agora coloque os preços.","ok");
+    } else {
+      const { error } = await sb.from("jb_canal")
+        .update({ nome:v.nome, taxa, promo }).eq("id", canal.id);
+      if(error){ aviso("custosMsg","Não consegui salvar o canal.","err"); return false; }
+      CANAIS = []; CANAL = null;
+      await listarPrecos();
+      aviso("custosMsg","Canal atualizado.","ok");
+    }
+  }, {
+    rotuloSalvar: novo ? "Criar canal" : "Salvar",
+    nota: novo ? "Depois de criar, os preços deste canal começam vazios."
+               : "Mudar a taxa aqui muda a margem de todos os produtos deste canal.",
+    aoApagar: novo ? null : async () => {
+      if(!confirm("Apagar o canal " + canal.nome + "?\n\nIsso apaga junto todos os preços cadastrados nele.\n\nNão dá para desfazer.")) return;
+      const { error } = await sb.from("jb_canal").delete().eq("id", canal.id);
+      if(error){ aviso("custosMsg","Não consegui apagar o canal.","err"); return; }
+      $("formCustos").classList.add("hide");
+      CANAIS = []; CANAL = null;
+      await listarPrecos();
+      aviso("custosMsg","Canal apagado.","ok");
+    },
+    rotuloApagar: "apagar canal"
+  });
 }
 
 function montarPlacar(){
@@ -1122,6 +1305,12 @@ function montarPlacar(){
     taxas.appendChild(lb);
   });
   box.appendChild(taxas);
+
+  const editar = document.createElement("button");
+  editar.type = "button"; editar.className = "abrir";
+  editar.textContent = "editar ou apagar o canal " + CANAL.nome;
+  editar.onclick = () => formCanal(CANAL);
+  box.appendChild(editar);
 
   const link = document.createElement("button");
   link.type = "button"; link.className = "abrir";
@@ -1245,35 +1434,109 @@ function montarListaPrecos(){
   if(!ord.length) box.innerHTML = "<p class='tip'>Nenhuma ficha com custo fechado ainda. Complete as fichas para ver a margem.</p>";
 }
 
-async function abrirFicha(id){
+async function abrirFicha(id, tipo){
   aviso("fichaMsg","","");
+  TIPO = tipo || "ficha";
+  const sub = TIPO === "sub";
+  $("novoIng").classList.add("hide");
+
   if(id === null){
-    FICHA = { id:null, nome:"", rendimento_un:1, tempo_mo_min:null,
-              modo_preparo:"", preparo_conferido:false };
+    FICHA = { id:null, nome:"", rendimento:1, tempo_mo_min:null,
+              modo_preparo:"", preparo_conferido:false, nome_original:null };
     FITENS = [];
-    $("fichaTitulo").textContent = "Ficha nova";
+    $("fichaTitulo").textContent = sub ? "Massa ou recheio novo" : "Ficha nova";
+  } else if(sub){
+    const [s, itens] = await Promise.all([
+      sb.from("jb_subreceita").select("*").eq("id", id).single(),
+      sb.from("jb_subreceita_item").select("*").eq("subreceita_id", id).order("ordem")
+    ]);
+    if(s.error){ aviso("custosMsg","Não consegui abrir essa receita.","err"); return; }
+    FICHA = { ...s.data, rendimento: s.data.rendimento_kg, nome_original: s.data.nome };
+    FITENS = (itens.data || []).map(i => ({ ingrediente:i.ingrediente, unidade:i.unidade, qtd:i.qtd }));
+    $("fichaTitulo").textContent = FICHA.nome;
   } else {
     const [f, itens] = await Promise.all([
       sb.from("jb_ficha").select("*").eq("id", id).single(),
       sb.from("jb_ficha_item_custo").select("*").eq("ficha_id", id).order("ordem")
     ]);
     if(f.error){ aviso("custosMsg","Não consegui abrir essa ficha.","err"); return; }
-    FICHA = f.data;
+    FICHA = { ...f.data, rendimento: f.data.rendimento_un, nome_original: f.data.nome };
     FITENS = (itens.data || []).map(i => ({
       ingrediente: i.ingrediente, unidade: i.unidade, qtd: i.qtd,
       custo_referencia: i.custo_referencia, origem: i.origem
     }));
     $("fichaTitulo").textContent = FICHA.nome;
   }
+
+  $("lbRend").childNodes[0].nodeValue = sub ? "Rende (kg)" : "Rende (unidades)";
+  $("lbTempo").classList.toggle("hide", sub);
   $("fNome").value  = FICHA.nome || "";
-  $("fRend").value  = FICHA.rendimento_un ?? 1;
+  $("fNome").placeholder = sub ? "Ex.: Brigadeiro Cremoso de Pistache" : "Ex.: Bolo de Pote de Ninho";
+  $("fRend").value  = FICHA.rendimento ?? 1;
   $("fTempo").value = FICHA.tempo_mo_min ?? "";
   $("fPreparo").value = FICHA.modo_preparo || "";
   $("fConferido").checked = !!FICHA.preparo_conferido;
+  $("btnFichaSalvar").textContent = sub ? "Salvar receita" : "Salvar ficha";
+  $("btnFichaApagar").classList.toggle("hide", FICHA.id === null);
   avisoPreparo();
   montarSeletor();
   montarItens();
   show("scFicha");
+}
+
+/* ---------- apagar uma receita, com aviso do que se perde ---------- */
+async function apagarFicha(){
+  if(!FICHA || FICHA.id === null) return;
+  aviso("fichaMsg","","");
+  const sub = TIPO === "sub";
+
+  if(sub){
+    const { data: uso } = await sb.from("jb_uso_ingrediente")
+      .select("em_fichas,em_subreceitas").eq("nome", FICHA.nome).maybeSingle();
+    const usos = (uso ? Number(uso.em_fichas) + Number(uso.em_subreceitas) : 0);
+    if(usos > 0){
+      aviso("fichaMsg","Não dá para apagar: " + FICHA.nome + " é usada em " + usos +
+            " receita(s). Tire ela dessas receitas primeiro.","warn");
+      window.scrollTo(0,0);
+      return;
+    }
+  }
+
+  const [prec, prod] = await Promise.all([
+    sub ? Promise.resolve({ data: [] })
+        : sb.from("jb_preco").select("canal_id").eq("ficha_id", FICHA.id),
+    sb.from("jb_producao_item").select("id").eq("tipo", sub ? "subreceita" : "ficha").eq("ref_id", FICHA.id)
+  ]);
+  const nPrecos = (prec.data || []).length;
+  const nProd   = (prod.data || []).length;
+
+  const perde = [];
+  if(nPrecos) perde.push(nPrecos + " preço(s) de canal");
+  if(nProd)   perde.push(nProd + " dia(s) de produção");
+  const texto = "Apagar " + FICHA.nome + " de vez?" +
+    (perde.length ? "\n\nIsso apaga junto: " + perde.join(" e ") + "." : "") +
+    "\n\nNão dá para desfazer.";
+  if(!confirm(texto)) return;
+
+  const btn = $("btnFichaApagar");
+  btn.disabled = true; btn.textContent = "Apagando...";
+  try{
+    if(nProd){
+      const { error } = await sb.from("jb_producao_item")
+        .delete().eq("tipo", sub ? "subreceita" : "ficha").eq("ref_id", FICHA.id);
+      if(error) throw error;
+    }
+    const tab = sub ? "jb_subreceita" : "jb_ficha";
+    const { error } = await sb.from(tab).delete().eq("id", FICHA.id);
+    if(error) throw error;
+    CATALOGO = [];
+    await abrirCustos();
+    aviso("custosMsg", FICHA.nome + " foi apagada.","ok");
+  } catch(err){
+    aviso("fichaMsg","Não consegui apagar agora. Tente de novo.","err");
+    window.scrollTo(0,0);
+  }
+  btn.disabled = false; btn.textContent = "Apagar esta receita";
 }
 
 function avisoPreparo(){
@@ -1285,10 +1548,113 @@ function avisoPreparo(){
           : "Ainda não conferido. Quem produz vê a receita marcada como rascunho até você conferir.";
 }
 
+/* ---------- formulário curto, reaproveitado em vários lugares ---------- */
+function miniForm(alvo, titulo, campos, aoSalvar, opcoes){
+  const box = $(alvo);
+  box.classList.remove("hide");
+  box.innerHTML = "";
+  const h = document.createElement("h4"); h.textContent = titulo;
+  box.appendChild(h);
+
+  const lin = document.createElement("div"); lin.className = "lin2";
+  const refs = {};
+  campos.forEach(c => {
+    const lb = document.createElement("label");
+    if(c.largo) lb.className = "wide";
+    lb.appendChild(document.createTextNode(c.rotulo));
+    let el;
+    if(c.opcoes){
+      el = document.createElement("select");
+      c.opcoes.forEach(([v,t]) => {
+        const o = document.createElement("option"); o.value = v; o.textContent = t;
+        if(String(c.valor) === String(v)) o.selected = true;
+        el.appendChild(o);
+      });
+    } else {
+      el = document.createElement("input");
+      el.type = c.numero ? "tel" : "text";
+      if(c.numero) el.inputMode = "decimal";
+      el.value = c.valor == null ? "" : String(c.valor).replace(".",",");
+      if(c.dica) el.placeholder = c.dica;
+    }
+    lb.appendChild(el);
+    refs[c.chave] = el;
+    lin.appendChild(lb);
+  });
+  box.appendChild(lin);
+
+  if(opcoes && opcoes.nota){
+    const p = document.createElement("p"); p.className = "nota"; p.textContent = opcoes.nota;
+    box.appendChild(p);
+  }
+
+  const acoes = document.createElement("div"); acoes.className = "acoes";
+  const ok = document.createElement("button");
+  ok.type = "button"; ok.textContent = (opcoes && opcoes.rotuloSalvar) || "Salvar";
+  ok.onclick = async () => {
+    const vals = {};
+    campos.forEach(c => vals[c.chave] = refs[c.chave].value.trim());
+    ok.disabled = true; ok.textContent = "Salvando...";
+    const fechou = await aoSalvar(vals);
+    ok.disabled = false; ok.textContent = (opcoes && opcoes.rotuloSalvar) || "Salvar";
+    if(fechou !== false) box.classList.add("hide");
+  };
+  const cancelar = document.createElement("button");
+  cancelar.type = "button"; cancelar.className = "sec"; cancelar.textContent = "cancelar";
+  cancelar.onclick = () => box.classList.add("hide");
+  acoes.append(ok, cancelar);
+
+  if(opcoes && opcoes.aoApagar){
+    const del = document.createElement("button");
+    del.type = "button"; del.className = "perigo";
+    del.textContent = opcoes.rotuloApagar || "apagar";
+    del.onclick = () => opcoes.aoApagar();
+    acoes.appendChild(del);
+  }
+  box.appendChild(acoes);
+  box.scrollIntoView({ block:"center", behavior:"smooth" });
+  return refs;
+}
+
+const UNIDADES = [["kg","kg"],["g","g"],["L","L"],["ml","ml"],["un","un"],["m","m"]];
+
+function formNovoInsumo(){
+  miniForm("novoIng", "Ingrediente novo", [
+    { chave:"nome", rotulo:"Nome", largo:true, dica:"Ex.: Pistache moído" },
+    { chave:"unidade", rotulo:"Comprado por", opcoes:UNIDADES, valor:"kg" },
+    { chave:"custo", rotulo:"Preço por essa unidade", numero:true, dica:"0,00" },
+    { chave:"categoria", rotulo:"É o quê", opcoes:[["ingrediente","ingrediente"],["embalagem","embalagem"]], valor:"ingrediente", largo:true }
+  ], async v => {
+    if(!v.nome){ aviso("fichaMsg","Dê um nome ao ingrediente.","warn"); return false; }
+    if(CATALOGO.some(c => c.nome.toLowerCase() === v.nome.toLowerCase())){
+      aviso("fichaMsg","Já existe um ingrediente com esse nome.","warn"); return false;
+    }
+    const custo = numBR(v.custo);
+    const { error } = await sb.from("jb_insumo").insert({
+      nome: v.nome, unidade: v.unidade, custo_unit: custo,
+      categoria: v.categoria, ativo: true
+    });
+    if(error){ aviso("fichaMsg","Não consegui criar esse ingrediente.","err"); return false; }
+    CATALOGO.push({ nome:v.nome, tipo:"insumo", unidade:v.unidade, custo:custo,
+                    equiv_g:null, categoria:v.categoria });
+    CATALOGO.sort((a,b) => a.tipo === b.tipo ? a.nome.localeCompare(b.nome) : (a.tipo === "sub-receita" ? -1 : 1));
+    FITENS.push({ ingrediente:v.nome, unidade:v.unidade, qtd:null,
+                  custo_referencia:custo, origem:"insumo" });
+    montarSeletor();
+    montarItens();
+    aviso("fichaMsg", v.nome + " criado e já colocado na receita. Falta a quantidade.","ok");
+  }, { rotuloSalvar:"Criar e usar",
+       nota:"Se você comprar por pacote e usar por grama, cadastre por pacote e depois ajuste o peso do pacote na aba Insumos." });
+}
+
 function montarSeletor(){
   const sel = $("addIng");
   sel.innerHTML = '<option value="">+ adicionar ingrediente</option>';
+  const oNovo = document.createElement("option");
+  oNovo.value = "__novo__"; oNovo.textContent = "+ criar um ingrediente que não está na lista";
+  sel.appendChild(oNovo);
   CATALOGO.forEach(c => {
+    if(TIPO === "sub" && c.nome === FICHA.nome) return;   // uma receita não entra nela mesma
     const o = document.createElement("option");
     o.value = c.nome;
     o.textContent = c.nome + "  (" + c.tipo + ")";
@@ -1296,6 +1662,7 @@ function montarSeletor(){
   });
   sel.onchange = () => {
     const nome = sel.value; if(!nome) return;
+    if(nome === "__novo__"){ sel.value = ""; formNovoInsumo(); return; }
     const cat = CATALOGO.find(c => c.nome === nome);
     if(FITENS.some(i => i.ingrediente === nome)){
       aviso("fichaMsg","Esse ingrediente já está na ficha.","warn");
@@ -1318,7 +1685,10 @@ function montarItens(){
     const top = document.createElement("div"); top.className = "top";
     const nm = document.createElement("span"); nm.className = "nm"; nm.textContent = it.ingrediente;
     const cs = document.createElement("span"); cs.className = "cst";
-    cs.textContent = it.origem === "sem cadastro" ? "sem preço cadastrado" : it.origem;
+    const catIt = CATALOGO.find(c => c.nome === it.ingrediente);
+    const org = catIt ? catIt.tipo : (it.origem || "sem cadastro");
+    cs.textContent = (org === "sem cadastro" || (catIt && catIt.custo == null))
+      ? "sem preço cadastrado" : org;
     top.append(nm, cs);
 
     const bot = document.createElement("div"); bot.className = "bot";
@@ -1386,14 +1756,18 @@ function calcular(){
     const b = document.createElement("b"); b.textContent = val;
     d.append(a,b); box.appendChild(d);
   };
+  const sub = TIPO === "sub";
   linha("Itens na receita", FITENS.length + "");
-  linha("Rende", rend + (rend === 1 ? " unidade" : " unidades"));
+  linha("Rende", sub ? rend.toLocaleString("pt-BR",{maximumFractionDigits:3}) + " kg"
+                     : rend + (rend === 1 ? " unidade" : " unidades"));
   if(faltando)  linha("Sem quantidade", faltando + " item(ns)");
   if(semPreco)  linha("Sem preço cadastrado", semPreco + " item(ns)");
   linha("Custo da receita inteira", dinheiro(total));
-  linha("Ingredientes por unidade", dinheiro((total - emb) / rend));
-  linha("Embalagem por unidade", dinheiro(emb / rend));
-  linha("CMV por unidade", dinheiro(total / rend), true);
+  if(!sub){
+    linha("Ingredientes por unidade", dinheiro((total - emb) / rend));
+    linha("Embalagem por unidade", dinheiro(emb / rend));
+  }
+  linha(sub ? "Custo por kg" : "CMV por unidade", dinheiro(total / rend), true);
   if(faltando || semPreco){
     const p = document.createElement("p");
     p.className = "tip"; p.style.margin = "8px 0 0";
@@ -1406,56 +1780,92 @@ function calcular(){
 
 async function salvarFicha(){
   const btn = $("btnFichaSalvar");
+  const sub = TIPO === "sub";
+  const rotulo = sub ? "Salvar receita" : "Salvar ficha";
   btn.disabled = true; btn.textContent = "Salvando...";
   try{
     const nome  = $("fNome").value.trim();
     if(!nome){
-      aviso("fichaMsg","Dê um nome ao produto antes de salvar.","warn");
+      aviso("fichaMsg", sub ? "Dê um nome a esta massa ou recheio." : "Dê um nome ao produto antes de salvar.","warn");
       window.scrollTo(0,0);
-      btn.disabled = false; btn.textContent = "Salvar ficha";
+      btn.disabled = false; btn.textContent = rotulo;
       return;
     }
     const rend  = parseFloat(($("fRend").value || "1").replace(",",".")) || 1;
     const tempo = $("fTempo").value.trim() === "" ? null
                 : (parseFloat($("fTempo").value.replace(",",".")) || null);
     const preparo = $("fPreparo").value.trim() || null;
-
-    // se todas as quantidades estão preenchidas, a ficha deixa de ser rascunho
+    const conferido = $("fConferido").checked && !!preparo;
     const completa = FITENS.length > 0 && FITENS.every(i => i.qtd !== null && i.qtd !== undefined);
-    const campos = {
-      nome, rendimento_un: rend, tempo_mo_min: tempo, rascunho: !completa,
-      modo_preparo: preparo, preparo_conferido: $("fConferido").checked && !!preparo
-    };
 
-    if(FICHA.id === null){
-      const { data, error: e0 } = await sb.from("jb_ficha")
-        .insert({ ...campos, ativo: true }).select("id").single();
-      if(e0) throw e0;
-      FICHA.id = data.id;
+    // sub-receita é ligada às fichas pelo nome: renomear arrasta as referências junto
+    if(sub && FICHA.id !== null && FICHA.nome_original && FICHA.nome_original !== nome){
+      const { error } = await sb.rpc("jb_renomear_ingrediente",
+        { p_antigo: FICHA.nome_original, p_novo: nome });
+      if(error){
+        aviso("fichaMsg", String(error.message||"").includes("ja existe")
+          ? "Já existe outro ingrediente ou receita com esse nome."
+          : "Não consegui renomear essa receita.","err");
+        window.scrollTo(0,0);
+        btn.disabled = false; btn.textContent = rotulo;
+        return;
+      }
+      FICHA.nome_original = nome;
+    }
+
+    if(sub){
+      const campos = { nome, rendimento_kg: rend, modo_preparo: preparo, preparo_conferido: conferido };
+      if(FICHA.id === null){
+        const { data, error: e0 } = await sb.from("jb_subreceita")
+          .insert({ ...campos, ativo: true }).select("id").single();
+        if(e0) throw e0;
+        FICHA.id = data.id;
+      } else {
+        const { error: e1 } = await sb.from("jb_subreceita").update(campos).eq("id", FICHA.id);
+        if(e1) throw e1;
+      }
+      const { error: e2 } = await sb.from("jb_subreceita_item").delete().eq("subreceita_id", FICHA.id);
+      if(e2) throw e2;
+      if(FITENS.length){
+        const { error: e3 } = await sb.from("jb_subreceita_item").insert(
+          FITENS.map((it,i) => ({ subreceita_id: FICHA.id, ordem: i+1,
+            ingrediente: it.ingrediente, unidade: it.unidade, qtd: it.qtd })));
+        if(e3) throw e3;
+      }
     } else {
-      const { error: e1 } = await sb.from("jb_ficha").update(campos).eq("id", FICHA.id);
-      if(e1) throw e1;
+      const campos = {
+        nome, rendimento_un: rend, tempo_mo_min: tempo, rascunho: !completa,
+        modo_preparo: preparo, preparo_conferido: conferido
+      };
+      if(FICHA.id === null){
+        const { data, error: e0 } = await sb.from("jb_ficha")
+          .insert({ ...campos, ativo: true }).select("id").single();
+        if(e0) throw e0;
+        FICHA.id = data.id;
+      } else {
+        const { error: e1 } = await sb.from("jb_ficha").update(campos).eq("id", FICHA.id);
+        if(e1) throw e1;
+      }
+      const { error: e2 } = await sb.from("jb_ficha_item").delete().eq("ficha_id", FICHA.id);
+      if(e2) throw e2;
+      if(FITENS.length){
+        const { error: e3 } = await sb.from("jb_ficha_item").insert(
+          FITENS.map((it,i) => ({ ficha_id: FICHA.id, ordem: i+1,
+            ingrediente: it.ingrediente, unidade: it.unidade, qtd: it.qtd })));
+        if(e3) throw e3;
+      }
     }
+
     FICHA.nome = nome;
-
-    const { error: e2 } = await sb.from("jb_ficha_item").delete().eq("ficha_id", FICHA.id);
-    if(e2) throw e2;
-
-    if(FITENS.length){
-      const linhas = FITENS.map((it,i) => ({
-        ficha_id: FICHA.id, ordem: i+1, ingrediente: it.ingrediente,
-        unidade: it.unidade, qtd: it.qtd
-      }));
-      const { error: e3 } = await sb.from("jb_ficha_item").insert(linhas);
-      if(e3) throw e3;
-    }
+    CATALOGO = [];            // custos e nomes mudaram, recarrega o catálogo
+    RECEITAS = null;          // e as listas da produção
     await abrirCustos();
-    aviso("custosMsg","Ficha de " + FICHA.nome + " salva.","ok");
+    aviso("custosMsg", (sub ? "Receita de " : "Ficha de ") + nome + " salva.","ok");
   } catch(err){
     aviso("fichaMsg","Não consegui salvar agora. Tente de novo em instantes.","err");
     window.scrollTo(0,0);
   }
-  btn.disabled = false; btn.textContent = "Salvar ficha";
+  btn.disabled = false; btn.textContent = rotulo;
 }
 
 /* ============================================================
@@ -1997,6 +2407,7 @@ $("btnSairProd").onclick = () => $("btnSair").click();
 $("addProd").onchange = () => addReceitaAoDia($("addProd").value);
 $("btnRecFeito").onclick = marcarFeito;
 $("btnRecVoltar").onclick = () => { aviso("recMsg","",""); show("scProd"); };
+$("btnFichaApagar").onclick = apagarFicha;
 $("fPreparo").addEventListener("input", avisoPreparo);
 $("fConferido").addEventListener("change", avisoPreparo);
 $("buscaInsumo").addEventListener("input", () => { if(ABA === "insumos") listarInsumos(); });
