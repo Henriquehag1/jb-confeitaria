@@ -286,6 +286,58 @@ button{font-family:inherit;font-size:inherit;cursor:pointer;}
 }
 .campos input:focus{outline:2px solid var(--coral);outline-offset:1px;border-color:var(--coral);}
 
+/* ---------- preço e margem ---------- */
+.chips{display:flex;gap:6px;margin-bottom:12px;overflow-x:auto;padding-bottom:2px;}
+.chips button{
+  flex:1 0 auto;padding:9px 14px;border-radius:999px;border:1px solid var(--linha-2);
+  background:var(--creme);color:var(--tinta-2);font-size:.88rem;white-space:nowrap;
+}
+.chips button[aria-pressed="true"]{background:var(--coral-forte);border-color:var(--coral-forte);color:var(--creme);font-weight:500;}
+
+.placar{
+  background:var(--creme);border:1px solid var(--linha);border-radius:var(--r);
+  padding:15px 17px;margin-bottom:12px;
+}
+.placar .g{font-family:"Playfair Display",serif;font-size:1.5rem;font-weight:600;line-height:1.2;}
+.placar .g.alerta{color:var(--coral-fundo);}
+.placar .g.bom{color:var(--verde);}
+.placar p{margin:5px 0 0;font-size:.86rem;font-weight:300;color:var(--tinta-2);line-height:1.45;}
+.placar .taxas{
+  display:flex;gap:8px;margin-top:12px;padding-top:12px;border-top:1px solid var(--linha);
+}
+.placar .taxas label{flex:1;font-size:.68rem;letter-spacing:.08em;text-transform:uppercase;color:var(--tinta-3);font-weight:500;}
+.placar .taxas input{
+  width:100%;height:36px;margin-top:4px;border-radius:10px;border:1px solid var(--linha-2);
+  background:var(--areia);font-family:inherit;font-size:.96rem;text-align:center;
+  font-variant-numeric:tabular-nums;color:var(--tinta);
+}
+.placar .taxas input:focus{outline:2px solid var(--coral);outline-offset:1px;border-color:var(--coral);}
+.placar .abrir{
+  display:block;width:100%;margin-top:11px;border:none;background:none;padding:2px 0 0;
+  color:var(--tinta-3);font-size:.82rem;font-weight:300;text-decoration:underline;text-align:left;
+}
+
+.pm{
+  background:var(--creme);border:1px solid var(--linha);border-radius:12px;
+  border-left:3px solid var(--verde);padding:11px 13px;margin-bottom:7px;
+}
+.pm.perde{border-left-color:var(--coral-forte);}
+.pm.vazio{border-left-color:var(--linha-2);}
+.pm .top{display:flex;align-items:baseline;justify-content:space-between;gap:8px;}
+.pm .nm{font-size:.93rem;flex:1;min-width:0;line-height:1.25;}
+.pm .res{font-variant-numeric:tabular-nums;font-weight:600;font-size:.95rem;white-space:nowrap;color:var(--verde);}
+.pm.perde .res{color:var(--coral-fundo);}
+.pm.vazio .res{color:var(--tinta-3);font-weight:400;}
+.pm .bot{display:flex;align-items:center;gap:7px;margin-top:9px;}
+.pm input.q{
+  width:92px;height:36px;border-radius:10px;border:1px solid var(--linha-2);text-align:center;
+  font-family:inherit;font-size:.98rem;font-weight:500;font-variant-numeric:tabular-nums;
+  background:var(--areia);color:var(--tinta);
+}
+.pm input.q:focus{outline:2px solid var(--coral);outline-offset:1px;border-color:var(--coral);}
+.pm .mini{font-size:.79rem;color:var(--tinta-3);font-weight:300;line-height:1.45;}
+.pm .mini b{font-weight:500;color:var(--tinta-2);font-variant-numeric:tabular-nums;}
+
 @media (prefers-reduced-motion:reduce){*{transition:none!important;}}
 </style>
 </head>
@@ -337,8 +389,8 @@ button{font-family:inherit;font-size:inherit;cursor:pointer;}
       <span class="s">O que saiu em cada dia</span>
     </button>
     <button class="big ghost hide" id="btnCustos">
-      <span class="t">Custos e fichas</span>
-      <span class="s">Receitas, insumos e quanto custa cada produto</span>
+      <span class="t">Custos e preços</span>
+      <span class="s">Receitas, insumos e quanto sobra em cada canal</span>
     </button>
     <p class="tip">Conte item por item, sem pressa. Se errar, dá para corrigir no mesmo dia.</p>
   </section>
@@ -352,11 +404,16 @@ button{font-family:inherit;font-size:inherit;cursor:pointer;}
       </div>
     </div>
     <div class="abas">
-      <button id="abaFichas" aria-pressed="true">Fichas técnicas</button>
+      <button id="abaFichas" aria-pressed="true">Fichas</button>
       <button id="abaInsumos" aria-pressed="false">Insumos</button>
+      <button id="abaPreco" aria-pressed="false">Preço</button>
     </div>
     <input class="busca hide" id="buscaInsumo" type="search" placeholder="Buscar insumo...">
     <div id="custosMsg"></div>
+    <div id="precoCab" class="hide">
+      <div class="chips" id="precoCanais"></div>
+      <div class="placar" id="precoPlacar"></div>
+    </div>
     <div id="listaCustos"></div>
     <div class="foot"><button id="btnCustosVoltar">Voltar</button></div>
   </section>
@@ -619,8 +676,12 @@ function trocarAba(a){
   ABA = a;
   $("abaFichas").setAttribute("aria-pressed", String(a === "fichas"));
   $("abaInsumos").setAttribute("aria-pressed", String(a === "insumos"));
+  $("abaPreco").setAttribute("aria-pressed", String(a === "preco"));
   $("buscaInsumo").classList.toggle("hide", a !== "insumos");
-  if(a === "fichas") listarFichas(); else listarInsumos();
+  $("precoCab").classList.toggle("hide", a !== "preco");
+  if(a === "fichas") listarFichas();
+  else if(a === "insumos") listarInsumos();
+  else listarPrecos();
 }
 
 async function listarFichas(){
@@ -691,6 +752,248 @@ async function listarInsumos(){
     row.append(top, bot);
     box.appendChild(row);
   });
+}
+
+/* ============================================================
+   PREÇO E MARGEM POR CANAL (só gestor)
+   ============================================================ */
+let CANAIS = [];
+let CANAL = null;      // canal selecionado
+let CFG = {};          // jb_config
+let LINHAS = [];       // uma linha por produto no canal selecionado
+let ajustesAbertos = false;
+
+const pct = v => (Number(v) * 100).toLocaleString("pt-BR",{maximumFractionDigits:1}) + "%";
+const numBR = s => {
+  const v = String(s == null ? "" : s).replace(/\./g,"").replace(",",".").trim();
+  if(v === "") return null;
+  const n = parseFloat(v);
+  return isNaN(n) ? null : n;
+};
+const moeda = v => Number(v).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});
+
+function contaLinha(l){
+  const taxa = Number(CANAL.taxa) + Number(CANAL.promo);
+  const sobra = 1 - taxa;                     // quanto do preço sobra depois das taxas
+  const alvo  = Number(CFG.margem_alvo || 0);
+  const custo = Number(l.custo_total || 0);
+  const out = { custo, sobra, empata: sobra > 0 ? custo / sobra : null,
+                minimo: (sobra - alvo) > 0 ? custo / (sobra - alvo) : null };
+  if(l.preco == null){ out.preco = null; return out; }
+  out.preco  = Number(l.preco);
+  out.lucro  = out.preco * sobra - custo;
+  out.margem = out.preco > 0 ? out.lucro / out.preco : 0;
+  return out;
+}
+
+async function listarPrecos(){
+  const box = $("listaCustos");
+  box.innerHTML = "<p class='tip'>Carregando...</p>";
+  if(!CANAIS.length){
+    const [c, cfg] = await Promise.all([
+      sb.from("jb_canal").select("*").order("ordem"),
+      sb.from("jb_config").select("chave,valor")
+    ]);
+    CANAIS = c.data || [];
+    (cfg.data || []).forEach(r => CFG[r.chave] = Number(r.valor));
+    CANAL = CANAIS[0] || null;
+  }
+  if(!CANAL){ box.innerHTML = ""; aviso("custosMsg","Nenhum canal cadastrado ainda.","warn"); return; }
+  const { data, error } = await sb.from("jb_margem")
+    .select("ficha_id,produto,rascunho,preco,custo_total")
+    .eq("canal_id", CANAL.id);
+  if(error){ box.innerHTML = ""; aviso("custosMsg","Não consegui carregar os preços agora.","err"); return; }
+  LINHAS = (data || []).filter(l => l.custo_total != null);
+  desenharPrecos();
+}
+
+function desenharPrecos(){
+  montarChips();
+  montarPlacar();
+  montarListaPrecos();
+}
+
+function montarChips(){
+  const box = $("precoCanais");
+  box.innerHTML = "";
+  CANAIS.forEach(c => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.textContent = c.nome;
+    b.setAttribute("aria-pressed", String(c.id === CANAL.id));
+    b.onclick = () => { CANAL = c; ajustesAbertos = false; listarPrecos(); };
+    box.appendChild(b);
+  });
+}
+
+function montarPlacar(){
+  const box = $("precoPlacar");
+  const contas = LINHAS.filter(l => !l.rascunho).map(contaLinha);
+  const comPreco = contas.filter(c => c.preco != null);
+  const ruins = comPreco.filter(c => c.lucro < 0);
+  const media = comPreco.length
+    ? comPreco.reduce((s,c) => s + c.lucro, 0) / comPreco.length : 0;
+
+  box.innerHTML = "";
+  const g = document.createElement("div");
+  g.className = "g " + (ruins.length ? "alerta" : "bom");
+  g.textContent = ruins.length
+    ? ruins.length + " de " + comPreco.length + " no prejuízo"
+    : (comPreco.length ? "Todos no azul" : "Sem preços aqui ainda");
+  const p = document.createElement("p");
+  const taxaTxt = "Taxa de " + pct(CANAL.taxa) +
+    (Number(CANAL.promo) > 0 ? " mais " + pct(CANAL.promo) + " de promoção" : ", sem promoção");
+  p.textContent = comPreco.length
+    ? taxaTxt + ". Cada venda deixa em média " +
+      (media < 0 ? "um prejuízo de R$ " + moeda(-media) : "R$ " + moeda(media)) + "."
+    : taxaTxt + ". Coloque os preços abaixo para ver a margem.";
+  box.append(g, p);
+
+  const taxas = document.createElement("div");
+  taxas.className = "taxas";
+  [["taxa","Taxa do app"],["promo","Promoção"]].forEach(([campo,rot]) => {
+    const lb = document.createElement("label");
+    lb.textContent = rot + " (%)";
+    const inp = document.createElement("input");
+    inp.type = "tel"; inp.inputMode = "decimal";
+    inp.value = (Number(CANAL[campo]) * 100).toLocaleString("pt-BR",{maximumFractionDigits:2});
+    inp.onblur = async () => {
+      const n = numBR(inp.value);
+      if(n == null || n < 0 || n > 95) { inp.value = (Number(CANAL[campo])*100).toLocaleString("pt-BR",{maximumFractionDigits:2}); return; }
+      const novo = n / 100;
+      if(novo === Number(CANAL[campo])) return;
+      const { error } = await sb.from("jb_canal").update({ [campo]: novo }).eq("id", CANAL.id);
+      if(error){ aviso("custosMsg","Não consegui salvar a taxa.","err"); return; }
+      CANAL[campo] = novo;
+      const ref = CANAIS.find(c => c.id === CANAL.id); if(ref) ref[campo] = novo;
+      aviso("custosMsg","Taxa do " + CANAL.nome + " atualizada.","ok");
+      desenharPrecos();
+    };
+    inp.addEventListener("keydown", e => { if(e.key === "Enter") inp.blur(); });
+    lb.appendChild(inp);
+    taxas.appendChild(lb);
+  });
+  box.appendChild(taxas);
+
+  const link = document.createElement("button");
+  link.type = "button"; link.className = "abrir";
+  link.textContent = ajustesAbertos ? "esconder os custos da casa" : "custos da casa e meta de margem";
+  link.onclick = () => { ajustesAbertos = !ajustesAbertos; montarPlacar(); };
+  box.appendChild(link);
+
+  if(ajustesAbertos){
+    const campos = [
+      ["custo_fixo_mes","Custo fixo do mês (R$)",1],
+      ["volume_mes","Unidades vendidas por mês",1],
+      ["custo_hora","Custo da hora (R$)",1],
+      ["perdas_pct","Perdas (%)",100],
+      ["margem_alvo","Margem que você quer (%)",100]
+    ];
+    const grid = document.createElement("div");
+    grid.className = "taxas";
+    grid.style.flexWrap = "wrap";
+    campos.forEach(([chave,rot,mult]) => {
+      const lb = document.createElement("label");
+      lb.style.flex = "1 1 46%";
+      lb.textContent = rot;
+      const inp = document.createElement("input");
+      inp.type = "tel"; inp.inputMode = "decimal";
+      inp.value = (Number(CFG[chave] || 0) * mult).toLocaleString("pt-BR",{maximumFractionDigits:2});
+      inp.onblur = async () => {
+        const n = numBR(inp.value);
+        if(n == null || n < 0){ inp.value = (Number(CFG[chave]||0)*mult).toLocaleString("pt-BR",{maximumFractionDigits:2}); return; }
+        const novo = n / mult;
+        if(novo === Number(CFG[chave])) return;
+        const { error } = await sb.from("jb_config").update({ valor: novo }).eq("chave", chave);
+        if(error){ aviso("custosMsg","Não consegui salvar esse ajuste.","err"); return; }
+        CFG[chave] = novo;
+        aviso("custosMsg","Ajuste salvo. Todos os produtos já recalcularam.","ok");
+        listarPrecos();
+      };
+      inp.addEventListener("keydown", e => { if(e.key === "Enter") inp.blur(); });
+      lb.appendChild(inp);
+      grid.appendChild(lb);
+    });
+    const nota = document.createElement("p");
+    nota.textContent = "O custo fixo dividido pelas unidades do mês entra em cada produto. Mudar aqui muda a conta de todos os canais.";
+    box.append(grid, nota);
+  }
+}
+
+function montarListaPrecos(){
+  const box = $("listaCustos");
+  box.innerHTML = "";
+  const ord = LINHAS.map(l => ({ l, c: contaLinha(l) })).sort((a,b) => {
+    if(!!a.l.rascunho !== !!b.l.rascunho) return a.l.rascunho ? 1 : -1;
+    if(a.c.preco == null && b.c.preco == null) return a.l.produto.localeCompare(b.l.produto);
+    if(a.c.preco == null) return 1;
+    if(b.c.preco == null) return -1;
+    if(a.l.rascunho) return a.l.produto.localeCompare(b.l.produto);
+    return a.c.lucro - b.c.lucro;
+  });
+
+  ord.forEach(({l,c}) => {
+    const row = document.createElement("div");
+    row.className = "pm " + (l.rascunho || c.preco == null ? "vazio" : c.lucro < 0 ? "perde" : "");
+
+    const top = document.createElement("div"); top.className = "top";
+    const nm = document.createElement("span"); nm.className = "nm"; nm.textContent = l.produto;
+    const res = document.createElement("span"); res.className = "res";
+    res.textContent = l.rascunho ? "ficha incompleta"
+      : c.preco == null ? "sem preço"
+      : (c.lucro < 0 ? "perde R$ " + moeda(-c.lucro) : "sobra R$ " + moeda(c.lucro));
+    top.append(nm, res);
+
+    const bot = document.createElement("div"); bot.className = "bot";
+    const inp = document.createElement("input");
+    inp.className = "q"; inp.type = "tel"; inp.inputMode = "decimal";
+    inp.setAttribute("aria-label","Preço de " + l.produto + " no " + CANAL.nome);
+    inp.value = c.preco == null ? "" : moeda(c.preco);
+    inp.onblur = async () => {
+      const n = numBR(inp.value);
+      if(inp.value.trim() !== "" && n == null) return;
+      if(n === (c.preco == null ? null : Number(c.preco))) return;
+      inp.disabled = true;
+      let error;
+      if(n == null){
+        ({ error } = await sb.from("jb_preco").delete().eq("ficha_id", l.ficha_id).eq("canal_id", CANAL.id));
+      } else {
+        ({ error } = await sb.from("jb_preco")
+            .upsert({ ficha_id: l.ficha_id, canal_id: CANAL.id, preco: n },
+                    { onConflict: "ficha_id,canal_id" }));
+      }
+      inp.disabled = false;
+      if(error){ aviso("custosMsg","Não consegui salvar o preço de " + l.produto + ".","err"); return; }
+      l.preco = n;
+      aviso("custosMsg","Preço de " + l.produto + " no " + CANAL.nome + " salvo.","ok");
+      desenharPrecos();
+    };
+    inp.addEventListener("keydown", e => { if(e.key === "Enter") inp.blur(); });
+    const rot = document.createElement("span"); rot.className = "mini";
+    rot.textContent = "preço no " + CANAL.nome;
+    bot.append(inp, rot);
+
+    const mini = document.createElement("div"); mini.className = "mini";
+    mini.style.marginTop = "8px";
+    const alvo = Number(CFG.margem_alvo || 0);
+    if(l.rascunho){
+      mini.textContent = "a receita ainda não está preenchida, então o custo aqui não vale. Complete a ficha para ver a margem.";
+    } else {
+      let dica;
+      if(c.preco != null && c.margem >= alvo) dica = "acima da meta de " + pct(alvo);
+      else if(c.minimo == null || c.minimo > 2 * c.empata) dica = "com essa taxa a meta de " + pct(alvo) + " não fecha";
+      else dica = "para " + pct(alvo) + " cobrar R$ " + moeda(c.minimo);
+      mini.innerHTML = (c.preco != null ? "margem <b>" + pct(c.margem) + "</b> · " : "")
+        + "custo <b>R$ " + moeda(c.custo) + "</b> · "
+        + (c.empata != null ? "empata em <b>R$ " + moeda(c.empata) + "</b> · " : "")
+        + dica;
+    }
+
+    row.append(top, bot, mini);
+    box.appendChild(row);
+  });
+
+  if(!ord.length) box.innerHTML = "<p class='tip'>Nenhuma ficha com custo fechado ainda. Complete as fichas para ver a margem.</p>";
 }
 
 async function abrirFicha(id){
@@ -1088,6 +1391,7 @@ $("btnCustos").onclick = abrirCustos;
 $("btnCustosVoltar").onclick = carregarHome;
 $("abaFichas").onclick = () => trocarAba("fichas");
 $("abaInsumos").onclick = () => trocarAba("insumos");
+$("abaPreco").onclick   = () => trocarAba("preco");
 $("buscaInsumo").addEventListener("input", () => { if(ABA === "insumos") listarInsumos(); });
 $("fRend").addEventListener("input", calcular);
 $("btnFichaSalvar").onclick = salvarFicha;
