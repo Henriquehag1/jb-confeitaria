@@ -329,6 +329,14 @@ button{font-family:inherit;font-size:inherit;cursor:pointer;}
 .novoing .acoes button.perigo{background:none;color:var(--coral-fundo);text-decoration:underline;padding:10px 4px;margin-left:auto;}
 .novoing p.nota{margin:2px 0 0;font-size:.79rem;color:var(--tinta-3);font-weight:300;line-height:1.45;}
 
+/* ---------- fotos dos produtos ---------- */
+.foto{
+  flex:0 0 auto;width:46px;height:46px;border-radius:10px;object-fit:cover;
+  background:var(--areia);border:1px solid var(--linha);
+}
+.foto.g{width:100%;height:auto;max-height:230px;border-radius:var(--r);margin-bottom:12px;display:block;}
+.lin .foto{margin-right:2px;}
+
 .grupo{
   font-size:.68rem;letter-spacing:.22em;text-transform:uppercase;color:var(--tinta-3);
   font-weight:600;margin:18px 2px 9px;
@@ -533,6 +541,10 @@ button{font-family:inherit;font-size:inherit;cursor:pointer;}
     <div id="fichaMsg"></div>
     <label class="campo-nome">Nome do produto
       <input id="fNome" type="text" placeholder="Ex.: Bolo de Pote de Ninho">
+    </label>
+    <div id="fFotoPrev"></div>
+    <label class="campo-nome" id="lbFoto">Foto (link da imagem)
+      <input id="fFoto" type="url" placeholder="cole aqui o link da foto do produto">
     </label>
     <div class="campos">
       <label id="lbRend">Rende (unidades)<input id="fRend" type="tel" inputmode="decimal"></label>
@@ -815,6 +827,7 @@ let CATALOGO = [];   // insumos + sub-receitas, para o seletor
 let FICHA = null;    // receita aberta
 let FITENS = [];     // itens da receita aberta
 let TIPO = "ficha";  // "ficha" (produto) ou "sub" (massa ou recheio)
+let FOTOS = {};      // ficha_id -> url da foto
 
 const dinheiro = v => (v === null || v === undefined || isNaN(v))
   ? "sem custo"
@@ -953,10 +966,21 @@ async function recarregarProdutos(){
   PRODUTOS = data || [];
 }
 
-function linhaLista(titulo, sub, valor, classe, onclick){
+function imgFoto(url, classe){
+  if(!url) return null;
+  const im = document.createElement("img");
+  im.className = "foto" + (classe ? " " + classe : "");
+  im.src = url; im.alt = ""; im.loading = "lazy";
+  im.onerror = () => im.remove();
+  return im;
+}
+
+function linhaLista(titulo, sub, valor, classe, onclick, foto){
   const b = document.createElement("button");
   b.type = "button";
   b.className = "lin " + (classe || "");
+  const im = imgFoto(foto);
+  if(im) b.appendChild(im);
   const n = document.createElement("span"); n.className = "n";
   n.textContent = titulo;
   if(sub){ const s = document.createElement("small"); s.textContent = sub; n.appendChild(s); }
@@ -971,10 +995,13 @@ function linhaLista(titulo, sub, valor, classe, onclick){
 async function listarFichas(){
   const box = $("listaCustos");
   box.innerHTML = "<p class='tip'>Carregando...</p>";
-  const [fc, sc] = await Promise.all([
+  const [fc, sc, ft] = await Promise.all([
     sb.from("jb_ficha_custo").select("*").order("nome"),
-    sb.from("jb_subreceita_custo").select("*").order("nome")
+    sb.from("jb_subreceita_custo").select("*").order("nome"),
+    sb.from("jb_ficha").select("id,foto_url")
   ]);
+  FOTOS = {};
+  (ft.data || []).forEach(f => { if(f.foto_url) FOTOS[f.id] = f.foto_url; });
   if(fc.error){ box.innerHTML=""; aviso("custosMsg","Não consegui carregar as receitas agora.","err"); return; }
   box.innerHTML = "";
 
@@ -993,7 +1020,7 @@ async function listarFichas(){
     const valor = f.rascunho && !f.itens_sem_quantidade ? "rascunho"
                 : incompleta ? "incompleta" : dinheiro(f.custo_unit);
     box.appendChild(linhaLista(f.nome, sub, valor, incompleta ? "falta" : "ok",
-      () => abrirFicha(f.id, "ficha")));
+      () => abrirFicha(f.id, "ficha"), FOTOS[f.id]));
   });
 
   const h2 = document.createElement("div"); h2.className = "grupo";
@@ -1470,6 +1497,9 @@ async function abrirFicha(id, tipo){
 
   $("lbRend").childNodes[0].nodeValue = sub ? "Rende (kg)" : "Rende (unidades)";
   $("lbTempo").classList.toggle("hide", sub);
+  $("lbFoto").classList.toggle("hide", sub);
+  $("fFoto").value = FICHA.foto_url || "";
+  mostrarFoto();
   $("fNome").value  = FICHA.nome || "";
   $("fNome").placeholder = sub ? "Ex.: Brigadeiro Cremoso de Pistache" : "Ex.: Bolo de Pote de Ninho";
   $("fRend").value  = FICHA.rendimento ?? 1;
@@ -1537,6 +1567,14 @@ async function apagarFicha(){
     window.scrollTo(0,0);
   }
   btn.disabled = false; btn.textContent = "Apagar esta receita";
+}
+
+function mostrarFoto(){
+  const box = $("fFotoPrev");
+  box.innerHTML = "";
+  if(TIPO === "sub") return;
+  const im = imgFoto($("fFoto").value.trim(), "g");
+  if(im) box.appendChild(im);
 }
 
 function avisoPreparo(){
@@ -1835,7 +1873,8 @@ async function salvarFicha(){
     } else {
       const campos = {
         nome, rendimento_un: rend, tempo_mo_min: tempo, rascunho: !completa,
-        modo_preparo: preparo, preparo_conferido: conferido
+        modo_preparo: preparo, preparo_conferido: conferido,
+        foto_url: $("fFoto").value.trim() || null
       };
       if(FICHA.id === null){
         const { data, error: e0 } = await sb.from("jb_ficha")
@@ -1980,6 +2019,9 @@ function montarProdLista(){
     const row = document.createElement("div");
     row.className = "prod" + (it.feito ? " feito" : (travado && !gestor ? " travado" : ""));
 
+    const im = imgFoto(it.foto_url);
+    if(im) row.appendChild(im);
+
     const n = document.createElement("button");
     n.type = "button"; n.className = "n";
     n.style.border = "none"; n.style.background = "none"; n.style.textAlign = "left"; n.style.padding = "0";
@@ -2093,6 +2135,9 @@ function montarReceita(){
 
   const box = $("recCorpo");
   box.innerHTML = "";
+
+  const foto = imgFoto(cab.foto_url, "g");
+  if(foto) box.appendChild(foto);
 
   const alvo = document.createElement("div");
   alvo.className = "rendebox";
@@ -2408,6 +2453,8 @@ $("addProd").onchange = () => addReceitaAoDia($("addProd").value);
 $("btnRecFeito").onclick = marcarFeito;
 $("btnRecVoltar").onclick = () => { aviso("recMsg","",""); show("scProd"); };
 $("btnFichaApagar").onclick = apagarFicha;
+$("fFoto").addEventListener("change", mostrarFoto);
+$("fFoto").addEventListener("blur", mostrarFoto);
 $("fPreparo").addEventListener("input", avisoPreparo);
 $("fConferido").addEventListener("change", avisoPreparo);
 $("buscaInsumo").addEventListener("input", () => { if(ABA === "insumos") listarInsumos(); });
