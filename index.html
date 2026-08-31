@@ -370,6 +370,11 @@ button{font-family:inherit;font-size:inherit;cursor:pointer;}
 }
 .prod input.q:focus{outline:2px solid var(--coral);outline-offset:1px;border-color:var(--coral);}
 .prod .un{font-size:.8rem;color:var(--tinta-3);flex:0 0 auto;}
+.prod .tirar{
+  flex:0 0 auto;border:none;background:none;color:var(--tinta-3);
+  font-size:.8rem;text-decoration:underline;padding:8px 2px;
+}
+.foot button.desfazer{background:var(--creme);color:var(--tinta-2);border:1px solid var(--linha-2);box-shadow:none;}
 
 /* ---------- receita escalada ---------- */
 .recbloco{background:var(--creme);border:1px solid var(--linha);border-radius:var(--r);padding:15px 17px;margin-bottom:12px;}
@@ -2011,7 +2016,7 @@ function montarDias(){
   const box = $("prodDias");
   box.innerHTML = "";
   const dias = EU.papel === "gestor"
-    ? [[diaMais(0),"Hoje"],[diaMais(1),"Amanhã"],[diaMais(2),dataCurta(diaMais(2))]]
+    ? [[diaMais(-1),"Ontem"],[diaMais(0),"Hoje"],[diaMais(1),"Amanhã"],[diaMais(2),dataCurta(diaMais(2))]]
     : [[diaMais(0),"Hoje"]];
   dias.forEach(([iso, rot]) => {
     const b = document.createElement("button");
@@ -2079,7 +2084,18 @@ function montarProdLista(){
       };
       inp.addEventListener("keydown", e => { if(e.key === "Enter") inp.blur(); });
       const un = document.createElement("span"); un.className = "un"; un.textContent = it.unidade;
-      row.append(inp, un);
+      const tirar = document.createElement("button");
+      tirar.type = "button"; tirar.className = "tirar";
+      tirar.textContent = "tirar";
+      tirar.setAttribute("aria-label","Tirar " + it.nome + " do dia");
+      tirar.onclick = async () => {
+        if(!confirm("Tirar " + it.nome + " do dia " + dataCurta(PROD_DIA) + "?")) return;
+        const { error } = await sb.from("jb_producao_item").delete().eq("id", it.id);
+        if(error){ aviso("prodMsg","Não consegui tirar esse item.","err"); return; }
+        aviso("prodMsg", it.nome + " saiu do dia.","ok");
+        carregarDia();
+      };
+      row.append(inp, un, tirar);
     } else {
       const qt = document.createElement("span"); qt.className = "qt";
       qt.textContent = qtdBonita(it.qtd, it.unidade);
@@ -2219,24 +2235,27 @@ function montarReceita(){
   }
 
   const btn = $("btnRecFeito");
-  const podeMarcar = !!REC.item && !REC.item.feito;
   btn.classList.toggle("hide", !REC.item);
-  btn.disabled = !podeMarcar;
-  btn.textContent = REC.item && REC.item.feito ? "Já marcado como feito" : "Marcar como feito";
+  btn.disabled = false;
+  btn.textContent = REC.item && REC.item.feito ? "Desmarcar, ainda não fiz" : "Marcar como feito";
+  btn.classList.toggle("desfazer", !!(REC.item && REC.item.feito));
 }
 
 async function marcarFeito(){
   if(!REC || !REC.item) return;
   const btn = $("btnRecFeito");
+  const desmarcando = !!REC.item.feito;
+  const rotulo = desmarcando ? "Desmarcar, ainda não fiz" : "Marcar como feito";
   btn.disabled = true; btn.textContent = "Salvando...";
-  const { error } = await sb.rpc("jb_marcar_producao", { p_id: REC.item.id, p_feito: true });
+  const { error } = await sb.rpc("jb_marcar_producao",
+    { p_id: REC.item.id, p_feito: !desmarcando });
   if(error){
-    aviso("recMsg","Não consegui marcar agora. Tente de novo.","err");
-    btn.disabled = false; btn.textContent = "Marcar como feito";
+    aviso("recMsg","Não consegui salvar agora. Tente de novo.","err");
+    btn.disabled = false; btn.textContent = rotulo;
     return;
   }
   await carregarDia();
-  aviso("prodMsg", REC.cab.nome + " marcado como feito.","ok");
+  aviso("prodMsg", REC.cab.nome + (desmarcando ? " voltou para a lista." : " marcado como feito."),"ok");
   show("scProd");
 }
 
