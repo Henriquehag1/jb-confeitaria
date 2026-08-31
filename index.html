@@ -286,6 +286,75 @@ button{font-family:inherit;font-size:inherit;cursor:pointer;}
 }
 .campos input:focus{outline:2px solid var(--coral);outline-offset:1px;border-color:var(--coral);}
 
+/* ---------- ficha: nome e passo a passo ---------- */
+.campo-nome{display:block;margin-bottom:12px;font-size:.76rem;color:var(--tinta-3);letter-spacing:.06em;text-transform:uppercase;font-weight:500;}
+.campo-nome input{
+  width:100%;height:44px;margin-top:5px;border-radius:11px;border:1px solid var(--linha-2);
+  background:var(--creme);font-family:"Playfair Display",Georgia,serif;font-size:1.1rem;
+  font-weight:600;color:var(--tinta);padding:0 13px;letter-spacing:0;text-transform:none;
+}
+.campo-nome input:focus{outline:2px solid var(--coral);outline-offset:1px;border-color:var(--coral);}
+
+.preparo{background:var(--creme);border:1px solid var(--linha);border-radius:14px;padding:14px 16px;margin:14px 0;}
+.preparo h3{font-family:"Playfair Display",serif;font-size:1.08rem;font-weight:600;margin:0 0 2px;}
+.preparo textarea{
+  width:100%;border-radius:11px;border:1px solid var(--linha-2);background:var(--areia);
+  font-family:inherit;font-size:.93rem;line-height:1.55;color:var(--tinta);padding:11px 12px;resize:vertical;
+}
+.preparo textarea:focus{outline:2px solid var(--coral);outline-offset:1px;border-color:var(--coral);}
+.check{display:flex;align-items:flex-start;gap:9px;margin-top:11px;font-size:.88rem;font-weight:300;line-height:1.4;}
+.check input{width:21px;height:21px;flex:0 0 auto;accent-color:var(--coral-forte);margin:0;}
+
+/* ---------- produção ---------- */
+.prod{
+  display:flex;align-items:center;gap:11px;background:var(--creme);
+  border:1px solid var(--linha);border-radius:13px;border-left:3px solid var(--coral);
+  padding:12px 13px;margin-bottom:8px;width:100%;text-align:left;
+}
+.prod.feito{border-left-color:var(--verde);background:var(--verde-veu);}
+.prod.travado{border-left-color:var(--ambar);}
+.prod .n{flex:1;min-width:0;font-size:1rem;line-height:1.25;}
+.prod .n small{display:block;color:var(--tinta-3);font-size:.78rem;margin-top:3px;font-weight:300;}
+.prod.feito .n small{color:var(--verde);}
+.prod .qt{
+  flex:0 0 auto;font-family:"Playfair Display",serif;font-size:1.35rem;font-weight:600;
+  color:var(--coral-forte);font-variant-numeric:tabular-nums;white-space:nowrap;
+}
+.prod.feito .qt{color:var(--verde);}
+.prod input.q{
+  width:70px;height:40px;border-radius:11px;border:1px solid var(--linha-2);text-align:center;
+  font-family:inherit;font-size:1.05rem;font-weight:600;font-variant-numeric:tabular-nums;
+  background:var(--areia);color:var(--tinta);flex:0 0 auto;
+}
+.prod input.q:focus{outline:2px solid var(--coral);outline-offset:1px;border-color:var(--coral);}
+.prod .un{font-size:.8rem;color:var(--tinta-3);flex:0 0 auto;}
+
+/* ---------- receita escalada ---------- */
+.recbloco{background:var(--creme);border:1px solid var(--linha);border-radius:var(--r);padding:15px 17px;margin-bottom:12px;}
+.recbloco h3{
+  font-size:.7rem;letter-spacing:.22em;text-transform:uppercase;color:var(--tinta-3);
+  font-weight:600;font-family:inherit;margin:0 0 11px;
+}
+.recing{display:flex;justify-content:space-between;gap:12px;padding:10px 0;border-top:1px solid var(--linha);font-size:1rem;}
+.recing:first-of-type{border-top:none;}
+.recing .q{font-variant-numeric:tabular-nums;font-weight:600;color:var(--coral-forte);white-space:nowrap;}
+.recing button{
+  border:none;background:none;padding:0;text-align:left;font-size:1rem;color:var(--tinta);
+  text-decoration:underline;text-decoration-color:var(--linha-2);flex:1;
+}
+.passo{display:flex;gap:12px;padding:11px 0;border-top:1px solid var(--linha);font-size:1rem;line-height:1.5;}
+.passo:first-of-type{border-top:none;}
+.passo .n{
+  flex:0 0 27px;height:27px;border-radius:50%;background:var(--coral-veu);color:var(--coral-forte);
+  font-size:.88rem;font-weight:600;display:flex;align-items:center;justify-content:center;
+}
+.rendebox{
+  background:var(--coral-forte);color:var(--creme);border-radius:var(--r);
+  padding:17px 19px;margin-bottom:12px;
+}
+.rendebox .k{font-size:.68rem;letter-spacing:.2em;text-transform:uppercase;opacity:.9;}
+.rendebox .v{font-family:"Playfair Display",serif;font-size:1.75rem;font-weight:600;line-height:1.2;display:block;margin-top:3px;}
+
 /* ---------- preço e margem ---------- */
 .chips{display:flex;gap:6px;margin-bottom:12px;overflow-x:auto;padding-bottom:2px;}
 .chips button{
@@ -388,11 +457,15 @@ button{font-family:inherit;font-size:inherit;cursor:pointer;}
       <span class="t">Últimos dias</span>
       <span class="s">O que saiu em cada dia</span>
     </button>
+    <button class="big hide" id="btnProducao">
+      <span class="t">O que fazer hoje</span>
+      <span class="s">Suas receitas com as quantidades certas</span>
+    </button>
     <button class="big ghost hide" id="btnCustos">
       <span class="t">Custos e preços</span>
       <span class="s">Receitas, insumos e quanto sobra em cada canal</span>
     </button>
-    <p class="tip">Conte item por item, sem pressa. Se errar, dá para corrigir no mesmo dia.</p>
+    <p class="tip" id="homeTip">Conte item por item, sem pressa. Se errar, dá para corrigir no mesmo dia.</p>
   </section>
 
   <!-- ================= CUSTOS (só gestor) ================= -->
@@ -407,6 +480,7 @@ button{font-family:inherit;font-size:inherit;cursor:pointer;}
       <button id="abaFichas" aria-pressed="true">Fichas</button>
       <button id="abaInsumos" aria-pressed="false">Insumos</button>
       <button id="abaPreco" aria-pressed="false">Preço</button>
+      <button id="abaGeladeira" aria-pressed="false">Geladeira</button>
     </div>
     <input class="busca hide" id="buscaInsumo" type="search" placeholder="Buscar insumo...">
     <div id="custosMsg"></div>
@@ -426,6 +500,9 @@ button{font-family:inherit;font-size:inherit;cursor:pointer;}
       </div>
     </div>
     <div id="fichaMsg"></div>
+    <label class="campo-nome">Nome do produto
+      <input id="fNome" type="text" placeholder="Ex.: Bolo de Pote de Ninho">
+    </label>
     <div class="campos">
       <label>Rende (unidades)<input id="fRend" type="tel" inputmode="decimal"></label>
       <label>Tempo por un. (min)<input id="fTempo" type="tel" inputmode="decimal"></label>
@@ -433,9 +510,47 @@ button{font-family:inherit;font-size:inherit;cursor:pointer;}
     <div id="fichaItens"></div>
     <select class="busca" id="addIng"><option value="">+ adicionar ingrediente</option></select>
     <div class="resumo" id="fichaResumo"></div>
+
+    <div class="preparo">
+      <h3>Passo a passo</h3>
+      <p class="tip" id="preparoAviso"></p>
+      <textarea id="fPreparo" rows="10" placeholder="Um passo por linha. Ex.:&#10;Bata os ovos com o açúcar por 3 minutos&#10;Junte a farinha peneirada e misture devagar"></textarea>
+      <label class="check"><input type="checkbox" id="fConferido"> Conferi este passo a passo, pode ir para a produção</label>
+    </div>
+
     <div class="foot">
       <button id="btnFichaSalvar">Salvar ficha</button>
       <button class="link" id="btnFichaVoltar">Voltar sem salvar</button>
+    </div>
+  </section>
+
+  <!-- ================= PRODUÇÃO ================= -->
+  <section id="scProd" class="hide">
+    <div class="top">
+      <div class="marca">
+        <img class="selo" src="icon-192.png" alt="" width="34" height="34">
+        <div><b>Jessica Ballassa</b><span>Produção</span></div>
+      </div>
+      <div class="who"><span id="whoProd"></span><button id="btnSairProd" title="Sair">↩</button></div>
+    </div>
+    <div class="chips" id="prodDias"></div>
+    <div id="prodMsg"></div>
+    <div id="prodLista"></div>
+    <select class="busca hide" id="addProd"><option value="">+ adicionar receita ao dia</option></select>
+    <div class="foot"><button id="btnProdVoltar">Voltar</button></div>
+  </section>
+
+  <!-- ================= RECEITA ================= -->
+  <section id="scReceita" class="hide">
+    <div class="counthead">
+      <div class="row1"><h2 id="recTitulo"></h2></div>
+      <div class="prog" id="recSub"></div>
+    </div>
+    <div id="recMsg"></div>
+    <div id="recCorpo"></div>
+    <div class="foot">
+      <button id="btnRecFeito">Marcar como feito</button>
+      <button class="link" id="btnRecVoltar">Voltar</button>
     </div>
   </section>
 
@@ -493,6 +608,7 @@ const SUPABASE_KEY = "sb_publishable_M77s2Y-DZGl0xLZYYGKniA_ZdkxBO8O";
 const LOGINS = [
   { nome: "Jessica",  email: "jessica@jbconfeitaria.app"  },
   { nome: "Delivery", email: "delivery@jbconfeitaria.app" },
+  { nome: "Produção", email: "producao@jbconfeitaria.app" },
   { nome: "Henrique", email: "henrique@jbconfeitaria.app" }
 ];
 
@@ -505,7 +621,7 @@ const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
    UTILITÁRIOS
    ============================================================ */
 const $ = id => document.getElementById(id);
-const SC = ["scLogin","scHome","scCount","scRes","scHist","scCustos","scFicha"];
+const SC = ["scLogin","scHome","scCount","scRes","scHist","scCustos","scFicha","scProd","scReceita"];
 function show(id){ SC.forEach(s => $(s).classList.toggle("hide", s !== id)); window.scrollTo(0,0); }
 
 function hojeSP(){
@@ -615,6 +731,22 @@ async function carregarHome(){
   $("hoje").textContent = dataLonga(hojeSP());
   $("agora").textContent = horaSP();
 
+  const conta   = EU.papel === "gestor" || EU.papel === "equipe";
+  const produz  = EU.papel === "gestor" || EU.papel === "producao";
+
+  ["btnAbertura","btnFechamento","btnHist"].forEach(b => $(b).classList.toggle("hide", !conta));
+  $("btnProducao").classList.toggle("hide", !produz);
+  $("btnProducao").className = "big" + (conta ? " ghost" : "");
+  $("btnProducao").querySelector(".t").textContent =
+    EU.papel === "gestor" ? "Plano de produção" : "O que fazer hoje";
+  $("btnProducao").querySelector(".s").textContent =
+    EU.papel === "gestor" ? "Diga o que precisa ser feito e em que quantidade"
+                          : "Suas receitas com as quantidades certas";
+  $("homeTip").textContent = conta
+    ? "Conte item por item, sem pressa. Se errar, dá para corrigir no mesmo dia."
+    : "Toque na receita para ver os ingredientes já na quantidade certa e o passo a passo.";
+  if(!conta){ $("btnCustos").classList.add("hide"); aviso("homeMsg","",""); show("scHome"); return; }
+
   const { data } = await sb.from("jb_contagem")
     .select("id,momento,nome_responsavel,criado_em").eq("data", hojeSP());
   CONTAGEM_HOJE = { abertura:null, fechamento:null };
@@ -658,14 +790,14 @@ async function abrirCustos(){
   aviso("custosMsg","","");
   if(!CATALOGO.length){
     const [ins, sub] = await Promise.all([
-      sb.from("jb_insumo").select("nome,unidade,custo_unit,equiv_g").order("nome"),
+      sb.from("jb_insumo").select("nome,unidade,custo_unit,equiv_g,categoria").order("nome"),
       sb.from("jb_subreceita_custo").select("nome,custo_kg_calculado,custo_kg_planilha").order("nome")
     ]);
     CATALOGO = [
       ...(sub.data || []).map(s => ({nome:s.nome, tipo:"sub-receita", unidade:"kg",
-            custo:(s.custo_kg_calculado ?? s.custo_kg_planilha), equiv_g:null})),
+            custo:(s.custo_kg_calculado ?? s.custo_kg_planilha), equiv_g:null, categoria:"ingrediente"})),
       ...(ins.data || []).map(i => ({nome:i.nome, tipo:"insumo", unidade:i.unidade || "g",
-            custo:i.custo_unit, equiv_g:i.equiv_g}))
+            custo:i.custo_unit, equiv_g:i.equiv_g, categoria:i.categoria || "ingrediente"}))
     ];
   }
   trocarAba(ABA);
@@ -677,11 +809,113 @@ function trocarAba(a){
   $("abaFichas").setAttribute("aria-pressed", String(a === "fichas"));
   $("abaInsumos").setAttribute("aria-pressed", String(a === "insumos"));
   $("abaPreco").setAttribute("aria-pressed", String(a === "preco"));
+  $("abaGeladeira").setAttribute("aria-pressed", String(a === "geladeira"));
   $("buscaInsumo").classList.toggle("hide", a !== "insumos");
   $("precoCab").classList.toggle("hide", a !== "preco");
   if(a === "fichas") listarFichas();
   else if(a === "insumos") listarInsumos();
+  else if(a === "geladeira") listarGeladeira();
   else listarPrecos();
+}
+
+/* ---------- itens da geladeira, a lista que a equipe conta ---------- */
+async function listarGeladeira(){
+  const box = $("listaCustos");
+  box.innerHTML = "<p class='tip'>Carregando...</p>";
+  const { data, error } = await sb.from("jb_produto").select("id,nome,ordem,ativo").order("ordem");
+  if(error){ box.innerHTML=""; aviso("custosMsg","Não consegui carregar a lista agora.","err"); return; }
+  const itens = data || [];
+  box.innerHTML = "";
+
+  const nota = document.createElement("p");
+  nota.className = "tip"; nota.style.margin = "0 2px 12px";
+  nota.textContent = "Esta é a lista que aparece na contagem, nesta ordem. Tirar um item não apaga as contagens antigas: ele só some das próximas.";
+  box.appendChild(nota);
+
+  itens.forEach((p, i) => {
+    const row = document.createElement("div");
+    row.className = "ing" + (p.ativo ? "" : " semq");
+
+    const top = document.createElement("div"); top.className = "top";
+    const inp = document.createElement("input");
+    inp.type = "text"; inp.value = p.nome; inp.className = "q";
+    inp.style.width = "100%"; inp.style.textAlign = "left";
+    inp.style.padding = "0 10px"; inp.style.fontWeight = "400";
+    inp.setAttribute("aria-label","Nome do item " + p.nome);
+    inp.onblur = async () => {
+      const novo = inp.value.trim();
+      if(!novo || novo === p.nome){ inp.value = p.nome; return; }
+      const { error } = await sb.from("jb_produto").update({ nome: novo }).eq("id", p.id);
+      if(error){ inp.value = p.nome; aviso("custosMsg","Não consegui renomear.","err"); return; }
+      p.nome = novo;
+      aviso("custosMsg","Item renomeado para " + novo + ".","ok");
+    };
+    inp.addEventListener("keydown", e => { if(e.key === "Enter") inp.blur(); });
+    top.appendChild(inp);
+
+    const bot = document.createElement("div"); bot.className = "bot";
+    const mover = async (delta) => {
+      const j = i + delta;
+      if(j < 0 || j >= itens.length) return;
+      const outro = itens[j];
+      const a = p.ordem, b = outro.ordem;
+      await sb.from("jb_produto").update({ ordem: b }).eq("id", p.id);
+      await sb.from("jb_produto").update({ ordem: a }).eq("id", outro.id);
+      listarGeladeira();
+    };
+    const bSobe = document.createElement("button");
+    bSobe.type = "button"; bSobe.className = "rm"; bSobe.textContent = "↑ subir";
+    bSobe.style.marginLeft = "0"; bSobe.onclick = () => mover(-1);
+    const bDesce = document.createElement("button");
+    bDesce.type = "button"; bDesce.className = "rm"; bDesce.textContent = "↓ descer";
+    bDesce.style.marginLeft = "0"; bDesce.onclick = () => mover(1);
+
+    const bAtivo = document.createElement("button");
+    bAtivo.type = "button"; bAtivo.className = "rm";
+    bAtivo.textContent = p.ativo ? "tirar da contagem" : "voltar para a contagem";
+    bAtivo.onclick = async () => {
+      const { error } = await sb.from("jb_produto").update({ ativo: !p.ativo }).eq("id", p.id);
+      if(error){ aviso("custosMsg","Não consegui mudar esse item.","err"); return; }
+      aviso("custosMsg", p.nome + (p.ativo ? " saiu da contagem." : " voltou para a contagem."), "ok");
+      await recarregarProdutos();
+      listarGeladeira();
+    };
+    bot.append(bSobe, bDesce, bAtivo);
+    row.append(top, bot);
+    box.appendChild(row);
+  });
+
+  const add = document.createElement("div");
+  add.className = "ing";
+  const t2 = document.createElement("div"); t2.className = "top";
+  const novo = document.createElement("input");
+  novo.type = "text"; novo.className = "q"; novo.placeholder = "Nome do item novo";
+  novo.style.width = "100%"; novo.style.textAlign = "left";
+  novo.style.padding = "0 10px"; novo.style.fontWeight = "400";
+  novo.setAttribute("aria-label","Nome do item novo");
+  t2.appendChild(novo);
+  const b2 = document.createElement("div"); b2.className = "bot";
+  const salvar = document.createElement("button");
+  salvar.type = "button"; salvar.className = "rm"; salvar.style.marginLeft = "0";
+  salvar.textContent = "+ adicionar à contagem";
+  salvar.onclick = async () => {
+    const nome = novo.value.trim();
+    if(!nome) return;
+    const ordem = Math.max(0, ...itens.map(x => x.ordem || 0)) + 1;
+    const { error } = await sb.from("jb_produto").insert({ nome, ordem, ativo: true });
+    if(error){ aviso("custosMsg","Não consegui adicionar esse item.","err"); return; }
+    aviso("custosMsg", nome + " entrou na contagem.","ok");
+    await recarregarProdutos();
+    listarGeladeira();
+  };
+  b2.appendChild(salvar);
+  add.append(t2, b2);
+  box.appendChild(add);
+}
+
+async function recarregarProdutos(){
+  const { data } = await sb.from("jb_produto").select("id,nome,ordem").eq("ativo", true).order("ordem");
+  PRODUTOS = data || [];
 }
 
 async function listarFichas(){
@@ -690,6 +924,20 @@ async function listarFichas(){
   const { data, error } = await sb.from("jb_ficha_custo").select("*").order("nome");
   if(error){ box.innerHTML=""; aviso("custosMsg","Não consegui carregar as fichas agora.","err"); return; }
   box.innerHTML = "";
+
+  const nova = document.createElement("button");
+  nova.type = "button"; nova.className = "lin";
+  nova.style.borderLeftColor = "var(--coral)";
+  const nn = document.createElement("span"); nn.className = "n";
+  nn.textContent = "Nova ficha técnica";
+  const ns = document.createElement("small");
+  ns.textContent = "Produto novo: nome, ingredientes, rendimento e passo a passo";
+  nn.appendChild(ns);
+  const nv = document.createElement("span"); nv.className = "v"; nv.textContent = "+";
+  nova.append(nn, nv);
+  nova.onclick = () => abrirFicha(null);
+  box.appendChild(nova);
+
   (data || []).forEach(f => {
     const incompleta = f.rascunho || f.itens_sem_quantidade > 0 || f.itens_sem_preco > 0 || !f.itens;
     const b = document.createElement("button");
@@ -800,7 +1048,7 @@ async function listarPrecos(){
   }
   if(!CANAL){ box.innerHTML = ""; aviso("custosMsg","Nenhum canal cadastrado ainda.","warn"); return; }
   const { data, error } = await sb.from("jb_margem")
-    .select("ficha_id,produto,rascunho,preco,custo_total")
+    .select("ficha_id,produto,rascunho,preco,custo_total,cmv")
     .eq("canal_id", CANAL.id);
   if(error){ box.innerHTML = ""; aviso("custosMsg","Não consegui carregar os preços agora.","err"); return; }
   LINHAS = (data || []).filter(l => l.custo_total != null);
@@ -984,7 +1232,8 @@ function montarListaPrecos(){
       else if(c.minimo == null || c.minimo > 2 * c.empata) dica = "com essa taxa a meta de " + pct(alvo) + " não fecha";
       else dica = "para " + pct(alvo) + " cobrar R$ " + moeda(c.minimo);
       mini.innerHTML = (c.preco != null ? "margem <b>" + pct(c.margem) + "</b> · " : "")
-        + "custo <b>R$ " + moeda(c.custo) + "</b> · "
+        + (l.cmv != null ? "CMV <b>R$ " + moeda(l.cmv) + "</b> · " : "")
+        + "custo cheio <b>R$ " + moeda(c.custo) + "</b> · "
         + (c.empata != null ? "empata em <b>R$ " + moeda(c.empata) + "</b> · " : "")
         + dica;
     }
@@ -998,22 +1247,42 @@ function montarListaPrecos(){
 
 async function abrirFicha(id){
   aviso("fichaMsg","","");
-  const [f, itens] = await Promise.all([
-    sb.from("jb_ficha").select("*").eq("id", id).single(),
-    sb.from("jb_ficha_item_custo").select("*").eq("ficha_id", id).order("ordem")
-  ]);
-  if(f.error){ aviso("custosMsg","Não consegui abrir essa ficha.","err"); return; }
-  FICHA = f.data;
-  FITENS = (itens.data || []).map(i => ({
-    ingrediente: i.ingrediente, unidade: i.unidade, qtd: i.qtd,
-    custo_referencia: i.custo_referencia, origem: i.origem
-  }));
-  $("fichaTitulo").textContent = FICHA.nome;
+  if(id === null){
+    FICHA = { id:null, nome:"", rendimento_un:1, tempo_mo_min:null,
+              modo_preparo:"", preparo_conferido:false };
+    FITENS = [];
+    $("fichaTitulo").textContent = "Ficha nova";
+  } else {
+    const [f, itens] = await Promise.all([
+      sb.from("jb_ficha").select("*").eq("id", id).single(),
+      sb.from("jb_ficha_item_custo").select("*").eq("ficha_id", id).order("ordem")
+    ]);
+    if(f.error){ aviso("custosMsg","Não consegui abrir essa ficha.","err"); return; }
+    FICHA = f.data;
+    FITENS = (itens.data || []).map(i => ({
+      ingrediente: i.ingrediente, unidade: i.unidade, qtd: i.qtd,
+      custo_referencia: i.custo_referencia, origem: i.origem
+    }));
+    $("fichaTitulo").textContent = FICHA.nome;
+  }
+  $("fNome").value  = FICHA.nome || "";
   $("fRend").value  = FICHA.rendimento_un ?? 1;
   $("fTempo").value = FICHA.tempo_mo_min ?? "";
+  $("fPreparo").value = FICHA.modo_preparo || "";
+  $("fConferido").checked = !!FICHA.preparo_conferido;
+  avisoPreparo();
   montarSeletor();
   montarItens();
   show("scFicha");
+}
+
+function avisoPreparo(){
+  const tem = ($("fPreparo").value || "").trim().length > 0;
+  const ok  = $("fConferido").checked;
+  $("preparoAviso").textContent =
+    !tem ? "Escreva um passo por linha. É isso que a pessoa da produção vai ler."
+    : ok  ? "Conferido. Esta receita já aparece pronta para quem produz."
+          : "Ainda não conferido. Quem produz vê a receita marcada como rascunho até você conferir.";
 }
 
 function montarSeletor(){
@@ -1098,14 +1367,16 @@ function fator(uso, custo, equiv_g){
 
 function calcular(){
   const rend = parseFloat(($("fRend").value || "1").replace(",",".")) || 1;
-  let total = 0, faltando = 0, semPreco = 0;
+  let total = 0, emb = 0, faltando = 0, semPreco = 0;
   FITENS.forEach(it => {
     const cat = CATALOGO.find(c => c.nome === it.ingrediente);
     const custo = (cat && cat.custo !== null && cat.custo !== undefined)
                   ? cat.custo : it.custo_referencia;
     if(it.qtd === null || it.qtd === undefined){ faltando++; return; }
     if(custo === null || custo === undefined){ semPreco++; return; }
-    total += it.qtd * fator(it.unidade, cat ? cat.unidade : "kg", cat ? cat.equiv_g : null) * Number(custo);
+    const linha = it.qtd * fator(it.unidade, cat ? cat.unidade : "kg", cat ? cat.equiv_g : null) * Number(custo);
+    total += linha;
+    if(cat && cat.categoria === "embalagem") emb += linha;
   });
   const box = $("fichaResumo");
   box.innerHTML = "";
@@ -1115,12 +1386,14 @@ function calcular(){
     const b = document.createElement("b"); b.textContent = val;
     d.append(a,b); box.appendChild(d);
   };
-  linha("Ingredientes", FITENS.length + "");
+  linha("Itens na receita", FITENS.length + "");
   linha("Rende", rend + (rend === 1 ? " unidade" : " unidades"));
   if(faltando)  linha("Sem quantidade", faltando + " item(ns)");
   if(semPreco)  linha("Sem preço cadastrado", semPreco + " item(ns)");
-  linha("Custo da receita", dinheiro(total));
-  linha("Custo por unidade", dinheiro(total / rend), true);
+  linha("Custo da receita inteira", dinheiro(total));
+  linha("Ingredientes por unidade", dinheiro((total - emb) / rend));
+  linha("Embalagem por unidade", dinheiro(emb / rend));
+  linha("CMV por unidade", dinheiro(total / rend), true);
   if(faltando || semPreco){
     const p = document.createElement("p");
     p.className = "tip"; p.style.margin = "8px 0 0";
@@ -1135,16 +1408,35 @@ async function salvarFicha(){
   const btn = $("btnFichaSalvar");
   btn.disabled = true; btn.textContent = "Salvando...";
   try{
+    const nome  = $("fNome").value.trim();
+    if(!nome){
+      aviso("fichaMsg","Dê um nome ao produto antes de salvar.","warn");
+      window.scrollTo(0,0);
+      btn.disabled = false; btn.textContent = "Salvar ficha";
+      return;
+    }
     const rend  = parseFloat(($("fRend").value || "1").replace(",",".")) || 1;
     const tempo = $("fTempo").value.trim() === "" ? null
                 : (parseFloat($("fTempo").value.replace(",",".")) || null);
+    const preparo = $("fPreparo").value.trim() || null;
 
     // se todas as quantidades estão preenchidas, a ficha deixa de ser rascunho
     const completa = FITENS.length > 0 && FITENS.every(i => i.qtd !== null && i.qtd !== undefined);
+    const campos = {
+      nome, rendimento_un: rend, tempo_mo_min: tempo, rascunho: !completa,
+      modo_preparo: preparo, preparo_conferido: $("fConferido").checked && !!preparo
+    };
 
-    const { error: e1 } = await sb.from("jb_ficha")
-      .update({ rendimento_un: rend, tempo_mo_min: tempo, rascunho: !completa }).eq("id", FICHA.id);
-    if(e1) throw e1;
+    if(FICHA.id === null){
+      const { data, error: e0 } = await sb.from("jb_ficha")
+        .insert({ ...campos, ativo: true }).select("id").single();
+      if(e0) throw e0;
+      FICHA.id = data.id;
+    } else {
+      const { error: e1 } = await sb.from("jb_ficha").update(campos).eq("id", FICHA.id);
+      if(e1) throw e1;
+    }
+    FICHA.nome = nome;
 
     const { error: e2 } = await sb.from("jb_ficha_item").delete().eq("ficha_id", FICHA.id);
     if(e2) throw e2;
@@ -1165,6 +1457,311 @@ async function salvarFicha(){
   }
   btn.disabled = false; btn.textContent = "Salvar ficha";
 }
+
+/* ============================================================
+   PRODUÇÃO
+   A Jessica diz quanto quer de cada receita. Quem produz abre e vê
+   a receita já multiplicada, com o passo a passo.
+   ============================================================ */
+let PROD_DIA = null;      // data escolhida
+let PROD_ITENS = [];      // itens do dia
+let RECEITAS = null;      // { fichas:[], subs:[] } para o seletor do gestor
+let REC = null;           // receita aberta
+
+function diaMais(n){
+  const d = new Date(hojeSP() + "T12:00:00Z");
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0,10);
+}
+
+/* mostra 1500 g como 1,5 kg e 0,25 kg como 250 g */
+function qtdBonita(q, un){
+  let v = Number(q), u = (un || "un").toLowerCase();
+  if(u === "g"  && v >= 1000){ v = v/1000; u = "kg"; }
+  else if(u === "kg" && v <  1){ v = v*1000; u = "g"; }
+  else if(u === "ml" && v >= 1000){ v = v/1000; u = "L"; }
+  else if(u === "l"  && v <  1){ v = v*1000; u = "ml"; }
+  let casas;
+  if(u === "g" || u === "ml") casas = 0;
+  else if(u === "un") casas = v >= 1 ? 0 : 1;   // ninguém separa meio ovo
+  else casas = v < 10 ? 2 : 1;
+  let txt = v.toLocaleString("pt-BR",{minimumFractionDigits:0, maximumFractionDigits:casas});
+  if(u === "l") u = "L";
+  return txt + " " + u;
+}
+
+async function abrirProducao(){
+  aviso("prodMsg","","");
+  $("whoProd").textContent = EU.nome;
+  if(!PROD_DIA) PROD_DIA = hojeSP();
+  const gestor = EU.papel === "gestor";
+  $("addProd").classList.toggle("hide", !gestor);
+  if(gestor && !RECEITAS){
+    const [ff, ss] = await Promise.all([
+      sb.from("jb_receita_ficha").select("ficha_id,nome,preparo_conferido").order("nome"),
+      sb.from("jb_receita_sub").select("subreceita_id,nome,preparo_conferido").order("nome")
+    ]);
+    RECEITAS = { fichas: ff.data || [], subs: ss.data || [] };
+    montarSeletorProd();
+  }
+  await carregarDia();
+  show("scProd");
+}
+
+function montarSeletorProd(){
+  const sel = $("addProd");
+  sel.innerHTML = '<option value="">+ adicionar receita ao dia</option>';
+  const g1 = document.createElement("optgroup"); g1.label = "Produtos";
+  RECEITAS.fichas.forEach(f => {
+    const o = document.createElement("option");
+    o.value = "ficha:" + f.ficha_id; o.textContent = f.nome; g1.appendChild(o);
+  });
+  const g2 = document.createElement("optgroup"); g2.label = "Massas e recheios";
+  RECEITAS.subs.forEach(s => {
+    const o = document.createElement("option");
+    o.value = "subreceita:" + s.subreceita_id; o.textContent = s.nome; g2.appendChild(o);
+  });
+  sel.append(g1, g2);
+}
+
+async function carregarDia(){
+  const box = $("prodLista");
+  box.innerHTML = "<p class='tip'>Carregando...</p>";
+  montarDias();
+  const { data, error } = await sb.from("jb_producao_dia").select("*").eq("data", PROD_DIA);
+  if(error){ box.innerHTML=""; aviso("prodMsg","Não consegui carregar o dia agora.","err"); return; }
+  PROD_ITENS = (data || []).sort((a,b) =>
+    (a.tipo === b.tipo ? a.nome.localeCompare(b.nome) : (a.tipo === "subreceita" ? -1 : 1)));
+  montarProdLista();
+}
+
+function montarDias(){
+  const box = $("prodDias");
+  box.innerHTML = "";
+  const dias = EU.papel === "gestor"
+    ? [[diaMais(0),"Hoje"],[diaMais(1),"Amanhã"],[diaMais(2),dataCurta(diaMais(2))]]
+    : [[diaMais(0),"Hoje"]];
+  dias.forEach(([iso, rot]) => {
+    const b = document.createElement("button");
+    b.type = "button"; b.textContent = rot;
+    b.setAttribute("aria-pressed", String(iso === PROD_DIA));
+    b.onclick = () => { PROD_DIA = iso; carregarDia(); };
+    box.appendChild(b);
+  });
+}
+
+function montarProdLista(){
+  const box = $("prodLista");
+  const gestor = EU.papel === "gestor";
+  box.innerHTML = "";
+
+  if(!PROD_ITENS.length){
+    const p = document.createElement("p");
+    p.className = "tip";
+    p.textContent = gestor
+      ? "Nada planejado para este dia ainda. Escolha uma receita abaixo e diga a quantidade."
+      : "Nada para fazer hoje. A Jessica ainda não montou a lista.";
+    box.appendChild(p);
+    return;
+  }
+
+  PROD_ITENS.forEach(it => {
+    const travado = !it.preparo_conferido;
+    const row = document.createElement("div");
+    row.className = "prod" + (it.feito ? " feito" : (travado && !gestor ? " travado" : ""));
+
+    const n = document.createElement("button");
+    n.type = "button"; n.className = "n";
+    n.style.border = "none"; n.style.background = "none"; n.style.textAlign = "left"; n.style.padding = "0";
+    n.textContent = it.nome;
+    const s = document.createElement("small");
+    s.textContent = it.feito ? "Feito às " + horaDe(it.feito_em)
+      : travado ? (gestor ? "sem passo a passo conferido, ela não vai ver" : "receita ainda não liberada")
+      : (it.tipo === "subreceita" ? "massa ou recheio" : "produto pronto");
+    n.appendChild(s);
+    n.onclick = () => abrirReceita(it);
+
+    row.appendChild(n);
+
+    if(gestor){
+      const inp = document.createElement("input");
+      inp.className = "q"; inp.type = "tel"; inp.inputMode = "decimal";
+      inp.value = String(it.qtd).replace(".",",");
+      inp.setAttribute("aria-label","Quantidade de " + it.nome);
+      inp.onblur = async () => {
+        const v = numBR(inp.value);
+        if(v === null || v <= 0){
+          if(!confirm("Tirar " + it.nome + " do dia?")){ inp.value = String(it.qtd).replace(".",","); return; }
+          const { error } = await sb.from("jb_producao_item").delete().eq("id", it.id);
+          if(error){ aviso("prodMsg","Não consegui tirar esse item.","err"); return; }
+          carregarDia(); return;
+        }
+        if(v === Number(it.qtd)) return;
+        const { error } = await sb.from("jb_producao_item").update({ qtd: v }).eq("id", it.id);
+        if(error){ aviso("prodMsg","Não consegui salvar a quantidade.","err"); return; }
+        it.qtd = v;
+        aviso("prodMsg", it.nome + ": " + qtdBonita(v, it.unidade) + ".","ok");
+      };
+      inp.addEventListener("keydown", e => { if(e.key === "Enter") inp.blur(); });
+      const un = document.createElement("span"); un.className = "un"; un.textContent = it.unidade;
+      row.append(inp, un);
+    } else {
+      const qt = document.createElement("span"); qt.className = "qt";
+      qt.textContent = qtdBonita(it.qtd, it.unidade);
+      row.appendChild(qt);
+    }
+    box.appendChild(row);
+  });
+}
+
+async function addReceitaAoDia(valor){
+  if(!valor) return;
+  const [tipo, id] = valor.split(":");
+  const { error } = await sb.from("jb_producao_item")
+    .insert({ data: PROD_DIA, tipo, ref_id: Number(id), qtd: 1 });
+  $("addProd").value = "";
+  if(error){
+    aviso("prodMsg", String(error.message || "").includes("duplicate")
+      ? "Essa receita já está na lista deste dia."
+      : "Não consegui adicionar agora.", "warn");
+    return;
+  }
+  await carregarDia();
+}
+
+/* ---------- a receita já multiplicada ---------- */
+async function abrirReceita(item, escala){
+  aviso("recMsg","","");
+  const gestor = EU.papel === "gestor";
+  let cab, itens, qtdAlvo, rendimento, unidade, tipo, refId;
+
+  if(item.tipo){    // veio do plano do dia
+    if(!item.preparo_conferido && !gestor){
+      aviso("prodMsg","A Jessica ainda não liberou essa receita.","warn");
+      return;
+    }
+    tipo = item.tipo; refId = item.ref_id; qtdAlvo = Number(item.qtd);
+  } else {          // veio de um link de sub-receita dentro de outra receita
+    tipo = "subreceita"; refId = item.subreceita_id; qtdAlvo = escala;
+  }
+
+  if(tipo === "ficha"){
+    const [f, its] = await Promise.all([
+      sb.from("jb_receita_ficha").select("*").eq("ficha_id", refId).maybeSingle(),
+      sb.from("jb_receita_ficha_item").select("*").eq("ficha_id", refId).order("ordem")
+    ]);
+    if(!f.data){ aviso("prodMsg","Não consegui abrir essa receita.","err"); return; }
+    cab = f.data; itens = its.data || [];
+    rendimento = Number(cab.rendimento_un) || 1; unidade = "un";
+  } else {
+    const [s, its] = await Promise.all([
+      sb.from("jb_receita_sub").select("*").eq("subreceita_id", refId).maybeSingle(),
+      sb.from("jb_receita_sub_item").select("*").eq("subreceita_id", refId).order("ordem")
+    ]);
+    if(!s.data){ aviso("prodMsg","Não consegui abrir essa receita.","err"); return; }
+    cab = s.data; itens = its.data || [];
+    rendimento = Number(cab.rendimento_kg) || 1; unidade = "kg";
+  }
+
+  if(!cab.preparo_conferido && !gestor){
+    aviso("prodMsg","Essa receita ainda não foi liberada pela Jessica.","warn");
+    return;
+  }
+
+  REC = { item: item.id ? item : null, tipo, refId, cab, itens, rendimento, unidade, qtdAlvo };
+  montarReceita();
+  show("scReceita");
+}
+
+function montarReceita(){
+  const { cab, itens, rendimento, unidade, qtdAlvo } = REC;
+  const fator = qtdAlvo / rendimento;
+
+  $("recTitulo").textContent = cab.nome;
+  $("recSub").textContent = "a receita original rende " + qtdBonita(rendimento, unidade)
+    + (fator !== 1 ? ", as quantidades abaixo já estão ajustadas" : "");
+
+  const box = $("recCorpo");
+  box.innerHTML = "";
+
+  const alvo = document.createElement("div");
+  alvo.className = "rendebox";
+  const k = document.createElement("span"); k.className = "k"; k.textContent = "Fazer hoje";
+  const v = document.createElement("span"); v.className = "v";
+  v.textContent = qtdBonita(qtdAlvo, unidade);
+  alvo.append(k, v);
+  box.appendChild(alvo);
+
+  const bIng = document.createElement("div"); bIng.className = "recbloco";
+  const h1 = document.createElement("h3"); h1.textContent = "Separe";
+  bIng.appendChild(h1);
+  itens.forEach(it => {
+    const l = document.createElement("div"); l.className = "recing";
+    if(it.e_subreceita){
+      const b = document.createElement("button");
+      b.type = "button"; b.textContent = it.ingrediente;
+      b.onclick = () => abrirReceita({ subreceita_id: it.subreceita_id },
+                                     Number(it.qtd) * fator * (String(it.unidade).toLowerCase() === "g" ? 0.001 : 1));
+      l.appendChild(b);
+    } else {
+      const n = document.createElement("span"); n.textContent = it.ingrediente;
+      l.appendChild(n);
+    }
+    const q = document.createElement("span"); q.className = "q";
+    q.textContent = it.qtd === null ? "sem quantidade" : qtdBonita(Number(it.qtd) * fator, it.unidade);
+    l.appendChild(q);
+    bIng.appendChild(l);
+  });
+  box.appendChild(bIng);
+
+  const bPas = document.createElement("div"); bPas.className = "recbloco";
+  const h2 = document.createElement("h3"); h2.textContent = "Passo a passo";
+  bPas.appendChild(h2);
+  const passos = (cab.modo_preparo || "").split("\n").map(s => s.trim()).filter(Boolean);
+  if(!passos.length){
+    const p = document.createElement("p"); p.className = "tip"; p.style.margin = "0";
+    p.textContent = "Esta receita ainda não tem passo a passo escrito.";
+    bPas.appendChild(p);
+  } else {
+    passos.forEach((t, i) => {
+      const l = document.createElement("div"); l.className = "passo";
+      const n = document.createElement("span"); n.className = "n"; n.textContent = String(i+1);
+      const s = document.createElement("span"); s.textContent = t.replace(/^\d+[).\-\s]+/,"");
+      l.append(n, s);
+      bPas.appendChild(l);
+    });
+  }
+  box.appendChild(bPas);
+
+  if(!cab.preparo_conferido){
+    const av = document.createElement("p");
+    av.className = "tip"; av.style.margin = "0 2px 14px";
+    av.textContent = "Passo a passo ainda não conferido pela Jessica.";
+    box.appendChild(av);
+  }
+
+  const btn = $("btnRecFeito");
+  const podeMarcar = !!REC.item && !REC.item.feito;
+  btn.classList.toggle("hide", !REC.item);
+  btn.disabled = !podeMarcar;
+  btn.textContent = REC.item && REC.item.feito ? "Já marcado como feito" : "Marcar como feito";
+}
+
+async function marcarFeito(){
+  if(!REC || !REC.item) return;
+  const btn = $("btnRecFeito");
+  btn.disabled = true; btn.textContent = "Salvando...";
+  const { error } = await sb.rpc("jb_marcar_producao", { p_id: REC.item.id, p_feito: true });
+  if(error){
+    aviso("recMsg","Não consegui marcar agora. Tente de novo.","err");
+    btn.disabled = false; btn.textContent = "Marcar como feito";
+    return;
+  }
+  await carregarDia();
+  aviso("prodMsg", REC.cab.nome + " marcado como feito.","ok");
+  show("scProd");
+}
+
 function horaDe(ts){
   return new Intl.DateTimeFormat("pt-BR",{timeZone:TZ,hour:"2-digit",minute:"2-digit"}).format(new Date(ts));
 }
@@ -1392,6 +1989,16 @@ $("btnCustosVoltar").onclick = carregarHome;
 $("abaFichas").onclick = () => trocarAba("fichas");
 $("abaInsumos").onclick = () => trocarAba("insumos");
 $("abaPreco").onclick   = () => trocarAba("preco");
+$("abaGeladeira").onclick = () => trocarAba("geladeira");
+
+$("btnProducao").onclick = abrirProducao;
+$("btnProdVoltar").onclick = carregarHome;
+$("btnSairProd").onclick = () => $("btnSair").click();
+$("addProd").onchange = () => addReceitaAoDia($("addProd").value);
+$("btnRecFeito").onclick = marcarFeito;
+$("btnRecVoltar").onclick = () => { aviso("recMsg","",""); show("scProd"); };
+$("fPreparo").addEventListener("input", avisoPreparo);
+$("fConferido").addEventListener("change", avisoPreparo);
 $("buscaInsumo").addEventListener("input", () => { if(ABA === "insumos") listarInsumos(); });
 $("fRend").addEventListener("input", calcular);
 $("btnFichaSalvar").onclick = salvarFicha;
