@@ -428,6 +428,7 @@ button{font-family:inherit;font-size:inherit;cursor:pointer;}
   font-variant-numeric:tabular-nums;color:var(--tinta);
 }
 .placar .taxas input:focus{outline:2px solid var(--coral);outline-offset:1px;border-color:var(--coral);}
+.nota-taxa{margin:10px 0 0;font-size:.79rem;color:var(--tinta-3);font-weight:300;line-height:1.5;}
 .placar .abrir{
   display:block;width:100%;margin-top:11px;border:none;background:none;padding:2px 0 0;
   color:var(--tinta-3);font-size:.82rem;font-weight:300;text-decoration:underline;text-align:left;
@@ -1190,6 +1191,7 @@ let CANAL = null;      // canal selecionado
 let CFG = {};          // jb_config
 let LINHAS = [];       // uma linha por produto no canal selecionado
 let ajustesAbertos = false;
+let CANAL_ATUALIZADO = false;
 
 const pct = v => (Number(v) * 100).toLocaleString("pt-BR",{maximumFractionDigits:1}) + "%";
 const numBR = s => {
@@ -1201,8 +1203,9 @@ const numBR = s => {
 const moeda = v => Number(v).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});
 
 function contaLinha(l){
-  const taxa = Number(CANAL.taxa) + Number(CANAL.promo);
-  const sobra = 1 - taxa;                     // quanto do preço sobra depois das taxas
+  const fatia = CANAL.taxa_efetiva != null
+    ? Number(CANAL.taxa_efetiva) : Number(CANAL.taxa) + Number(CANAL.promo);
+  const sobra = 1 - fatia;                     // quanto do preço sobra depois das taxas
   const alvo  = Number(CFG.margem_alvo || 0);
   const custo = Number(l.custo_total || 0);
   const out = { custo, sobra, empata: sobra > 0 ? custo / sobra : null,
@@ -1324,8 +1327,10 @@ function montarPlacar(){
     ? ruins.length + " de " + comPreco.length + " no prejuízo"
     : (comPreco.length ? "Todos no azul" : "Sem preços aqui ainda");
   const p = document.createElement("p");
-  const taxaTxt = "Taxa de " + pct(CANAL.taxa) +
-    (Number(CANAL.promo) > 0 ? " mais " + pct(CANAL.promo) + " de promoção" : ", sem promoção");
+  const fatia = CANAL.taxa_efetiva != null
+    ? Number(CANAL.taxa_efetiva) : Number(CANAL.taxa) + Number(CANAL.promo);
+  const taxaTxt = "O app fica com " + pct(fatia) + " do preço" +
+    (CANAL.taxa_efetiva != null ? ", medido" : ", estimado");
   p.textContent = comPreco.length
     ? taxaTxt + ". Cada venda deixa em média " +
       (media < 0 ? "um prejuízo de R$ " + moeda(-media) : "R$ " + moeda(media)) + "."
@@ -1334,29 +1339,51 @@ function montarPlacar(){
 
   const taxas = document.createElement("div");
   taxas.className = "taxas";
-  [["taxa","Taxa do app"],["promo","Promoção"]].forEach(([campo,rot]) => {
+  const campos = [
+    ["taxa","Taxa do app","estimativa"],
+    ["promo","Desconto médio","estimativa"],
+    ["taxa_efetiva","Fatia real do app","medido, manda nos outros dois"]
+  ];
+  campos.forEach(([campo,rot,dica]) => {
     const lb = document.createElement("label");
+    if(campo === "taxa_efetiva") lb.className = "wide";
     lb.textContent = rot + " (%)";
     const inp = document.createElement("input");
     inp.type = "tel"; inp.inputMode = "decimal";
-    inp.value = (Number(CANAL[campo]) * 100).toLocaleString("pt-BR",{maximumFractionDigits:2});
+    inp.placeholder = campo === "taxa_efetiva" ? "deixe vazio se ainda não mediu" : "";
+    inp.value = CANAL[campo] == null ? ""
+      : (Number(CANAL[campo]) * 100).toLocaleString("pt-BR",{maximumFractionDigits:2});
+    inp.title = dica;
     inp.onblur = async () => {
-      const n = numBR(inp.value);
-      if(n == null || n < 0 || n > 95) { inp.value = (Number(CANAL[campo])*100).toLocaleString("pt-BR",{maximumFractionDigits:2}); return; }
-      const novo = n / 100;
-      if(novo === Number(CANAL[campo])) return;
+      const vazio = inp.value.trim() === "";
+      const n = vazio ? null : numBR(inp.value);
+      if(!vazio && (n == null || n < 0 || n > 95)){
+        inp.value = CANAL[campo] == null ? "" : (Number(CANAL[campo])*100).toLocaleString("pt-BR",{maximumFractionDigits:2});
+        return;
+      }
+      if(campo !== "taxa_efetiva" && n == null) { inp.value = (Number(CANAL[campo])*100).toLocaleString("pt-BR",{maximumFractionDigits:2}); return; }
+      const novo = n == null ? null : n / 100;
+      if(novo === (CANAL[campo] == null ? null : Number(CANAL[campo]))) return;
       const { error } = await sb.from("jb_canal").update({ [campo]: novo }).eq("id", CANAL.id);
-      if(error){ aviso("custosMsg","Não consegui salvar a taxa.","err"); return; }
+      if(error){ aviso("custosMsg","Não consegui salvar.","err"); return; }
       CANAL[campo] = novo;
       const ref = CANAIS.find(c => c.id === CANAL.id); if(ref) ref[campo] = novo;
-      aviso("custosMsg","Taxa do " + CANAL.nome + " atualizada.","ok");
-      desenharPrecos();
+      CANAL_ATUALIZADO = true;
+      aviso("custosMsg", CANAL.nome + " atualizado.","ok");
+      listarPrecos();
     };
     inp.addEventListener("keydown", e => { if(e.key === "Enter") inp.blur(); });
     lb.appendChild(inp);
     taxas.appendChild(lb);
   });
   box.appendChild(taxas);
+
+  const expl = document.createElement("p");
+  expl.className = "nota-taxa";
+  expl.textContent = CANAL.taxa_efetiva != null
+    ? "Usando a fatia real medida de " + pct(CANAL.taxa_efetiva) + ". A taxa e o desconto acima estão só de referência."
+    : "Sem a fatia real, a conta soma taxa mais desconto e assume que todo pedido pegou o desconto cheio, o que quase nunca é verdade. Para medir: pegue o relatório de repasse do mês, divida o que caiu na conta pela venda bruta, e a fatia real é o que sobra de 100%.";
+  box.appendChild(expl);
 
   const editar = document.createElement("button");
   editar.type = "button"; editar.className = "abrir";
