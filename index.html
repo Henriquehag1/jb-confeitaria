@@ -215,6 +215,77 @@ button{font-family:inherit;font-size:inherit;cursor:pointer;}
 .hist .h .st.ok{color:var(--verde);}
 
 .tip{color:var(--tinta-3);font-size:.84rem;font-weight:300;margin:12px 2px 20px;line-height:1.5;}
+
+/* ---------- custos, área do dono ---------- */
+.abas{display:flex;gap:6px;margin:2px 0 14px;}
+.abas button{
+  flex:1;padding:10px;border-radius:11px;border:1px solid var(--linha-2);
+  background:var(--creme);color:var(--tinta-2);font-size:.92rem;font-weight:400;
+}
+.abas button[aria-pressed="true"]{background:var(--coral-veu);border-color:var(--coral);color:var(--coral-forte);font-weight:600;}
+
+.lin{
+  display:flex;align-items:center;gap:10px;background:var(--creme);
+  border:1px solid var(--linha);border-radius:12px;padding:12px 14px;margin-bottom:7px;
+  border-left:3px solid var(--linha);width:100%;text-align:left;
+}
+.lin.ok{border-left-color:var(--verde);}
+.lin.falta{border-left-color:var(--ambar);}
+.lin .n{flex:1;min-width:0;font-size:.94rem;font-weight:400;line-height:1.25;}
+.lin .n small{display:block;color:var(--tinta-3);font-size:.76rem;margin-top:2px;font-weight:300;}
+.lin .v{
+  flex:0 0 auto;font-variant-numeric:tabular-nums;font-weight:600;font-size:.95rem;
+  color:var(--coral-forte);white-space:nowrap;
+}
+.lin .v.vazio{color:var(--ambar);font-weight:500;}
+
+.busca{
+  width:100%;padding:12px 14px;border-radius:12px;border:1px solid var(--linha-2);
+  background:var(--creme);font-family:inherit;font-size:.95rem;color:var(--tinta);margin-bottom:10px;
+}
+.busca:focus{outline:2px solid var(--coral);outline-offset:1px;border-color:var(--coral);}
+
+.ing{
+  background:var(--creme);border:1px solid var(--linha);border-radius:12px;
+  padding:11px 12px;margin-bottom:7px;
+}
+.ing .top{display:flex;align-items:baseline;justify-content:space-between;gap:8px;}
+.ing .nm{font-size:.92rem;font-weight:400;flex:1;min-width:0;}
+.ing .cst{font-size:.82rem;color:var(--tinta-3);font-variant-numeric:tabular-nums;white-space:nowrap;}
+.ing .bot{display:flex;align-items:center;gap:7px;margin-top:8px;}
+.ing input.q{
+  width:84px;height:36px;border-radius:10px;border:1px solid var(--linha-2);text-align:center;
+  font-family:inherit;font-size:.98rem;font-weight:500;font-variant-numeric:tabular-nums;
+  background:var(--areia);color:var(--tinta);
+}
+.ing input.q:focus{outline:2px solid var(--coral);outline-offset:1px;border-color:var(--coral);}
+.ing select.u{
+  height:36px;border-radius:10px;border:1px solid var(--linha-2);background:var(--areia);
+  font-family:inherit;font-size:.9rem;color:var(--tinta-2);padding:0 8px;
+}
+.ing .rm{
+  margin-left:auto;border:none;background:none;color:var(--tinta-3);
+  font-size:.82rem;text-decoration:underline;padding:6px 2px;
+}
+.ing.semq{border-color:#EED5A8;background:var(--ambar-veu);}
+
+.resumo{
+  background:var(--creme);border:1px solid var(--linha);border-radius:14px;
+  padding:14px 16px;margin:14px 0;
+}
+.resumo .r{display:flex;justify-content:space-between;gap:10px;font-size:.93rem;padding:4px 0;}
+.resumo .r.big{font-family:"Playfair Display",serif;font-size:1.3rem;font-weight:600;padding-top:10px;margin-top:6px;border-top:1px solid var(--linha);}
+.resumo .r b{font-variant-numeric:tabular-nums;color:var(--coral-forte);}
+
+.campos{display:flex;gap:8px;margin-bottom:12px;}
+.campos label{flex:1;font-size:.76rem;color:var(--tinta-3);letter-spacing:.06em;text-transform:uppercase;font-weight:500;}
+.campos input{
+  width:100%;height:38px;margin-top:4px;border-radius:10px;border:1px solid var(--linha-2);
+  background:var(--creme);font-family:inherit;font-size:.98rem;text-align:center;
+  font-variant-numeric:tabular-nums;color:var(--tinta);
+}
+.campos input:focus{outline:2px solid var(--coral);outline-offset:1px;border-color:var(--coral);}
+
 @media (prefers-reduced-motion:reduce){*{transition:none!important;}}
 </style>
 </head>
@@ -265,7 +336,50 @@ button{font-family:inherit;font-size:inherit;cursor:pointer;}
       <span class="t">Últimos dias</span>
       <span class="s">O que saiu em cada dia</span>
     </button>
+    <button class="big ghost hide" id="btnCustos">
+      <span class="t">Custos e fichas</span>
+      <span class="s">Receitas, insumos e quanto custa cada produto</span>
+    </button>
     <p class="tip">Conte item por item, sem pressa. Se errar, dá para corrigir no mesmo dia.</p>
+  </section>
+
+  <!-- ================= CUSTOS (só gestor) ================= -->
+  <section id="scCustos" class="hide">
+    <div class="top">
+      <div class="marca">
+        <img class="selo" src="icon-192.png" alt="" width="34" height="34">
+        <div><b>Jessica Ballassa</b><span>Custos e fichas</span></div>
+      </div>
+    </div>
+    <div class="abas">
+      <button id="abaFichas" aria-pressed="true">Fichas técnicas</button>
+      <button id="abaInsumos" aria-pressed="false">Insumos</button>
+    </div>
+    <input class="busca hide" id="buscaInsumo" type="search" placeholder="Buscar insumo...">
+    <div id="custosMsg"></div>
+    <div id="listaCustos"></div>
+    <div class="foot"><button id="btnCustosVoltar">Voltar</button></div>
+  </section>
+
+  <!-- ================= FICHA (edição) ================= -->
+  <section id="scFicha" class="hide">
+    <div class="counthead">
+      <div class="row1">
+        <h2 id="fichaTitulo"></h2>
+      </div>
+    </div>
+    <div id="fichaMsg"></div>
+    <div class="campos">
+      <label>Rende (unidades)<input id="fRend" type="tel" inputmode="decimal"></label>
+      <label>Tempo por un. (min)<input id="fTempo" type="tel" inputmode="decimal"></label>
+    </div>
+    <div id="fichaItens"></div>
+    <select class="busca" id="addIng"><option value="">+ adicionar ingrediente</option></select>
+    <div class="resumo" id="fichaResumo"></div>
+    <div class="foot">
+      <button id="btnFichaSalvar">Salvar ficha</button>
+      <button class="link" id="btnFichaVoltar">Voltar sem salvar</button>
+    </div>
   </section>
 
   <!-- ================= CONTAGEM ================= -->
@@ -334,7 +448,7 @@ const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
    UTILITÁRIOS
    ============================================================ */
 const $ = id => document.getElementById(id);
-const SC = ["scLogin","scHome","scCount","scRes","scHist"];
+const SC = ["scLogin","scHome","scCount","scRes","scHist","scCustos","scFicha"];
 function show(id){ SC.forEach(s => $(s).classList.toggle("hide", s !== id)); window.scrollTo(0,0); }
 
 function hojeSP(){
@@ -465,8 +579,284 @@ async function carregarHome(){
     : (ab ? "Conte o que sobrou no fim da noite" : "Só depois que alguém deixar a geladeira pronta");
   bFe.disabled = !ab && !fe;
 
+  $("btnCustos").classList.toggle("hide", EU.papel !== "gestor");
+
   aviso("homeMsg","", "");
   show("scHome");
+}
+
+/* ============================================================
+   CUSTOS E FICHAS TÉCNICAS (só gestor)
+   ============================================================ */
+let ABA = "fichas";
+let CATALOGO = [];   // insumos + sub-receitas, para o seletor
+let FICHA = null;    // ficha aberta
+let FITENS = [];     // itens da ficha aberta
+
+const dinheiro = v => (v === null || v === undefined || isNaN(v))
+  ? "sem custo"
+  : "R$ " + Number(v).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});
+
+async function abrirCustos(){
+  aviso("custosMsg","","");
+  if(!CATALOGO.length){
+    const [ins, sub] = await Promise.all([
+      sb.from("jb_insumo").select("nome,unidade,custo_unit,equiv_g").order("nome"),
+      sb.from("jb_subreceita_custo").select("nome,custo_kg_calculado,custo_kg_planilha").order("nome")
+    ]);
+    CATALOGO = [
+      ...(sub.data || []).map(s => ({nome:s.nome, tipo:"sub-receita", unidade:"kg",
+            custo:(s.custo_kg_calculado ?? s.custo_kg_planilha), equiv_g:null})),
+      ...(ins.data || []).map(i => ({nome:i.nome, tipo:"insumo", unidade:i.unidade || "g",
+            custo:i.custo_unit, equiv_g:i.equiv_g}))
+    ];
+  }
+  trocarAba(ABA);
+  show("scCustos");
+}
+
+function trocarAba(a){
+  ABA = a;
+  $("abaFichas").setAttribute("aria-pressed", String(a === "fichas"));
+  $("abaInsumos").setAttribute("aria-pressed", String(a === "insumos"));
+  $("buscaInsumo").classList.toggle("hide", a !== "insumos");
+  if(a === "fichas") listarFichas(); else listarInsumos();
+}
+
+async function listarFichas(){
+  const box = $("listaCustos");
+  box.innerHTML = "<p class='tip'>Carregando...</p>";
+  const { data, error } = await sb.from("jb_ficha_custo").select("*").order("nome");
+  if(error){ box.innerHTML=""; aviso("custosMsg","Não consegui carregar as fichas agora.","err"); return; }
+  box.innerHTML = "";
+  (data || []).forEach(f => {
+    const incompleta = f.itens_sem_quantidade > 0 || f.itens_sem_preco > 0 || !f.itens;
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "lin " + (incompleta ? "falta" : "ok");
+    const n = document.createElement("span"); n.className = "n";
+    n.textContent = f.nome;
+    const s = document.createElement("small");
+    s.textContent = incompleta
+      ? (f.itens_sem_quantidade > 0
+          ? f.itens_sem_quantidade + " ingrediente(s) sem quantidade"
+          : f.itens_sem_preco + " ingrediente(s) sem preço")
+      : f.itens + " ingredientes · " + (f.tempo_mo_min || 0) + " min por unidade";
+    n.appendChild(s);
+    const v = document.createElement("span");
+    v.className = "v" + (incompleta ? " vazio" : "");
+    v.textContent = incompleta ? "incompleta" : dinheiro(f.custo_unit);
+    b.append(n, v);
+    b.onclick = () => abrirFicha(f.id);
+    box.appendChild(b);
+  });
+}
+
+async function listarInsumos(){
+  const box = $("listaCustos");
+  box.innerHTML = "<p class='tip'>Carregando...</p>";
+  const { data } = await sb.from("jb_insumo").select("id,nome,unidade,custo_unit,fornecedor").order("nome");
+  const termo = ($("buscaInsumo").value || "").toLowerCase().trim();
+  box.innerHTML = "";
+  (data || []).filter(i => !termo || i.nome.toLowerCase().includes(termo)).forEach(i => {
+    const row = document.createElement("div");
+    row.className = "ing" + (i.custo_unit === null ? " semq" : "");
+    const top = document.createElement("div"); top.className = "top";
+    const nm = document.createElement("span"); nm.className = "nm"; nm.textContent = i.nome;
+    const cs = document.createElement("span"); cs.className = "cst";
+    cs.textContent = "por " + (i.unidade || "un") + (i.fornecedor ? " · " + i.fornecedor : "");
+    top.append(nm, cs);
+    const bot = document.createElement("div"); bot.className = "bot";
+    const inp = document.createElement("input");
+    inp.className = "q"; inp.type = "tel"; inp.inputMode = "decimal";
+    inp.value = i.custo_unit === null ? "" : Number(i.custo_unit).toFixed(2).replace(".",",");
+    inp.setAttribute("aria-label","Custo de " + i.nome);
+    const salvar = async () => {
+      const v = inp.value.replace(",",".").trim();
+      const num = v === "" ? null : parseFloat(v);
+      if(v !== "" && isNaN(num)) return;
+      inp.disabled = true;
+      const { error } = await sb.from("jb_insumo").update({ custo_unit: num }).eq("id", i.id);
+      inp.disabled = false;
+      if(error){ aviso("custosMsg","Não consegui salvar o preço de " + i.nome + ".","err"); return; }
+      row.classList.toggle("semq", num === null);
+      aviso("custosMsg","Preço de " + i.nome + " atualizado. Todas as fichas que usam esse item já recalcularam.","ok");
+    };
+    inp.onblur = salvar;
+    inp.addEventListener("keydown", e => { if(e.key === "Enter") inp.blur(); });
+    const un = document.createElement("span"); un.className = "cst";
+    un.textContent = "reais por " + (i.unidade || "un");
+    bot.append(inp, un);
+    row.append(top, bot);
+    box.appendChild(row);
+  });
+}
+
+async function abrirFicha(id){
+  aviso("fichaMsg","","");
+  const [f, itens] = await Promise.all([
+    sb.from("jb_ficha").select("*").eq("id", id).single(),
+    sb.from("jb_ficha_item_custo").select("*").eq("ficha_id", id).order("ordem")
+  ]);
+  if(f.error){ aviso("custosMsg","Não consegui abrir essa ficha.","err"); return; }
+  FICHA = f.data;
+  FITENS = (itens.data || []).map(i => ({
+    ingrediente: i.ingrediente, unidade: i.unidade, qtd: i.qtd,
+    custo_referencia: i.custo_referencia, origem: i.origem
+  }));
+  $("fichaTitulo").textContent = FICHA.nome;
+  $("fRend").value  = FICHA.rendimento_un ?? 1;
+  $("fTempo").value = FICHA.tempo_mo_min ?? "";
+  montarSeletor();
+  montarItens();
+  show("scFicha");
+}
+
+function montarSeletor(){
+  const sel = $("addIng");
+  sel.innerHTML = '<option value="">+ adicionar ingrediente</option>';
+  CATALOGO.forEach(c => {
+    const o = document.createElement("option");
+    o.value = c.nome;
+    o.textContent = c.nome + "  (" + c.tipo + ")";
+    sel.appendChild(o);
+  });
+  sel.onchange = () => {
+    const nome = sel.value; if(!nome) return;
+    const cat = CATALOGO.find(c => c.nome === nome);
+    if(FITENS.some(i => i.ingrediente === nome)){
+      aviso("fichaMsg","Esse ingrediente já está na ficha.","warn");
+    } else {
+      FITENS.push({ ingrediente:nome, unidade:(cat && cat.tipo === "insumo" ? cat.unidade : "g"),
+                    qtd:null, custo_referencia:null, origem:cat ? cat.tipo : "sem cadastro" });
+      montarItens();
+    }
+    sel.value = "";
+  };
+}
+
+function montarItens(){
+  const box = $("fichaItens");
+  box.innerHTML = "";
+  FITENS.forEach((it, idx) => {
+    const row = document.createElement("div");
+    row.className = "ing" + (it.qtd === null || it.qtd === "" ? " semq" : "");
+
+    const top = document.createElement("div"); top.className = "top";
+    const nm = document.createElement("span"); nm.className = "nm"; nm.textContent = it.ingrediente;
+    const cs = document.createElement("span"); cs.className = "cst";
+    cs.textContent = it.origem === "sem cadastro" ? "sem preço cadastrado" : it.origem;
+    top.append(nm, cs);
+
+    const bot = document.createElement("div"); bot.className = "bot";
+    const q = document.createElement("input");
+    q.className = "q"; q.type = "tel"; q.inputMode = "decimal";
+    q.value = (it.qtd === null || it.qtd === undefined) ? "" : String(it.qtd).replace(".",",");
+    q.placeholder = "qtd";
+    q.setAttribute("aria-label","Quantidade de " + it.ingrediente);
+    q.oninput = () => {
+      const v = q.value.replace(",",".").trim();
+      it.qtd = v === "" ? null : (isNaN(parseFloat(v)) ? null : parseFloat(v));
+      row.classList.toggle("semq", it.qtd === null);
+      calcular();
+    };
+
+    const u = document.createElement("select"); u.className = "u";
+    ["g","kg","ml","L","un","m"].forEach(x => {
+      const o = document.createElement("option"); o.value = x; o.textContent = x;
+      if((it.unidade || "g").toLowerCase() === x.toLowerCase()) o.selected = true;
+      u.appendChild(o);
+    });
+    u.onchange = () => { it.unidade = u.value; calcular(); };
+
+    const rm = document.createElement("button");
+    rm.type = "button"; rm.className = "rm"; rm.textContent = "remover";
+    rm.onclick = () => { FITENS.splice(idx,1); montarItens(); };
+
+    bot.append(q, u, rm);
+    row.append(top, bot);
+    box.appendChild(row);
+  });
+  calcular();
+}
+
+function fator(uso, custo, equiv_g){
+  const a = (uso||"").toLowerCase(), b = (custo||"").toLowerCase();
+  if(!a || !b || a === b) return 1;
+  if(a === "g"  && b === "kg") return 0.001;
+  if(a === "kg" && b === "g")  return 1000;
+  if(a === "ml" && b === "l")  return 0.001;
+  if(a === "l"  && b === "ml") return 1000;
+  if(a === "g"  && b === "un" && equiv_g > 0) return 1/equiv_g;
+  if(a === "kg" && b === "un" && equiv_g > 0) return 1000/equiv_g;
+  return 1;
+}
+
+function calcular(){
+  const rend = parseFloat(($("fRend").value || "1").replace(",",".")) || 1;
+  let total = 0, faltando = 0, semPreco = 0;
+  FITENS.forEach(it => {
+    const cat = CATALOGO.find(c => c.nome === it.ingrediente);
+    const custo = (cat && cat.custo !== null && cat.custo !== undefined)
+                  ? cat.custo : it.custo_referencia;
+    if(it.qtd === null || it.qtd === undefined){ faltando++; return; }
+    if(custo === null || custo === undefined){ semPreco++; return; }
+    total += it.qtd * fator(it.unidade, cat ? cat.unidade : "kg", cat ? cat.equiv_g : null) * Number(custo);
+  });
+  const box = $("fichaResumo");
+  box.innerHTML = "";
+  const linha = (rot, val, big) => {
+    const d = document.createElement("div"); d.className = "r" + (big ? " big" : "");
+    const a = document.createElement("span"); a.textContent = rot;
+    const b = document.createElement("b"); b.textContent = val;
+    d.append(a,b); box.appendChild(d);
+  };
+  linha("Ingredientes", FITENS.length + "");
+  linha("Rende", rend + (rend === 1 ? " unidade" : " unidades"));
+  if(faltando)  linha("Sem quantidade", faltando + " item(ns)");
+  if(semPreco)  linha("Sem preço cadastrado", semPreco + " item(ns)");
+  linha("Custo da receita", dinheiro(total));
+  linha("Custo por unidade", dinheiro(total / rend), true);
+  if(faltando || semPreco){
+    const p = document.createElement("p");
+    p.className = "tip"; p.style.margin = "8px 0 0";
+    p.textContent = faltando
+      ? "O custo acima ignora os itens sem quantidade, então ainda está incompleto."
+      : "Há ingrediente sem preço no cadastro de insumos, então o custo está por baixo.";
+    box.appendChild(p);
+  }
+}
+
+async function salvarFicha(){
+  const btn = $("btnFichaSalvar");
+  btn.disabled = true; btn.textContent = "Salvando...";
+  try{
+    const rend  = parseFloat(($("fRend").value || "1").replace(",",".")) || 1;
+    const tempo = $("fTempo").value.trim() === "" ? null
+                : (parseFloat($("fTempo").value.replace(",",".")) || null);
+
+    const { error: e1 } = await sb.from("jb_ficha")
+      .update({ rendimento_un: rend, tempo_mo_min: tempo }).eq("id", FICHA.id);
+    if(e1) throw e1;
+
+    const { error: e2 } = await sb.from("jb_ficha_item").delete().eq("ficha_id", FICHA.id);
+    if(e2) throw e2;
+
+    if(FITENS.length){
+      const linhas = FITENS.map((it,i) => ({
+        ficha_id: FICHA.id, ordem: i+1, ingrediente: it.ingrediente,
+        unidade: it.unidade, qtd: it.qtd
+      }));
+      const { error: e3 } = await sb.from("jb_ficha_item").insert(linhas);
+      if(e3) throw e3;
+    }
+    await abrirCustos();
+    aviso("custosMsg","Ficha de " + FICHA.nome + " salva.","ok");
+  } catch(err){
+    aviso("fichaMsg","Não consegui salvar agora. Tente de novo em instantes.","err");
+    window.scrollTo(0,0);
+  }
+  btn.disabled = false; btn.textContent = "Salvar ficha";
 }
 function horaDe(ts){
   return new Intl.DateTimeFormat("pt-BR",{timeZone:TZ,hour:"2-digit",minute:"2-digit"}).format(new Date(ts));
@@ -689,6 +1079,15 @@ $("btnHistVoltar").onclick = carregarHome;
 $("btnSalvar").onclick = salvar;
 $("btnVoltar").onclick = carregarHome;
 $("btnResOk").onclick = carregarHome;
+
+$("btnCustos").onclick = abrirCustos;
+$("btnCustosVoltar").onclick = carregarHome;
+$("abaFichas").onclick = () => trocarAba("fichas");
+$("abaInsumos").onclick = () => trocarAba("insumos");
+$("buscaInsumo").addEventListener("input", () => { if(ABA === "insumos") listarInsumos(); });
+$("fRend").addEventListener("input", calcular);
+$("btnFichaSalvar").onclick = salvarFicha;
+$("btnFichaVoltar").onclick = abrirCustos;
 
 iniciar();
 </script>
