@@ -630,22 +630,23 @@ async function listarFichas(){
   if(error){ box.innerHTML=""; aviso("custosMsg","Não consegui carregar as fichas agora.","err"); return; }
   box.innerHTML = "";
   (data || []).forEach(f => {
-    const incompleta = f.itens_sem_quantidade > 0 || f.itens_sem_preco > 0 || !f.itens;
+    const incompleta = f.rascunho || f.itens_sem_quantidade > 0 || f.itens_sem_preco > 0 || !f.itens;
     const b = document.createElement("button");
     b.type = "button";
     b.className = "lin " + (incompleta ? "falta" : "ok");
     const n = document.createElement("span"); n.className = "n";
     n.textContent = f.nome;
     const s = document.createElement("small");
-    s.textContent = incompleta
-      ? (f.itens_sem_quantidade > 0
-          ? f.itens_sem_quantidade + " ingrediente(s) sem quantidade"
-          : f.itens_sem_preco + " ingrediente(s) sem preço")
-      : f.itens + " ingredientes · " + (f.tempo_mo_min || 0) + " min por unidade";
+    s.textContent =
+      f.itens_sem_quantidade > 0 ? f.itens_sem_quantidade + " ingrediente(s) sem quantidade"
+    : f.itens_sem_preco > 0      ? f.itens_sem_preco + " ingrediente(s) sem preço"
+    : f.rascunho                 ? "receita ainda não preenchida"
+    : f.itens + " ingredientes · " + (f.tempo_mo_min || 0) + " min por unidade";
     n.appendChild(s);
     const v = document.createElement("span");
     v.className = "v" + (incompleta ? " vazio" : "");
-    v.textContent = incompleta ? "incompleta" : dinheiro(f.custo_unit);
+    v.textContent = f.rascunho && !f.itens_sem_quantidade ? "rascunho"
+                  : incompleta ? "incompleta" : dinheiro(f.custo_unit);
     b.append(n, v);
     b.onclick = () => abrirFicha(f.id);
     box.appendChild(b);
@@ -835,8 +836,11 @@ async function salvarFicha(){
     const tempo = $("fTempo").value.trim() === "" ? null
                 : (parseFloat($("fTempo").value.replace(",",".")) || null);
 
+    // se todas as quantidades estão preenchidas, a ficha deixa de ser rascunho
+    const completa = FITENS.length > 0 && FITENS.every(i => i.qtd !== null && i.qtd !== undefined);
+
     const { error: e1 } = await sb.from("jb_ficha")
-      .update({ rendimento_un: rend, tempo_mo_min: tempo }).eq("id", FICHA.id);
+      .update({ rendimento_un: rend, tempo_mo_min: tempo, rascunho: !completa }).eq("id", FICHA.id);
     if(e1) throw e1;
 
     const { error: e2 } = await sb.from("jb_ficha_item").delete().eq("ficha_id", FICHA.id);
