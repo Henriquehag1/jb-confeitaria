@@ -354,6 +354,34 @@ button{font-family:inherit;font-size:inherit;cursor:pointer;}
 .novoing .acoes button.perigo{background:none;color:var(--coral-fundo);text-decoration:underline;padding:10px 4px;margin-left:auto;}
 .novoing p.nota{margin:2px 0 0;font-size:.79rem;color:var(--tinta-3);font-weight:300;line-height:1.45;}
 
+/* ---------- resultado do mês ---------- */
+.razaobox{
+  background:var(--creme);border:1px solid var(--linha);border-radius:var(--r);
+  padding:16px 18px;margin-bottom:12px;
+}
+.razaobox h3{
+  font-size:.7rem;letter-spacing:.22em;text-transform:uppercase;color:var(--tinta-3);
+  font-weight:600;font-family:inherit;margin:0 0 10px;
+}
+.linhaval{
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:9px 0;border-top:1px solid var(--linha);
+}
+.linhaval:first-of-type{border-top:none;}
+.linhaval .n{flex:1;min-width:0;font-size:.95rem;}
+.linhaval .v{
+  font-family:inherit;font-variant-numeric:tabular-nums;
+  font-weight:600;color:var(--coral-forte);white-space:nowrap;font-size:.98rem;
+}
+.linhaval input.q{
+  width:110px;height:38px;border-radius:10px;border:1px solid var(--linha-2);text-align:right;
+  padding:0 10px;font-family:inherit;font-size:.98rem;font-weight:500;
+  font-variant-numeric:tabular-nums;background:var(--areia);color:var(--tinta);flex:0 0 auto;
+}
+.linhaval input.q:focus{outline:2px solid var(--coral);outline-offset:1px;border-color:var(--coral);}
+.linhaval.total{border-top:2px solid var(--linha-2);margin-top:2px;font-weight:600;}
+.linhaval.leve .n,.linhaval.leve .v{color:var(--tinta-3);font-size:.86rem;font-weight:400;}
+
 /* ---------- fotos dos produtos ---------- */
 .foto{
   flex:0 0 auto;width:46px;height:46px;border-radius:10px;object-fit:cover;
@@ -542,6 +570,10 @@ button{font-family:inherit;font-size:inherit;cursor:pointer;}
       <span class="t">O que fazer hoje</span>
       <span class="s">Suas receitas com as quantidades certas</span>
     </button>
+    <button class="big ghost hide" id="btnResultado">
+      <span class="t">Resultado do mês</span>
+      <span class="s">Quanto entrou, quanto saiu e o que sobrou</span>
+    </button>
     <button class="big ghost hide" id="btnCustos">
       <span class="t">Custos e preços</span>
       <span class="s">Receitas, insumos e quanto sobra em cada canal</span>
@@ -620,6 +652,13 @@ button{font-family:inherit;font-size:inherit;cursor:pointer;}
     </div>
   </section>
 
+  <!-- ================= RESULTADO DO MÊS ================= -->
+  <section id="scMes" class="hide">
+    <div class="chips" id="mesChips"></div>
+    <div id="mesMsg"></div>
+    <div id="mesCorpo"></div>
+  </section>
+
   <!-- ================= CONTAGEM ================= -->
   <section id="scCount" class="hide">
     <div class="counthead">
@@ -674,7 +713,7 @@ const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
    UTILITÁRIOS
    ============================================================ */
 const $ = id => document.getElementById(id);
-const SC = ["scLogin","scHome","scCount","scRes","scHist","scCustos","scFicha","scProd","scReceita"];
+const SC = ["scLogin","scHome","scCount","scRes","scHist","scCustos","scFicha","scProd","scReceita","scMes"];
 /* ============================================================
    NAVEGAÇÃO
    Uma barra só, em todas as telas: voltar, título e atualizar.
@@ -701,6 +740,9 @@ const NAV = {
   scProd:    { titulo: () => EU && EU.papel === "gestor" ? "Plano de produção" : "O que fazer hoje",
                voltar: () => carregarHome(),
                recarregar: () => { RECEITAS = null; abrirProducao(); } },
+  scMes:     { titulo: () => "Resultado do mês",
+               voltar: () => carregarHome(),
+               recarregar: () => abrirMes() },
   scReceita: { titulo: () => (REC && REC.cab) ? REC.cab.nome : "Receita",
                voltar: () => voltarDaReceita(),
                recarregar: () => REC ? abrirReceita(REC.origemItem, REC.qtdAlvo, REC.voltaPara) : null }
@@ -893,6 +935,7 @@ async function carregarHome(){
   bFe.disabled = !ab && !fe;
 
   $("btnCustos").classList.toggle("hide", EU.papel !== "gestor");
+  $("btnResultado").classList.toggle("hide", EU.papel !== "gestor");
 
   aviso("homeMsg","", "");
   show("scHome");
@@ -2030,6 +2073,190 @@ async function salvarFicha(){
 }
 
 /* ============================================================
+   RESULTADO DO MÊS
+   Entradas por canal e saídas do mês, batidos contra o Nosso Financeiro.
+   O custo por produto entra aqui quando a contagem tiver rodado.
+   ============================================================ */
+let MES = null;        // 'aaaa-mm-01'
+let MES_DADOS = null;
+
+function primeiroDia(d){ return d.slice(0,7) + "-01"; }
+function mesAnterior(iso){
+  const [a,m] = iso.split("-").map(Number);
+  return (m === 1 ? (a-1) + "-12" : a + "-" + String(m-1).padStart(2,"0")) + "-01";
+}
+function mesLongo(iso){
+  const [a,m] = iso.split("-").map(Number);
+  const s = new Intl.DateTimeFormat("pt-BR",{timeZone:"UTC",month:"long",year:"numeric"})
+              .format(new Date(Date.UTC(a,m-1,15)));
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+function mesCurto(iso){
+  const [a,m] = iso.split("-").map(Number);
+  return new Intl.DateTimeFormat("pt-BR",{timeZone:"UTC",month:"short"})
+           .format(new Date(Date.UTC(a,m-1,15))).replace(".","");
+}
+
+async function abrirMes(){
+  aviso("mesMsg","","");
+  if(!MES) MES = primeiroDia(hojeSP());
+  if(!CANAIS.length){
+    const { data } = await sb.from("jb_canal").select("*").order("ordem");
+    CANAIS = data || [];
+  }
+  const [r, f] = await Promise.all([
+    sb.from("jb_resultado_mes").select("*").eq("mes", MES).maybeSingle(),
+    sb.from("jb_faturamento").select("canal_id,valor").eq("mes", MES)
+  ]);
+  const porCanal = {};
+  (f.data || []).forEach(x => porCanal[x.canal_id] = Number(x.valor));
+  MES_DADOS = {
+    saidas: r.data ? Number(r.data.saidas) : 0,
+    obs: r.data ? r.data.obs : null,
+    fixoRef: r.data ? Number(r.data.custo_fixo_referencia) : null,
+    porCanal
+  };
+  if(!r.data){
+    const { data: cfg } = await sb.from("jb_config").select("valor").eq("chave","custo_fixo_mes").maybeSingle();
+    MES_DADOS.fixoRef = cfg ? Number(cfg.valor) : null;
+  }
+  montarMes();
+  show("scMes");
+}
+
+async function salvarMes(campos){
+  const { error } = await sb.from("jb_mes")
+    .upsert({ mes: MES, ...campos, atualizado_em: new Date().toISOString() }, { onConflict: "mes" });
+  if(error){ aviso("mesMsg","Não consegui salvar agora.","err"); return false; }
+  return true;
+}
+
+function montarMes(){
+  const chips = $("mesChips");
+  chips.innerHTML = "";
+  const atual = primeiroDia(hojeSP());
+  [mesAnterior(mesAnterior(atual)), mesAnterior(atual), atual].forEach(iso => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.textContent = iso === atual ? "Este mês" : mesCurto(iso);
+    b.setAttribute("aria-pressed", String(iso === MES));
+    b.onclick = () => { MES = iso; abrirMes(); };
+    chips.appendChild(b);
+  });
+
+  const box = $("mesCorpo");
+  box.innerHTML = "";
+
+  const entradas = CANAIS.reduce((s,c) => s + (MES_DADOS.porCanal[c.id] || 0), 0);
+  const resultado = entradas - MES_DADOS.saidas;
+
+  // o número que decide o mês, primeiro
+  const cap = document.createElement("div");
+  cap.className = "placar";
+  const g = document.createElement("div");
+  g.className = "g " + (resultado >= 0 ? "bom" : "alerta");
+  g.textContent = (resultado < 0 ? "Faltou R$ " + moeda(-resultado) : "Sobrou R$ " + moeda(resultado));
+  const p = document.createElement("p");
+  p.textContent = entradas > 0
+    ? mesLongo(MES) + ": entrou R$ " + moeda(entradas) + " e saiu R$ " + moeda(MES_DADOS.saidas)
+      + ", o que deixa " + pct(resultado/entradas) + " do que entrou."
+    : mesLongo(MES) + " ainda sem faturamento lançado.";
+  cap.append(g, p);
+  box.appendChild(cap);
+
+  // entradas por canal
+  const ent = document.createElement("div");
+  ent.className = "razaobox";
+  const h1 = document.createElement("h3"); h1.textContent = "Entrou, por canal";
+  ent.appendChild(h1);
+  CANAIS.forEach(c => {
+    const l = document.createElement("div"); l.className = "linhaval";
+    const n = document.createElement("span"); n.className = "n"; n.textContent = c.nome;
+    const inp = document.createElement("input");
+    inp.className = "q"; inp.type = "tel"; inp.inputMode = "decimal";
+    inp.setAttribute("aria-label","Entrou do " + c.nome);
+    const v = MES_DADOS.porCanal[c.id];
+    inp.value = v ? moeda(v) : "";
+    inp.placeholder = "0,00";
+    inp.onblur = async () => {
+      const n2 = numBR(inp.value) || 0;
+      if(n2 === (MES_DADOS.porCanal[c.id] || 0)) return;
+      const { error } = await sb.from("jb_faturamento")
+        .upsert({ mes: MES, canal_id: c.id, valor: n2 }, { onConflict: "mes,canal_id" });
+      if(error){ aviso("mesMsg","Não consegui salvar o " + c.nome + ".","err"); return; }
+      MES_DADOS.porCanal[c.id] = n2;
+      aviso("mesMsg", c.nome + " em " + mesLongo(MES) + ": R$ " + moeda(n2) + ".","ok");
+      montarMes();
+    };
+    inp.addEventListener("keydown", e => { if(e.key === "Enter") inp.blur(); });
+    l.append(n, inp);
+    ent.appendChild(l);
+  });
+  const tot = document.createElement("div"); tot.className = "linhaval total";
+  const tn = document.createElement("span"); tn.className = "n"; tn.textContent = "Total que entrou";
+  const tv = document.createElement("span"); tv.className = "v"; tv.textContent = "R$ " + moeda(entradas);
+  tot.append(tn, tv);
+  ent.appendChild(tot);
+  const nota1 = document.createElement("p"); nota1.className = "nota-taxa";
+  nota1.textContent = "É o repasse que caiu na conta, já sem a comissão do aplicativo. Está no Nosso Financeiro, frente confeitaria.";
+  ent.appendChild(nota1);
+  box.appendChild(ent);
+
+  // saídas
+  const sai = document.createElement("div");
+  sai.className = "razaobox";
+  const h2 = document.createElement("h3"); h2.textContent = "Saiu no mês";
+  sai.appendChild(h2);
+  const ls = document.createElement("div"); ls.className = "linhaval";
+  const sn = document.createElement("span"); sn.className = "n";
+  sn.textContent = "Tudo que saiu";
+  const si = document.createElement("input");
+  si.className = "q"; si.type = "tel"; si.inputMode = "decimal";
+  si.setAttribute("aria-label","Tudo que saiu no mês");
+  si.value = MES_DADOS.saidas ? moeda(MES_DADOS.saidas) : "";
+  si.placeholder = "0,00";
+  si.onblur = async () => {
+    const n2 = numBR(si.value) || 0;
+    if(n2 === MES_DADOS.saidas) return;
+    if(await salvarMes({ saidas: n2 })){
+      MES_DADOS.saidas = n2;
+      aviso("mesMsg","Saídas de " + mesLongo(MES) + " salvas.","ok");
+      montarMes();
+    }
+  };
+  si.addEventListener("keydown", e => { if(e.key === "Enter") si.blur(); });
+  ls.append(sn, si);
+  sai.appendChild(ls);
+
+  if(MES_DADOS.fixoRef){
+    const ref = document.createElement("div"); ref.className = "linhaval leve";
+    const rn = document.createElement("span"); rn.className = "n";
+    rn.textContent = "Só de custo fixo, o esperado é";
+    const rv = document.createElement("span"); rv.className = "v";
+    rv.textContent = "R$ " + moeda(MES_DADOS.fixoRef);
+    ref.append(rn, rv);
+    sai.appendChild(ref);
+  }
+  const nota2 = document.createElement("p"); nota2.className = "nota-taxa";
+  nota2.textContent = "Contas fixas, folha, pró-labore, ingredientes e embalagens. O número de referência acima é só para conferir se não esqueceu nada.";
+  sai.appendChild(nota2);
+
+  if(MES_DADOS.obs){
+    const o = document.createElement("p"); o.className = "nota-taxa";
+    o.style.borderTop = "1px solid var(--linha)";
+    o.style.paddingTop = "10px";
+    o.textContent = MES_DADOS.obs;
+    sai.appendChild(o);
+  }
+  box.appendChild(sai);
+
+  const falta = document.createElement("p");
+  falta.className = "tip";
+  falta.textContent = "Ainda não entra aqui o custo do que foi produzido, produto a produto. Isso chega quando a contagem tiver algumas semanas, e aí dá para dizer qual canal deu lucro, não só o mês inteiro.";
+  box.appendChild(falta);
+}
+
+/* ============================================================
    PRODUÇÃO
    A Jessica diz quanto quer de cada receita. Quem produz abre e vê
    a receita já multiplicada, com o passo a passo.
@@ -2605,6 +2832,7 @@ $("btnVoltar").onclick = carregarHome;
 $("btnResOk").onclick = carregarHome;
 
 $("btnCustos").onclick = abrirCustos;
+$("btnResultado").onclick = abrirMes;
 $("abaFichas").onclick = () => trocarAba("fichas");
 $("abaInsumos").onclick = () => trocarAba("insumos");
 $("abaPreco").onclick   = () => trocarAba("preco");
