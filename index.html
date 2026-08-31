@@ -335,7 +335,11 @@ button{font-family:inherit;font-size:inherit;cursor:pointer;}
   background:var(--areia);border:1px solid var(--linha);
 }
 .foto.g{width:100%;height:auto;max-height:230px;border-radius:var(--r);margin-bottom:12px;display:block;}
+.foto.mini{width:32px;height:32px;border-radius:8px;}
 .lin .foto{margin-right:2px;}
+.item .foto{margin-right:2px;}
+.res .ln{align-items:center;}
+.pm .top .foto{align-self:center;}
 
 .grupo{
   font-size:.68rem;letter-spacing:.22em;text-transform:uppercase;color:var(--tinta-3);
@@ -765,7 +769,7 @@ async function iniciar(){
   }
   EU = u;
 
-  const { data: p } = await sb.from("jb_produto").select("id,nome,ordem").eq("ativo", true).order("ordem");
+  const { data: p } = await sb.from("jb_produto_app").select("id,nome,ordem,foto_url").eq("ativo", true).order("ordem");
   PRODUTOS = p || [];
 
   await carregarHome();
@@ -870,7 +874,7 @@ function trocarAba(a){
 async function listarGeladeira(){
   const box = $("listaCustos");
   box.innerHTML = "<p class='tip'>Carregando...</p>";
-  const { data, error } = await sb.from("jb_produto").select("id,nome,ordem,ativo").order("ordem");
+  const { data, error } = await sb.from("jb_produto_app").select("id,nome,ordem,ativo,foto_url").order("ordem");
   if(error){ box.innerHTML=""; aviso("custosMsg","Não consegui carregar a lista agora.","err"); return; }
   const itens = data || [];
   box.innerHTML = "";
@@ -885,6 +889,9 @@ async function listarGeladeira(){
     row.className = "ing" + (p.ativo ? "" : " semq");
 
     const top = document.createElement("div"); top.className = "top";
+    top.style.gap = "10px";
+    const imP = imgFoto(p.foto_url);
+    if(imP) top.appendChild(imP);
     const inp = document.createElement("input");
     inp.type = "text"; inp.value = p.nome; inp.className = "q";
     inp.style.width = "100%"; inp.style.textAlign = "left";
@@ -962,15 +969,24 @@ async function listarGeladeira(){
 }
 
 async function recarregarProdutos(){
-  const { data } = await sb.from("jb_produto").select("id,nome,ordem").eq("ativo", true).order("ordem");
+  const { data } = await sb.from("jb_produto_app").select("id,nome,ordem,foto_url").eq("ativo", true).order("ordem");
   PRODUTOS = data || [];
+}
+
+/* As fotos do iFood vêm em 1300px. Numa lista de 18 itens no 4G isso é peso morto,
+   então miniatura pede a versão leve e só a tela da receita pede a maior. */
+function fotoTam(url, tam){
+  if(!url) return url;
+  const m = url.match(/^https:\/\/static-images\.ifood\.com\.br\/(pratos\/.+)$/);
+  return m ? "https://static.ifood-static.com.br/image/upload/" + tam + "/" + m[1] : url;
 }
 
 function imgFoto(url, classe){
   if(!url) return null;
   const im = document.createElement("img");
   im.className = "foto" + (classe ? " " + classe : "");
-  im.src = url; im.alt = ""; im.loading = "lazy";
+  im.src = fotoTam(url, classe === "g" ? "t_medium" : "t_low");
+  im.alt = ""; im.loading = "lazy"; im.decoding = "async";
   im.onerror = () => im.remove();
   return im;
 }
@@ -1206,6 +1222,10 @@ async function listarPrecos(){
     CANAL = CANAIS[0] || null;
   }
   if(!CANAL){ box.innerHTML = ""; aviso("custosMsg","Nenhum canal cadastrado ainda.","warn"); return; }
+  if(!Object.keys(FOTOS).length){
+    const { data: ft } = await sb.from("jb_ficha").select("id,foto_url");
+    (ft || []).forEach(f => { if(f.foto_url) FOTOS[f.id] = f.foto_url; });
+  }
   const { data, error } = await sb.from("jb_margem")
     .select("ficha_id,produto,rascunho,preco,custo_total,cmv")
     .eq("canal_id", CANAL.id);
@@ -1401,6 +1421,9 @@ function montarListaPrecos(){
     row.className = "pm " + (l.rascunho || c.preco == null ? "vazio" : c.lucro < 0 ? "perde" : "");
 
     const top = document.createElement("div"); top.className = "top";
+    top.style.gap = "10px";
+    const imL = imgFoto(FOTOS[l.ficha_id]);
+    if(imL){ imL.classList.add("mini"); top.appendChild(imL); }
     const nm = document.createElement("span"); nm.className = "nm"; nm.textContent = l.produto;
     const res = document.createElement("span"); res.className = "res";
     res.textContent = l.rascunho ? "ficha incompleta"
@@ -2255,6 +2278,9 @@ function montarLista(){
     row.className = "item";
     row.dataset.pid = p.id;
 
+    const im = imgFoto(p.foto_url);
+    if(im) row.appendChild(im);
+
     const nome = document.createElement("div");
     nome.className = "nome";
     nome.textContent = p.nome;
@@ -2379,7 +2405,14 @@ async function mostrarResultado(dia){
   const box = $("resBox");
   box.innerHTML = html;
   const lns = box.querySelectorAll(".res .ln");
-  linhas.forEach((l,i) => { if(lns[i]) lns[i].firstChild.textContent = l.produto; });
+  const fotoDe = {};
+  PRODUTOS.forEach(p => { if(p.foto_url) fotoDe[p.nome] = p.foto_url; });
+  linhas.forEach((l,i) => {
+    if(!lns[i]) return;
+    lns[i].firstChild.textContent = l.produto;
+    const im = imgFoto(fotoDe[l.produto]);
+    if(im){ im.classList.add("mini"); lns[i].prepend(im); }
+  });
 
   if(negativos.length){
     const w = document.createElement("div");
