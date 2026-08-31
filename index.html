@@ -109,9 +109,34 @@ button{font-family:inherit;font-size:inherit;cursor:pointer;}
 .big.done .s{color:var(--verde);opacity:.85;}
 .big[disabled]{opacity:.5;pointer-events:none;}
 
+/* ---------- barra de navegação ---------- */
+.navbar{
+  position:sticky;top:0;z-index:20;background:var(--areia);
+  display:flex;align-items:center;gap:10px;
+  padding:11px 0 10px;border-bottom:1px solid var(--linha);
+}
+.navbar button{
+  flex:0 0 auto;width:40px;height:40px;border-radius:12px;
+  border:1px solid var(--linha-2);background:var(--creme);
+  color:var(--tinta-2);font-size:1.15rem;line-height:1;
+}
+.navbar button:active{background:var(--coral-veu);border-color:var(--coral);color:var(--coral-forte);}
+.navbar button:focus-visible{outline:2px solid var(--coral);outline-offset:2px;}
+.navbar .t{
+  flex:1;min-width:0;font-family:"Playfair Display",Georgia,serif;
+  font-weight:600;font-size:1.06rem;line-height:1.2;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.girando{animation:gira .8s linear infinite;}
+@keyframes gira{to{transform:rotate(360deg);}}
+.top .recarregar{
+  border:1px solid var(--linha);background:var(--creme);color:var(--tinta-2);
+  width:34px;height:34px;border-radius:999px;font-size:1rem;line-height:1;flex:0 0 auto;
+}
+
 /* ---------- contagem ---------- */
 .counthead{
-  position:sticky;top:0;z-index:5;background:var(--areia);
+  position:sticky;top:61px;z-index:5;background:var(--areia);
   padding:14px 0 10px;border-bottom:1px solid var(--linha);margin-bottom:8px;
 }
 .counthead .row1{display:flex;align-items:baseline;justify-content:space-between;gap:10px;}
@@ -462,6 +487,13 @@ button{font-family:inherit;font-size:inherit;cursor:pointer;}
 
 <div class="app">
 
+  <!-- ================= NAVEGAÇÃO ================= -->
+  <div class="navbar hide" id="nav">
+    <button id="navVoltar" type="button" aria-label="Voltar">&#8592;</button>
+    <span class="t" id="navTitulo"></span>
+    <button id="navRecarregar" type="button" aria-label="Atualizar">&#8635;</button>
+  </div>
+
   <!-- ================= LOGIN ================= -->
   <section id="scLogin" class="login hide">
     <div class="mark">
@@ -486,6 +518,7 @@ button{font-family:inherit;font-size:inherit;cursor:pointer;}
         <img class="selo" src="icon-192.png" alt="" width="34" height="34">
         <div><b>Jessica Ballassa</b><span>Contagem de turno</span></div>
       </div>
+      <button class="recarregar" id="homeRecarregar" type="button" aria-label="Atualizar" title="Atualizar">&#8635;</button>
       <div class="who"><span id="whoName"></span><button id="btnSair" title="Sair">↩</button></div>
     </div>
     <div class="datebar">
@@ -518,12 +551,6 @@ button{font-family:inherit;font-size:inherit;cursor:pointer;}
 
   <!-- ================= CUSTOS (só gestor) ================= -->
   <section id="scCustos" class="hide">
-    <div class="top">
-      <div class="marca">
-        <img class="selo" src="icon-192.png" alt="" width="34" height="34">
-        <div><b>Jessica Ballassa</b><span>Custos e fichas</span></div>
-      </div>
-    </div>
     <div class="abas">
       <button id="abaFichas" aria-pressed="true">Fichas</button>
       <button id="abaInsumos" aria-pressed="false">Insumos</button>
@@ -538,16 +565,10 @@ button{font-family:inherit;font-size:inherit;cursor:pointer;}
     </div>
     <div id="formCustos" class="novoing hide"></div>
     <div id="listaCustos"></div>
-    <div class="foot"><button id="btnCustosVoltar">Voltar</button></div>
   </section>
 
   <!-- ================= FICHA (edição) ================= -->
   <section id="scFicha" class="hide">
-    <div class="counthead">
-      <div class="row1">
-        <h2 id="fichaTitulo"></h2>
-      </div>
-    </div>
     <div id="fichaMsg"></div>
     <label class="campo-nome">Nome do produto
       <input id="fNome" type="text" placeholder="Ex.: Bolo de Pote de Ninho">
@@ -581,31 +602,21 @@ button{font-family:inherit;font-size:inherit;cursor:pointer;}
 
   <!-- ================= PRODUÇÃO ================= -->
   <section id="scProd" class="hide">
-    <div class="top">
-      <div class="marca">
-        <img class="selo" src="icon-192.png" alt="" width="34" height="34">
-        <div><b>Jessica Ballassa</b><span>Produção</span></div>
-      </div>
-      <div class="who"><span id="whoProd"></span><button id="btnSairProd" title="Sair">↩</button></div>
-    </div>
     <div class="chips" id="prodDias"></div>
     <div id="prodMsg"></div>
     <div id="prodLista"></div>
     <select class="busca hide" id="addProd"><option value="">+ adicionar receita ao dia</option></select>
-    <div class="foot"><button id="btnProdVoltar">Voltar</button></div>
   </section>
 
   <!-- ================= RECEITA ================= -->
   <section id="scReceita" class="hide">
     <div class="counthead">
-      <div class="row1"><h2 id="recTitulo"></h2></div>
       <div class="prog" id="recSub"></div>
     </div>
     <div id="recMsg"></div>
     <div id="recCorpo"></div>
     <div class="foot">
       <button id="btnRecFeito">Marcar como feito</button>
-      <button class="link" id="btnRecVoltar">Voltar</button>
     </div>
   </section>
 
@@ -613,7 +624,7 @@ button{font-family:inherit;font-size:inherit;cursor:pointer;}
   <section id="scCount" class="hide">
     <div class="counthead">
       <div class="row1">
-        <h2 id="countTitle"></h2>
+        <h2 id="countData"></h2>
         <span class="prog" id="countProg"></span>
       </div>
       <div class="bar"><i id="countBar"></i></div>
@@ -628,26 +639,13 @@ button{font-family:inherit;font-size:inherit;cursor:pointer;}
 
   <!-- ================= RESULTADO ================= -->
   <section id="scRes" class="hide">
-    <div class="top">
-      <div class="marca">
-        <img class="selo" src="icon-192.png" alt="" width="34" height="34">
-        <div><b>Jessica Ballassa</b><span>Resultado do turno</span></div>
-      </div>
-    </div>
     <div id="resBox"></div>
     <div class="foot"><button id="btnResOk">Concluir</button></div>
   </section>
 
   <!-- ================= HISTÓRICO ================= -->
   <section id="scHist" class="hide">
-    <div class="top">
-      <div class="marca">
-        <img class="selo" src="icon-192.png" alt="" width="34" height="34">
-        <div><b>Jessica Ballassa</b><span>Últimos dias</span></div>
-      </div>
-    </div>
     <div class="card hist" id="histList"></div>
-    <div class="foot"><button id="btnHistVoltar">Voltar</button></div>
   </section>
 
 </div>
@@ -677,7 +675,78 @@ const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
    ============================================================ */
 const $ = id => document.getElementById(id);
 const SC = ["scLogin","scHome","scCount","scRes","scHist","scCustos","scFicha","scProd","scReceita"];
-function show(id){ SC.forEach(s => $(s).classList.toggle("hide", s !== id)); window.scrollTo(0,0); }
+/* ============================================================
+   NAVEGAÇÃO
+   Uma barra só, em todas as telas: voltar, título e atualizar.
+   O botão físico de voltar do celular usa o mesmo caminho.
+   ============================================================ */
+let TELA = "scLogin";
+
+const NAV = {
+  scCount:   { titulo: () => MOMENTO === "abertura" ? "O que estou deixando" : "O que sobrou",
+               voltar: () => carregarHome(),
+               recarregar: () => abrirContagem(MOMENTO) },
+  scRes:     { titulo: () => "Resultado do turno",
+               voltar: () => carregarHome(),
+               recarregar: () => RES_DIA ? mostrarResultado(RES_DIA) : carregarHome() },
+  scHist:    { titulo: () => "Últimos dias",
+               voltar: () => carregarHome(),
+               recarregar: () => abrirHistorico() },
+  scCustos:  { titulo: () => "Custos e preços",
+               voltar: () => carregarHome(),
+               recarregar: () => { CATALOGO = []; CANAIS = []; CANAL = null; FOTOS = {}; abrirCustos(); } },
+  scFicha:   { titulo: () => (FICHA && FICHA.nome) ? FICHA.nome : "Receita nova",
+               voltar: () => abrirCustos(),
+               recarregar: () => FICHA && FICHA.id ? abrirFicha(FICHA.id, TIPO) : null },
+  scProd:    { titulo: () => EU && EU.papel === "gestor" ? "Plano de produção" : "O que fazer hoje",
+               voltar: () => carregarHome(),
+               recarregar: () => { RECEITAS = null; abrirProducao(); } },
+  scReceita: { titulo: () => (REC && REC.cab) ? REC.cab.nome : "Receita",
+               voltar: () => voltarDaReceita(),
+               recarregar: () => REC ? abrirReceita(REC.origemItem, REC.qtdAlvo, REC.voltaPara) : null }
+};
+
+function atualizarNav(){
+  const cfg = NAV[TELA];
+  $("nav").classList.toggle("hide", !cfg);
+  if(!cfg) return;
+  $("navTitulo").textContent = cfg.titulo();
+}
+
+function show(id){
+  SC.forEach(s => $(s).classList.toggle("hide", s !== id));
+  window.scrollTo(0,0);
+  const mudou = id !== TELA;
+  TELA = id;
+  atualizarNav();
+  // deixa o voltar do celular andar junto com o voltar da tela
+  if(mudou && id !== "scLogin"){
+    try { history.pushState({ tela: id }, ""); } catch(e){}
+  }
+}
+
+async function recarregarTela(){
+  const cfg = NAV[TELA];
+  const btn = TELA === "scHome" ? $("homeRecarregar") : $("navRecarregar");
+  btn.classList.add("girando");
+  btn.disabled = true;
+  try {
+    if(TELA === "scHome"){ await recarregarProdutos(); await carregarHome(); }
+    else if(cfg) await cfg.recarregar();
+  } catch(e){}
+  btn.classList.remove("girando");
+  btn.disabled = false;
+}
+
+function voltarDaReceita(){
+  aviso("recMsg","","");
+  if(REC && REC.voltaPara){
+    const p = REC.voltaPara;
+    abrirReceita(p.origemItem, p.qtdAlvo, p.voltaPara);
+  } else {
+    show("scProd");
+  }
+}
 
 function hojeSP(){
   return new Intl.DateTimeFormat("en-CA",{timeZone:TZ,year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());
@@ -1525,8 +1594,8 @@ async function abrirFicha(id, tipo){
   if(id === null){
     FICHA = { id:null, nome:"", rendimento:1, tempo_mo_min:null,
               modo_preparo:"", preparo_conferido:false, nome_original:null };
+    FICHA.nome = sub ? "Massa ou recheio novo" : "Ficha nova";
     FITENS = [];
-    $("fichaTitulo").textContent = sub ? "Massa ou recheio novo" : "Ficha nova";
   } else if(sub){
     const [s, itens] = await Promise.all([
       sb.from("jb_subreceita").select("*").eq("id", id).single(),
@@ -1535,7 +1604,6 @@ async function abrirFicha(id, tipo){
     if(s.error){ aviso("custosMsg","Não consegui abrir essa receita.","err"); return; }
     FICHA = { ...s.data, rendimento: s.data.rendimento_kg, nome_original: s.data.nome };
     FITENS = (itens.data || []).map(i => ({ ingrediente:i.ingrediente, unidade:i.unidade, qtd:i.qtd }));
-    $("fichaTitulo").textContent = FICHA.nome;
   } else {
     const [f, itens] = await Promise.all([
       sb.from("jb_ficha").select("*").eq("id", id).single(),
@@ -1547,7 +1615,6 @@ async function abrirFicha(id, tipo){
       ingrediente: i.ingrediente, unidade: i.unidade, qtd: i.qtd,
       custo_referencia: i.custo_referencia, origem: i.origem
     }));
-    $("fichaTitulo").textContent = FICHA.nome;
   }
 
   $("lbRend").childNodes[0].nodeValue = sub ? "Rende (kg)" : "Rende (unidades)";
@@ -1555,7 +1622,7 @@ async function abrirFicha(id, tipo){
   $("lbFoto").classList.toggle("hide", sub);
   $("fFoto").value = FICHA.foto_url || "";
   mostrarFoto();
-  $("fNome").value  = FICHA.nome || "";
+  $("fNome").value  = (FICHA.id === null) ? "" : (FICHA.nome || "");
   $("fNome").placeholder = sub ? "Ex.: Brigadeiro Cremoso de Pistache" : "Ex.: Bolo de Pote de Ninho";
   $("fRend").value  = FICHA.rendimento ?? 1;
   $("fTempo").value = FICHA.tempo_mo_min ?? "";
@@ -1996,7 +2063,6 @@ function qtdBonita(q, un){
 
 async function abrirProducao(){
   aviso("prodMsg","","");
-  $("whoProd").textContent = EU.nome;
   if(!PROD_DIA) PROD_DIA = hojeSP();
   const gestor = EU.papel === "gestor";
   $("addProd").classList.toggle("hide", !gestor);
@@ -2148,7 +2214,7 @@ async function addReceitaAoDia(valor){
 }
 
 /* ---------- a receita já multiplicada ---------- */
-async function abrirReceita(item, escala){
+async function abrirReceita(item, escala, voltaPara){
   aviso("recMsg","","");
   const gestor = EU.papel === "gestor";
   let cab, itens, qtdAlvo, rendimento, unidade, tipo, refId;
@@ -2186,7 +2252,8 @@ async function abrirReceita(item, escala){
     return;
   }
 
-  REC = { item: item.id ? item : null, tipo, refId, cab, itens, rendimento, unidade, qtdAlvo };
+  REC = { item: item.id ? item : null, tipo, refId, cab, itens, rendimento, unidade, qtdAlvo,
+          origemItem: item, voltaPara: voltaPara || null };
   montarReceita();
   show("scReceita");
 }
@@ -2195,7 +2262,6 @@ function montarReceita(){
   const { cab, itens, rendimento, unidade, qtdAlvo } = REC;
   const fator = qtdAlvo / rendimento;
 
-  $("recTitulo").textContent = cab.nome;
   $("recSub").textContent = "a receita original rende " + qtdBonita(rendimento, unidade)
     + (fator !== 1 ? ", as quantidades abaixo já estão ajustadas" : "");
 
@@ -2222,7 +2288,8 @@ function montarReceita(){
       const b = document.createElement("button");
       b.type = "button"; b.textContent = it.ingrediente;
       b.onclick = () => abrirReceita({ subreceita_id: it.subreceita_id },
-                                     Number(it.qtd) * fator * (String(it.unidade).toLowerCase() === "g" ? 0.001 : 1));
+                                     Number(it.qtd) * fator * (String(it.unidade).toLowerCase() === "g" ? 0.001 : 1),
+                                     { origemItem: REC.origemItem, qtdAlvo: REC.qtdAlvo, voltaPara: REC.voltaPara });
       l.appendChild(b);
     } else {
       const n = document.createElement("span"); n.textContent = it.ingrediente;
@@ -2306,7 +2373,7 @@ async function abrirContagem(momento){
     if(r){ try { VALORES = JSON.parse(r); } catch(e){} }
   }
 
-  $("countTitle").textContent = momento === "abertura" ? "O que estou deixando" : "O que sobrou";
+  $("countData").textContent = dataLonga(hojeSP());
   aviso("countMsg",
     existente ? "Você está corrigindo uma contagem já salva." :
     (Object.keys(VALORES).length ? "Recuperei o que você já tinha digitado." : ""),
@@ -2433,7 +2500,9 @@ async function salvar(){
 /* ============================================================
    RESULTADO
    ============================================================ */
+let RES_DIA = null;
 async function mostrarResultado(dia){
+  RES_DIA = dia;
   const { data } = await sb.from("jb_saidas").select("*").eq("data", dia).order("ordem");
   const linhas = data || [];
   const total = linhas.reduce((s,l) => s + (l.saiu > 0 ? l.saiu : 0), 0);
@@ -2504,33 +2573,46 @@ async function abrirHistorico(){
 /* ============================================================
    LIGAÇÕES
    ============================================================ */
+$("navVoltar").onclick = () => { const c = NAV[TELA]; if(c) c.voltar(); else carregarHome(); };
+$("navRecarregar").onclick = recarregarTela;
+$("homeRecarregar").onclick = recarregarTela;
+
+// o botão de voltar do celular anda junto com a tela
+window.addEventListener("popstate", () => {
+  const c = NAV[TELA];
+  if(c){ c.voltar(); }
+  else if(TELA !== "scLogin" && TELA !== "scHome"){ carregarHome(); }
+});
+
+// o relógio da home não pode envelhecer com o app aberto
+setInterval(() => { if(TELA === "scHome") $("agora").textContent = horaSP(); }, 30000);
+
+// sair é definitivo para quem não sabe o PIN, então pergunta antes
 $("btnEntrar").onclick = entrar;
 $("pin").addEventListener("keydown", e => { if(e.key === "Enter") entrar(); });
-$("btnSair").onclick = async () => { await sb.auth.signOut(); montarLogin(); show("scLogin"); };
+$("btnSair").onclick = async () => {
+  if(!confirm("Sair do app?\n\nPara entrar de novo vai precisar do PIN.")) return;
+  await sb.auth.signOut(); montarLogin(); show("scLogin");
+};
 $("btnAbertura").onclick = () => abrirContagem("abertura");
 $("btnFechamento").onclick = () => {
   if(CONTAGEM_HOJE.fechamento) mostrarResultado(hojeSP());
   else abrirContagem("fechamento");
 };
 $("btnHist").onclick = abrirHistorico;
-$("btnHistVoltar").onclick = carregarHome;
 $("btnSalvar").onclick = salvar;
 $("btnVoltar").onclick = carregarHome;
 $("btnResOk").onclick = carregarHome;
 
 $("btnCustos").onclick = abrirCustos;
-$("btnCustosVoltar").onclick = carregarHome;
 $("abaFichas").onclick = () => trocarAba("fichas");
 $("abaInsumos").onclick = () => trocarAba("insumos");
 $("abaPreco").onclick   = () => trocarAba("preco");
 $("abaGeladeira").onclick = () => trocarAba("geladeira");
 
 $("btnProducao").onclick = abrirProducao;
-$("btnProdVoltar").onclick = carregarHome;
-$("btnSairProd").onclick = () => $("btnSair").click();
 $("addProd").onchange = () => addReceitaAoDia($("addProd").value);
 $("btnRecFeito").onclick = marcarFeito;
-$("btnRecVoltar").onclick = () => { aviso("recMsg","",""); show("scProd"); };
 $("btnFichaApagar").onclick = apagarFicha;
 $("fFoto").addEventListener("change", mostrarFoto);
 $("fFoto").addEventListener("blur", mostrarFoto);
