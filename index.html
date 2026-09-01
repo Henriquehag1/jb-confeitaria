@@ -2182,7 +2182,7 @@ function montarMes(){
       const n2 = numBR(inp.value) || 0;
       if(n2 === (MES_DADOS.porCanal[c.id] || 0)) return;
       const { error } = await sb.from("jb_faturamento")
-        .upsert({ mes: MES, canal_id: c.id, valor: n2 }, { onConflict: "mes,canal_id" });
+        .upsert({ mes: MES, canal_id: c.id, valor: n2, manual: true }, { onConflict: "mes,canal_id" });
       if(error){ aviso("mesMsg","Não consegui salvar o " + c.nome + ".","err"); return; }
       MES_DADOS.porCanal[c.id] = n2;
       aviso("mesMsg", c.nome + " em " + mesLongo(MES) + ": R$ " + moeda(n2) + ".","ok");
@@ -2198,7 +2198,7 @@ function montarMes(){
   tot.append(tn, tv);
   ent.appendChild(tot);
   const nota1 = document.createElement("p"); nota1.className = "nota-taxa";
-  nota1.textContent = "É o repasse que caiu na conta, já sem a comissão do aplicativo. Está no Nosso Financeiro, frente confeitaria.";
+  nota1.textContent = "Vem sozinho do Nosso Financeiro toda segunda, da frente confeitaria. É o repasse já sem a comissão do app. Se você digitar por cima, o seu número fica e a sincronização não mexe mais nele.";
   ent.appendChild(nota1);
   box.appendChild(ent);
 
@@ -2218,7 +2218,7 @@ function montarMes(){
   si.onblur = async () => {
     const n2 = numBR(si.value) || 0;
     if(n2 === MES_DADOS.saidas) return;
-    if(await salvarMes({ saidas: n2 })){
+    if(await salvarMes({ saidas: n2, saidas_manual: true })){
       MES_DADOS.saidas = n2;
       aviso("mesMsg","Saídas de " + mesLongo(MES) + " salvas.","ok");
       montarMes();
@@ -2238,7 +2238,7 @@ function montarMes(){
     sai.appendChild(ref);
   }
   const nota2 = document.createElement("p"); nota2.className = "nota-taxa";
-  nota2.textContent = "Contas fixas, folha, pró-labore, ingredientes e embalagens. O número de referência acima é só para conferir se não esqueceu nada.";
+  nota2.textContent = "Contas fixas mais os gastos lançados no Nosso Financeiro, atualizado toda segunda. Se digitar por cima, o seu número passa a valer. A linha acima é só para conferir se não esqueceu nada.";
   sai.appendChild(nota2);
 
   if(MES_DADOS.obs){
