@@ -699,7 +699,7 @@ const SUPABASE_KEY = "sb_publishable_M77s2Y-DZGl0xLZYYGKniA_ZdkxBO8O";
 
 const LOGINS = [
   { nome: "Jessica",  email: "jessica@jbconfeitaria.app"  },
-  { nome: "Delivery", email: "delivery@jbconfeitaria.app" },
+  { nome: "Yasmin",   email: "delivery@jbconfeitaria.app" },
   { nome: "Eliana",   email: "producao@jbconfeitaria.app" },
   { nome: "Henrique", email: "henrique@jbconfeitaria.app" }
 ];
@@ -2120,6 +2120,8 @@ async function abrirMes(){
     const { data: cfg } = await sb.from("jb_config").select("valor").eq("chave","custo_fixo_mes").maybeSingle();
     MES_DADOS.fixoRef = cfg ? Number(cfg.valor) : null;
   }
+  const { data: pl } = await sb.from("jb_config").select("valor").eq("chave","pro_labore_mes").maybeSingle();
+  MES_DADOS.proLabore = pl ? Number(pl.valor) : 0;
   montarMes();
   show("scMes");
 }
@@ -2229,16 +2231,23 @@ function montarMes(){
   sai.appendChild(ls);
 
   if(MES_DADOS.fixoRef){
+    const caixaEsperado = MES_DADOS.fixoRef - (MES_DADOS.proLabore || 0);
     const ref = document.createElement("div"); ref.className = "linhaval leve";
     const rn = document.createElement("span"); rn.className = "n";
-    rn.textContent = "Só de custo fixo, o esperado é";
+    rn.textContent = "Só de conta fixa e gente, o esperado é";
     const rv = document.createElement("span"); rv.className = "v";
-    rv.textContent = "R$ " + moeda(MES_DADOS.fixoRef);
+    rv.textContent = "R$ " + moeda(caixaEsperado);
     ref.append(rn, rv);
     sai.appendChild(ref);
   }
   const nota2 = document.createElement("p"); nota2.className = "nota-taxa";
   nota2.textContent = "Contas fixas mais os gastos lançados no Nosso Financeiro, atualizado toda segunda. Se digitar por cima, o seu número passa a valer. A linha acima é só para conferir se não esqueceu nada.";
+  if(MES_DADOS.proLabore){
+    const pl2 = document.createElement("p"); pl2.className = "nota-taxa";
+    pl2.textContent = "O pró-labore da Jessica, R$ " + moeda(MES_DADOS.proLabore)
+      + ", não entra aqui porque não sai da conta. Ele está no custo de cada produto, na aba Preço, porque o trabalho dela tem valor. Aqui é caixa, lá é custo.";
+    sai.appendChild(pl2);
+  }
   sai.appendChild(nota2);
 
   if(MES_DADOS.obs){
