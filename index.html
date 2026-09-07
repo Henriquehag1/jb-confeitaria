@@ -143,6 +143,11 @@ button{font-family:inherit;font-size:inherit;cursor:pointer;}
 .counthead h2{font-size:1.14rem;}
 .counthead .prog{font-size:.82rem;color:var(--tinta-3);font-variant-numeric:tabular-nums;}
 .bar{height:4px;background:var(--linha);border-radius:999px;margin-top:9px;overflow:hidden;}
+.editlista{
+  display:block;margin-top:10px;padding:8px 13px;border-radius:999px;
+  border:1px solid var(--linha-2);background:var(--creme);color:var(--tinta-2);font-size:.82rem;
+}
+.editlista[aria-pressed="true"]{background:var(--coral-forte);border-color:var(--coral-forte);color:var(--creme);font-weight:500;}
 .bar i{display:block;height:100%;background:var(--coral);width:0;transition:width .2s;}
 
 .item{
@@ -725,7 +730,8 @@ button{font-family:inherit;font-size:inherit;cursor:pointer;}
         <h2 id="countData"></h2>
         <span class="prog" id="countProg"></span>
       </div>
-      <div class="bar"><i id="countBar"></i></div>
+      <div class="bar" id="countBarra"><i id="countBar"></i></div>
+      <button class="editlista hide" id="btnEditarLista" type="button" aria-pressed="false">Faltou item? Editar a lista</button>
     </div>
     <div id="countMsg"></div>
     <div id="countList"></div>
@@ -781,8 +787,9 @@ const SC = ["scLogin","scHome","scCount","scRes","scHist","scCustos","scFicha","
 let TELA = "scLogin";
 
 const NAV = {
-  scCount:   { titulo: () => MOMENTO === "abertura" ? "O que estou deixando" : "O que sobrou",
-               voltar: () => carregarHome(),
+  scCount:   { titulo: () => EDIT_LISTA ? "Editando a lista"
+                             : (MOMENTO === "abertura" ? "O que estou deixando" : "O que sobrou"),
+               voltar: () => EDIT_LISTA ? alternarEdicaoLista() : carregarHome(),
                recarregar: () => abrirContagem(MOMENTO) },
   scRes:     { titulo: () => "Resultado do turno",
                voltar: () => carregarHome(),
@@ -1064,12 +1071,17 @@ function trocarAba(a){
   else listarPrecos();
 }
 
-/* ---------- itens da geladeira, a lista que a equipe conta ---------- */
+/* ---------- itens da geladeira, a lista que a equipe conta ----------
+   O mesmo editor serve em dois lugares: dentro de Custos e preços e
+   dentro da própria contagem, para a Jessica arrumar a lista na hora.  */
 async function listarGeladeira(){
-  const box = $("listaCustos");
+  await editorDaLista($("listaCustos"), "custosMsg", listarGeladeira);
+}
+
+async function editorDaLista(box, alvoMsg, aoMudar){
   box.innerHTML = "<p class='tip'>Carregando...</p>";
   const { data, error } = await sb.from("jb_produto_app").select("id,nome,ordem,ativo,foto_url").order("ordem");
-  if(error){ box.innerHTML=""; aviso("custosMsg","Não consegui carregar a lista agora.","err"); return; }
+  if(error){ box.innerHTML=""; aviso(alvoMsg,"Não consegui carregar a lista agora.","err"); return; }
   const itens = data || [];
   box.innerHTML = "";
 
@@ -1095,9 +1107,10 @@ async function listarGeladeira(){
       const novo = inp.value.trim();
       if(!novo || novo === p.nome){ inp.value = p.nome; return; }
       const { error } = await sb.from("jb_produto").update({ nome: novo }).eq("id", p.id);
-      if(error){ inp.value = p.nome; aviso("custosMsg","Não consegui renomear.","err"); return; }
+      if(error){ inp.value = p.nome; aviso(alvoMsg,"Não consegui renomear.","err"); return; }
       p.nome = novo;
-      aviso("custosMsg","Item renomeado para " + novo + ".","ok");
+      await recarregarProdutos();
+      aviso(alvoMsg,"Item renomeado para " + novo + ".","ok");
     };
     inp.addEventListener("keydown", e => { if(e.key === "Enter") inp.blur(); });
     top.appendChild(inp);
@@ -1110,7 +1123,7 @@ async function listarGeladeira(){
       const a = p.ordem, b = outro.ordem;
       await sb.from("jb_produto").update({ ordem: b }).eq("id", p.id);
       await sb.from("jb_produto").update({ ordem: a }).eq("id", outro.id);
-      listarGeladeira();
+      aoMudar();
     };
     const bSobe = document.createElement("button");
     bSobe.type = "button"; bSobe.className = "rm"; bSobe.textContent = "↑ subir";
@@ -1124,10 +1137,10 @@ async function listarGeladeira(){
     bAtivo.textContent = p.ativo ? "tirar da contagem" : "voltar para a contagem";
     bAtivo.onclick = async () => {
       const { error } = await sb.from("jb_produto").update({ ativo: !p.ativo }).eq("id", p.id);
-      if(error){ aviso("custosMsg","Não consegui mudar esse item.","err"); return; }
-      aviso("custosMsg", p.nome + (p.ativo ? " saiu da contagem." : " voltou para a contagem."), "ok");
+      if(error){ aviso(alvoMsg,"Não consegui mudar esse item.","err"); return; }
+      aviso(alvoMsg, p.nome + (p.ativo ? " saiu da contagem." : " voltou para a contagem."), "ok");
       await recarregarProdutos();
-      listarGeladeira();
+      aoMudar();
     };
     bot.append(bSobe, bDesce, bAtivo);
     row.append(top, bot);
@@ -1152,10 +1165,10 @@ async function listarGeladeira(){
     if(!nome) return;
     const ordem = Math.max(0, ...itens.map(x => x.ordem || 0)) + 1;
     const { error } = await sb.from("jb_produto").insert({ nome, ordem, ativo: true });
-    if(error){ aviso("custosMsg","Não consegui adicionar esse item.","err"); return; }
-    aviso("custosMsg", nome + " entrou na contagem.","ok");
+    if(error){ aviso(alvoMsg,"Não consegui adicionar esse item.","err"); return; }
+    aviso(alvoMsg, nome + " entrou na contagem.","ok");
     await recarregarProdutos();
-    listarGeladeira();
+    aoMudar();
   };
   b2.appendChild(salvar);
   add.append(t2, b2);
@@ -2691,11 +2704,38 @@ async function abrirContagem(momento){
     (Object.keys(VALORES).length ? "Recuperei o que você já tinha digitado." : ""),
     existente ? "warn" : "ok");
 
-  montarLista();
+  EDIT_LISTA = false;
+  await montarLista();
   show("scCount");
 }
 
-function montarLista(){
+/* A Jessica arruma a lista sem sair da contagem: mesmo editor da aba Geladeira,
+   dentro da tela. Só gestor vê o botão, e o banco só aceita gestor de qualquer jeito. */
+let EDIT_LISTA = false;
+
+async function alternarEdicaoLista(){
+  EDIT_LISTA = !EDIT_LISTA;
+  aviso("countMsg","","");
+  await montarLista();
+  atualizarNav();
+  window.scrollTo(0,0);
+}
+
+async function montarLista(){
+  const gestor = EU && EU.papel === "gestor";
+  const bt = $("btnEditarLista");
+  bt.classList.toggle("hide", !gestor);
+  bt.textContent = EDIT_LISTA ? "Pronto, voltar a contar" : "Faltou item? Editar a lista";
+  bt.setAttribute("aria-pressed", String(EDIT_LISTA));
+  $("countProg").classList.toggle("hide", EDIT_LISTA);
+  $("countBarra").classList.toggle("hide", EDIT_LISTA);
+  document.querySelector("#scCount .foot").classList.toggle("hide", EDIT_LISTA);
+
+  if(EDIT_LISTA){
+    await editorDaLista($("countList"), "countMsg", () => montarLista());
+    return;
+  }
+
   const box = $("countList");
   box.innerHTML = "";
   PRODUTOS.forEach(p => {
@@ -3198,6 +3238,7 @@ $("btnFechamento").onclick = () => {
   else abrirContagem("fechamento");
 };
 $("btnHist").onclick = abrirHistorico;
+$("btnEditarLista").onclick = alternarEdicaoLista;
 $("btnSalvar").onclick = salvar;
 $("btnVoltar").onclick = carregarHome;
 $("btnResOk").onclick = carregarHome;
