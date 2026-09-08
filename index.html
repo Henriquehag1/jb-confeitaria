@@ -108,6 +108,8 @@ button{font-family:inherit;font-size:inherit;cursor:pointer;}
 .big.done{background:var(--verde-veu);color:var(--verde);border:1px solid #C4DCCC;box-shadow:none;}
 .big.done .s{color:var(--verde);opacity:.85;}
 .big[disabled]{opacity:.5;pointer-events:none;}
+/* so aviso: mostra que ja foi feito, mas nao abre (nao e a contagem dela) */
+.big.aviso{pointer-events:none;}
 
 /* ---------- barra de navegação ---------- */
 .navbar{
@@ -237,6 +239,34 @@ button{font-family:inherit;font-size:inherit;cursor:pointer;}
 
 /* ---------- historico ---------- */
 .card{background:var(--creme);border:1px solid var(--linha);border-radius:var(--r);padding:6px 18px;}
+/* ---------- turno fechado (o que a equipe ve no fim) e adendo ---------- */
+.feito{text-align:center;padding:26px 20px 22px;}
+.feito .script{
+  font-family:"Playfair Display",serif;font-style:italic;font-weight:500;
+  font-size:1.45rem;color:var(--coral-forte);display:block;line-height:1.2;
+}
+.feito .v{font-family:"Playfair Display",serif;font-size:2.1rem;font-weight:600;display:block;margin-top:6px;}
+.feito .k{font-size:.68rem;letter-spacing:.2em;text-transform:uppercase;color:var(--tinta-3);display:block;margin-top:6px;}
+.feito p{font-size:.9rem;font-weight:300;color:var(--tinta-2);margin:15px 0 0;line-height:1.5;}
+.adnota{background:var(--creme);border:1px solid var(--linha);border-radius:14px;padding:13px 14px;margin:12px 0 0;}
+.adnota label{display:block;font-size:.82rem;color:var(--tinta-2);margin-bottom:7px;}
+.adnota textarea{
+  width:100%;border-radius:11px;border:1px solid var(--linha-2);background:var(--areia);
+  font-family:inherit;font-size:.93rem;line-height:1.5;color:var(--tinta);padding:11px 12px;resize:vertical;
+}
+.adnota textarea:focus{outline:2px solid var(--coral);outline-offset:1px;border-color:var(--coral);}
+.adja{margin-top:18px;}
+.adja h3{font-family:"Playfair Display",serif;font-size:1.05rem;font-weight:600;margin:0 0 9px;}
+.adja .l{
+  display:flex;justify-content:space-between;align-items:baseline;gap:10px;
+  padding:10px 14px;background:var(--creme);border:1px solid var(--linha);
+  border-left:3px solid var(--coral);border-radius:12px;margin-bottom:7px;
+  font-size:.92rem;font-weight:300;line-height:1.35;
+}
+.adja .l .q{font-variant-numeric:tabular-nums;font-weight:600;color:var(--coral-forte);flex:0 0 auto;}
+.adja .l .hora{display:block;color:var(--tinta-3);font-size:.76rem;margin-top:2px;}
+.res .ln .dp{display:block;font-size:.73rem;color:var(--tinta-3);font-weight:400;margin-top:1px;}
+
 .hist{font-size:.92rem;}
 .hist .h{display:flex;justify-content:space-between;gap:10px;padding:13px 0;border-top:1px solid var(--linha);}
 .hist .h:first-child{border-top:none;}
@@ -838,6 +868,37 @@ button{font-family:inherit;font-size:inherit;cursor:pointer;}
     <div class="foot"><button id="btnResOk">Concluir</button></div>
   </section>
 
+  <!-- ========= TURNO FECHADO (o que a equipe vê no fim) ========= -->
+  <section id="scFeito" class="hide">
+    <div class="card feito" id="feitoBox"></div>
+    <div id="feitoMsg"></div>
+    <button class="big" id="btnAdendo">
+      <span class="t">Saiu algo depois que fechei</span>
+      <span class="s">Anote aqui, sem mexer no que já foi salvo</span>
+    </button>
+    <div class="adja" id="feitoLista"></div>
+    <div class="foot"><button id="btnFeitoOk">Concluir</button></div>
+  </section>
+
+  <!-- ========= ADENDO: saiu depois do fechamento ========= -->
+  <section id="scAdendo" class="hide">
+    <div class="counthead">
+      <div class="row1"><h2 id="adData"></h2><span class="prog" id="adProg"></span></div>
+    </div>
+    <div id="adMsg"></div>
+    <p class="tip" style="margin:2px 2px 12px">Marque quantos saíram <b>depois</b> que você fechou o turno. A contagem que você salvou continua exatamente como está.</p>
+    <div id="adList"></div>
+    <div class="adja" id="adJa"></div>
+    <div class="adnota">
+      <label for="adTexto">Quer deixar um recado? (opcional)</label>
+      <textarea id="adTexto" rows="3" placeholder="Ex.: pedido do iFood entrou 22h40, já entreguei"></textarea>
+    </div>
+    <div class="foot">
+      <button id="btnAdSalvar">Salvar adendo</button>
+      <button class="link" id="btnAdVoltar">Voltar sem salvar</button>
+    </div>
+  </section>
+
   <!-- ================= HISTÓRICO ================= -->
   <section id="scHist" class="hide">
     <div class="card hist" id="histList"></div>
@@ -869,7 +930,7 @@ const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
    UTILITÁRIOS
    ============================================================ */
 const $ = id => document.getElementById(id);
-const SC = ["scLogin","scHome","scCount","scRes","scHist","scCustos","scFicha","scProd","scReceita","scMes","scDias","scAfa"];
+const SC = ["scLogin","scHome","scCount","scRes","scFeito","scAdendo","scHist","scCustos","scFicha","scProd","scReceita","scMes","scDias","scAfa"];
 /* ============================================================
    NAVEGAÇÃO
    Uma barra só, em todas as telas: voltar, título e atualizar.
@@ -885,6 +946,12 @@ const NAV = {
   scRes:     { titulo: () => "Resultado do turno",
                voltar: () => carregarHome(),
                recarregar: () => RES_DIA ? mostrarResultado(RES_DIA) : carregarHome() },
+  scFeito:   { titulo: () => "Turno fechado",
+               voltar: () => carregarHome(),
+               recarregar: () => mostrarFeito(FEITO_DIA) },
+  scAdendo:  { titulo: () => "Saiu depois do fechamento",
+               voltar: () => mostrarFeito(FEITO_DIA),
+               recarregar: () => abrirAdendo(FEITO_DIA) },
   scHist:    { titulo: () => "Últimos dias",
                voltar: () => carregarHome(),
                recarregar: () => abrirHistorico() },
@@ -985,8 +1052,11 @@ let PRODUTOS = [];
 let MOMENTO = null;
 let VALORES = {};
 let CONTAGEM_HOJE = {};
+let TURNO_DIA = null;   // o dia do turno em que o app está, quase sempre hoje
+let FEITO_DIA = null;   // o dia mostrado na tela de turno fechado e no adendo
 
-const rascunhoKey = () => "jb_rascunho_" + hojeSP() + "_" + MOMENTO;
+const diaDoTurno = () => TURNO_DIA || hojeSP();
+const rascunhoKey = () => "jb_rascunho_" + diaDoTurno() + "_" + MOMENTO;
 
 /* ============================================================
    LOGIN
@@ -1077,6 +1147,9 @@ async function carregarHome(){
   $("homeTip").textContent = conta
     ? "Conte item por item, sem pressa. Se errar, dá para corrigir no mesmo dia."
     : "Toque na receita para ver os ingredientes já na quantidade certa e o passo a passo.";
+  $("btnHist").querySelector(".s").textContent = EU.papel === "gestor"
+    ? "O que saiu em cada dia"
+    : "Os dias que já foram fechados";
 
   await montarMeusDias();
 
@@ -1089,24 +1162,45 @@ async function carregarHome(){
     return;
   }
 
+  /* O turno da noite atravessa a meia-noite. Se a equipe abre o app de madrugada
+     e o dia de hoje ainda não tem contagem nenhuma, o app segue no turno de ontem,
+     para ela conseguir anotar um pedido que saiu depois do fechamento. */
+  const ontem = diaMais(-1), hoje = hojeSP();
   const { data } = await sb.from("jb_contagem")
-    .select("id,momento,nome_responsavel,criado_em").eq("data", hojeSP());
-  CONTAGEM_HOJE = { abertura:null, fechamento:null };
-  (data || []).forEach(c => CONTAGEM_HOJE[c.momento] = c);
+    .select("id,data,momento,registrado_por,nome_responsavel,criado_em")
+    .in("data", [ontem, hoje]);
+  const doDia = dia => {
+    const r = { abertura:null, fechamento:null };
+    (data || []).forEach(c => { if(c.data === dia) r[c.momento] = c; });
+    return r;
+  };
+  const hj = doDia(hoje), on = doDia(ontem);
+  const madrugada = Number(horaSP().slice(0,2)) < 8;
+  const turnoDeOntem = EU.papel === "equipe" && madrugada
+                       && !hj.abertura && !hj.fechamento && !!on.fechamento;
+  TURNO_DIA = turnoDeOntem ? ontem : hoje;
+  CONTAGEM_HOJE = turnoDeOntem ? on : hj;
 
+  const gestor = EU.papel === "gestor";
   const ab = CONTAGEM_HOJE.abertura, fe = CONTAGEM_HOJE.fechamento;
   const bAb = $("btnAbertura"), bFe = $("btnFechamento");
+  /* A equipe não abre a contagem de outra pessoa: os números que a Jessica
+     deixou não aparecem para ela (o banco também não os entrega). */
+  const abAlheia = !!ab && !gestor && ab.registrado_por !== EU.user_id;
 
-  bAb.className = ab ? "big done" : "big";
+  bAb.className = "big" + (ab ? " done" : "") + (abAlheia ? " aviso" : "") + (turnoDeOntem ? " hide" : "");
   bAb.querySelector(".t").textContent = ab ? "Deixado pronto ✓" : "Deixando pronto";
   bAb.querySelector(".s").textContent = ab
-    ? "Registrado por " + ab.nome_responsavel + " às " + horaDe(ab.criado_em) + ". Toque para corrigir."
+    ? "Registrado por " + ab.nome_responsavel + " às " + horaDe(ab.criado_em) + (abAlheia ? "." : ". Toque para corrigir.")
     : "Conte o que está na geladeira agora";
 
-  bFe.className = fe ? "big done" : (ab ? "big" : "big ghost");
-  bFe.querySelector(".t").textContent = fe ? "Turno fechado ✓" : "Fechando o turno";
+  bFe.className = "big" + (fe ? " done" : (ab ? "" : " ghost"));
+  bFe.querySelector(".t").textContent = fe
+    ? (turnoDeOntem ? "Turno de ontem fechado ✓" : "Turno fechado ✓")
+    : "Fechando o turno";
   bFe.querySelector(".s").textContent = fe
-    ? "Registrado por " + fe.nome_responsavel + " às " + horaDe(fe.criado_em) + ". Toque para ver o que saiu."
+    ? "Registrado por " + fe.nome_responsavel + " às " + horaDe(fe.criado_em) + ". " +
+      (gestor ? "Toque para ver o que saiu." : "Toque se saiu algo depois.")
     : (ab ? "Conte o que sobrou no fim da noite" : "Só depois que alguém deixar a geladeira pronta");
   bFe.disabled = !ab && !fe;
 
@@ -2794,7 +2888,7 @@ async function abrirContagem(momento){
     if(r){ try { VALORES = JSON.parse(r); } catch(e){} }
   }
 
-  $("countData").textContent = dataLonga(hojeSP());
+  $("countData").textContent = dataLonga(diaDoTurno());
   aviso("countMsg",
     existente ? "Você está corrigindo uma contagem já salva." :
     (Object.keys(VALORES).length ? "Recuperei o que você já tinha digitado." : ""),
@@ -2921,7 +3015,7 @@ async function salvar(){
       if(error) throw error;
     } else {
       const { data, error } = await sb.from("jb_contagem").insert({
-        data: hojeSP(), momento: MOMENTO,
+        data: diaDoTurno(), momento: MOMENTO,
         registrado_por: EU.user_id, nome_responsavel: EU.nome
       }).select("id").single();
       if(error) throw error;
@@ -2934,7 +3028,12 @@ async function salvar(){
 
     localStorage.removeItem(rascunhoKey());
 
-    if(MOMENTO === "fechamento"){ await mostrarResultado(hojeSP()); }
+    if(MOMENTO === "fechamento"){
+      /* A equipe vê só a confirmação. Os números do que saiu só existem
+         porque comparam com a contagem da Jessica, e são coisa de gestor. */
+      if(EU.papel === "gestor") await mostrarResultado(diaDoTurno());
+      else await mostrarFeito(diaDoTurno());
+    }
     else { await carregarHome(); aviso("homeMsg","Contagem de abertura salva.","ok"); }
   } catch(err){
     btn.disabled = false; btn.textContent = rotulo;
@@ -2951,17 +3050,21 @@ async function salvar(){
 let RES_DIA = null;
 async function mostrarResultado(dia){
   RES_DIA = dia;
-  const { data } = await sb.from("jb_saidas").select("*").eq("data", dia).order("ordem");
+  const [{ data }, adendos] = await Promise.all([
+    sb.from("jb_saidas").select("*").eq("data", dia).order("ordem"),
+    listarAdendos(dia)
+  ]);
   const linhas = data || [];
-  const total = linhas.reduce((s,l) => s + (l.saiu > 0 ? l.saiu : 0), 0);
-  const negativos = linhas.filter(l => l.saiu < 0);
+  const total = linhas.reduce((s,l) => s + (l.saiu_total > 0 ? l.saiu_total : 0), 0);
+  const negativos = linhas.filter(l => l.saiu_total < 0);
 
   let html = '<div class="res"><div class="hd">' +
              '<span class="script">Um doce dia</span>' +
              '<span class="v">' + total + ' ' + (total === 1 ? "item" : "itens") + '</span>' +
              '<span class="k">saíram da geladeira em ' + dataCurta(dia) + '</span></div>';
   linhas.forEach(l => {
-    html += '<div class="ln' + (l.saiu === 0 ? " zero" : "") + '"><span></span><span class="q">' + l.saiu + '</span></div>';
+    html += '<div class="ln' + (l.saiu_total === 0 ? " zero" : "") + '"><span></span><span class="q">'
+          + l.saiu_total + '</span></div>';
   });
   html += "</div>";
 
@@ -2973,9 +3076,26 @@ async function mostrarResultado(dia){
   linhas.forEach((l,i) => {
     if(!lns[i]) return;
     lns[i].firstChild.textContent = l.produto;
+    if(l.depois > 0){
+      const dp = document.createElement("span");
+      dp.className = "dp";
+      dp.textContent = "sendo " + l.depois + " depois do fechamento";
+      lns[i].firstChild.appendChild(dp);
+    }
     const im = imgFoto(fotoDe[l.produto]);
     if(im){ im.classList.add("mini"); lns[i].prepend(im); }
   });
+
+  /* Os adendos: o que saiu depois que a equipe já tinha fechado o turno. */
+  if(adendos.length){
+    const cx = document.createElement("div");
+    cx.className = "adja";
+    const h = document.createElement("h3");
+    h.textContent = "Depois do fechamento";
+    cx.appendChild(h);
+    adendos.forEach(a => cx.appendChild(linhaAdendo(a)));
+    box.appendChild(cx);
+  }
 
   if(negativos.length){
     const w = document.createElement("div");
@@ -2984,6 +3104,186 @@ async function mostrarResultado(dia){
     box.prepend(w);
   }
   show("scRes");
+}
+
+/* ============================================================
+   TURNO FECHADO E ADENDO
+   O que a equipe vê no fim do turno: a confirmação, sem número nenhum,
+   e um lugar para anotar um pedido que saiu depois de fechar.
+   O adendo nunca mexe na contagem já salva: entra linha nova.
+   ============================================================ */
+let AD = {};   // produto_id -> quantidade que saiu depois
+
+async function listarAdendos(dia){
+  try{
+    const { data } = await sb.from("jb_adendo")
+      .select("id,produto_id,qtd,texto,nome_responsavel,criado_em")
+      .eq("data", dia).order("criado_em");
+    return data || [];
+  } catch(e){ return []; }
+}
+
+function linhaAdendo(a){
+  const nomeDe = {};
+  PRODUTOS.forEach(p => nomeDe[p.id] = p.nome);
+  const l = document.createElement("div");
+  l.className = "l";
+  const esq = document.createElement("span");
+  esq.textContent = a.produto_id ? (nomeDe[a.produto_id] || "Item") : (a.texto || "");
+  if(a.produto_id && a.texto){
+    const t = document.createElement("span");
+    t.className = "hora"; t.textContent = a.texto;
+    esq.appendChild(t);
+  }
+  const h = document.createElement("span");
+  h.className = "hora";
+  h.textContent = (a.nome_responsavel || "") + " às " + horaDe(a.criado_em);
+  esq.appendChild(h);
+  l.appendChild(esq);
+  if(a.produto_id){
+    const q = document.createElement("span");
+    q.className = "q"; q.textContent = a.qtd;
+    l.appendChild(q);
+  }
+  return l;
+}
+
+async function mostrarFeito(dia){
+  FEITO_DIA = dia;
+  const fe = CONTAGEM_HOJE && CONTAGEM_HOJE.fechamento;
+  const box = $("feitoBox");
+  box.innerHTML = "";
+  const s1 = document.createElement("span");
+  s1.className = "script"; s1.textContent = "Turno fechado";
+  const s2 = document.createElement("span");
+  s2.className = "v"; s2.textContent = fe ? horaDe(fe.criado_em) : horaSP();
+  const s3 = document.createElement("span");
+  s3.className = "k"; s3.textContent = dataCurta(dia);
+  const p = document.createElement("p");
+  p.textContent = "Prontinho, " + (EU ? EU.nome : "") +
+    ". A contagem foi salva e já chegou para a Jessica. Pode ir tranquila.";
+  box.append(s1, s2, s3, p);
+
+  aviso("feitoMsg","","");
+  const lista = $("feitoLista");
+  lista.innerHTML = "";
+  const adendos = await listarAdendos(dia);
+  if(adendos.length){
+    const h = document.createElement("h3");
+    h.textContent = "Você anotou depois do fechamento";
+    lista.appendChild(h);
+    adendos.forEach(a => lista.appendChild(linhaAdendo(a)));
+  }
+  show("scFeito");
+}
+
+async function abrirAdendo(dia){
+  FEITO_DIA = dia;
+  AD = {};
+  $("adData").textContent = dataLonga(dia);
+  $("adTexto").value = "";
+  aviso("adMsg","","");
+
+  const box = $("adList");
+  box.innerHTML = "";
+  PRODUTOS.forEach(p => {
+    const row = document.createElement("div");
+    row.className = "item";
+    row.dataset.pid = p.id;
+
+    const im = imgFoto(p.foto_url);
+    if(im) row.appendChild(im);
+
+    const nome = document.createElement("div");
+    nome.className = "nome"; nome.textContent = p.nome;
+    row.appendChild(nome);
+
+    const step = document.createElement("div");
+    step.className = "step";
+    const menos = document.createElement("button");
+    menos.type = "button"; menos.textContent = "−"; menos.setAttribute("aria-label","Menos um " + p.nome);
+    const inp = document.createElement("input");
+    inp.type = "tel"; inp.inputMode = "numeric"; inp.maxLength = 3;
+    inp.setAttribute("aria-label", p.nome);
+    const mais = document.createElement("button");
+    mais.type = "button"; mais.textContent = "+"; mais.setAttribute("aria-label","Mais um " + p.nome);
+
+    const set = v => {
+      v = Math.max(0, Math.min(999, v));
+      if(v === 0){ inp.value = ""; delete AD[p.id]; }
+      else { inp.value = v; AD[p.id] = v; }
+      pintarAdendo();
+    };
+    menos.onclick = () => set((parseInt(inp.value,10) || 0) - 1);
+    mais.onclick  = () => set((parseInt(inp.value,10) || 0) + 1);
+    inp.oninput = () => {
+      inp.value = inp.value.replace(/\D/g,"").slice(0,3);
+      const v = parseInt(inp.value,10);
+      if(!v) delete AD[p.id]; else AD[p.id] = v;
+      pintarAdendo();
+    };
+    inp.onfocus = () => inp.select();
+
+    step.append(menos, inp, mais);
+    row.appendChild(step);
+    box.appendChild(row);
+  });
+
+  const adendos = await listarAdendos(dia);
+  const antigo = $("adJa");
+  antigo.innerHTML = "";
+  if(adendos.length){
+    const h = document.createElement("h3");
+    h.textContent = "Já anotado hoje";
+    antigo.appendChild(h);
+    adendos.forEach(a => antigo.appendChild(linhaAdendo(a)));
+  }
+
+  pintarAdendo();
+  show("scAdendo");
+  window.scrollTo(0,0);
+}
+
+function pintarAdendo(){
+  let n = 0, itens = 0;
+  document.querySelectorAll("#adList .item").forEach(row => {
+    const pid = Number(row.dataset.pid);
+    const ok = AD[pid] > 0;
+    row.classList.toggle("filled", ok);
+    if(ok){ n++; itens += AD[pid]; }
+  });
+  $("adProg").textContent = n ? (itens + (itens === 1 ? " item" : " itens")) : "";
+  const texto = ($("adTexto").value || "").trim();
+  $("btnAdSalvar").disabled = !n && !texto;
+  $("btnAdSalvar").textContent = n ? "Salvar adendo" : (texto ? "Salvar recado" : "Salvar adendo");
+}
+
+async function salvarAdendo(){
+  const btn = $("btnAdSalvar");
+  const rotulo = btn.textContent;
+  btn.disabled = true; btn.textContent = "Salvando...";
+
+  const texto = ($("adTexto").value || "").trim();
+  const linhas = Object.keys(AD).filter(k => AD[k] > 0).map(k => ({
+    data: FEITO_DIA, produto_id: Number(k), qtd: AD[k], texto: null,
+    registrado_por: EU.user_id, nome_responsavel: EU.nome
+  }));
+  if(texto){
+    linhas.push({ data: FEITO_DIA, produto_id: null, qtd: 0, texto: texto,
+                  registrado_por: EU.user_id, nome_responsavel: EU.nome });
+  }
+  if(!linhas.length){ btn.disabled = false; btn.textContent = rotulo; return; }
+
+  const { error } = await sb.from("jb_adendo").insert(linhas);
+  btn.disabled = false; btn.textContent = rotulo;
+  if(error){
+    aviso("adMsg","Não consegui salvar agora. Tente de novo em instantes.","err");
+    window.scrollTo(0,0);
+    return;
+  }
+  await mostrarFeito(FEITO_DIA);
+  aviso("feitoMsg","Anotado. A contagem que você salvou continua igual.","ok");
+  window.scrollTo(0,0);
 }
 
 /* ============================================================
@@ -3012,7 +3312,12 @@ async function abrirHistorico(){
     st.className = "st" + (completo ? " ok" : "");
     st.textContent = completo ? "fechado ✓" : (porDia[d].abertura ? "sem fechamento" : "só fechamento");
     row.append(dt, st);
-    if(completo) { row.style.cursor = "pointer"; row.onclick = () => mostrarResultado(d); }
+    /* Só gestor abre o resultado do dia: o número do que saiu nasce da
+       contagem da abertura, que a equipe não vê. */
+    if(completo && EU && EU.papel === "gestor"){
+      row.style.cursor = "pointer";
+      row.onclick = () => mostrarResultado(d);
+    }
     box.appendChild(row);
   });
   show("scHist");
@@ -3606,9 +3911,15 @@ $("btnSair").onclick = async () => {
 };
 $("btnAbertura").onclick = () => abrirContagem("abertura");
 $("btnFechamento").onclick = () => {
-  if(CONTAGEM_HOJE.fechamento) mostrarResultado(hojeSP());
-  else abrirContagem("fechamento");
+  if(!CONTAGEM_HOJE.fechamento) return abrirContagem("fechamento");
+  if(EU && EU.papel === "gestor") return mostrarResultado(diaDoTurno());
+  return mostrarFeito(diaDoTurno());
 };
+$("btnAdendo").onclick = () => abrirAdendo(FEITO_DIA || diaDoTurno());
+$("btnFeitoOk").onclick = carregarHome;
+$("btnAdSalvar").onclick = salvarAdendo;
+$("btnAdVoltar").onclick = () => mostrarFeito(FEITO_DIA || diaDoTurno());
+$("adTexto").addEventListener("input", pintarAdendo);
 $("btnHist").onclick = abrirHistorico;
 $("btnEditarLista").onclick = alternarEdicaoLista;
 $("btnSalvar").onclick = salvar;
