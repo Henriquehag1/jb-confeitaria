@@ -108,8 +108,6 @@ button{font-family:inherit;font-size:inherit;cursor:pointer;}
 .big.done{background:var(--verde-veu);color:var(--verde);border:1px solid #C4DCCC;box-shadow:none;}
 .big.done .s{color:var(--verde);opacity:.85;}
 .big[disabled]{opacity:.5;pointer-events:none;}
-/* so aviso: mostra que ja foi feito, mas nao abre (nao e a contagem dela) */
-.big.aviso{pointer-events:none;}
 
 /* ---------- barra de navegação ---------- */
 .navbar{
@@ -1184,14 +1182,16 @@ async function carregarHome(){
   const gestor = EU.papel === "gestor";
   const ab = CONTAGEM_HOJE.abertura, fe = CONTAGEM_HOJE.fechamento;
   const bAb = $("btnAbertura"), bFe = $("btnFechamento");
-  /* A equipe não abre a contagem de outra pessoa: os números que a Jessica
-     deixou não aparecem para ela (o banco também não os entrega). */
-  const abAlheia = !!ab && !gestor && ab.registrado_por !== EU.user_id;
+  /* Deixar a geladeira pronta é parte da Jessica. O cartão nem aparece para a
+     equipe, para não haver confusão com o fechamento. Só volta se a própria
+     pessoa tiver registrado a abertura daquele dia, para ela poder corrigir. */
+  const aberturaMinha = !!ab && ab.registrado_por === EU.user_id;
+  const escondeAb = turnoDeOntem || (!gestor && !aberturaMinha);
 
-  bAb.className = "big" + (ab ? " done" : "") + (abAlheia ? " aviso" : "") + (turnoDeOntem ? " hide" : "");
+  bAb.className = "big" + (ab ? " done" : "") + (escondeAb ? " hide" : "");
   bAb.querySelector(".t").textContent = ab ? "Deixado pronto ✓" : "Deixando pronto";
   bAb.querySelector(".s").textContent = ab
-    ? "Registrado por " + ab.nome_responsavel + " às " + horaDe(ab.criado_em) + (abAlheia ? "." : ". Toque para corrigir.")
+    ? "Registrado por " + ab.nome_responsavel + " às " + horaDe(ab.criado_em) + ". Toque para corrigir."
     : "Conte o que está na geladeira agora";
 
   bFe.className = "big" + (fe ? " done" : (ab ? "" : " ghost"));
