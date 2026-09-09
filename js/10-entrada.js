@@ -223,7 +223,7 @@ function montarPendencias(lista, guardadas){
   k.className = "k";
   k.textContent = "Pendências · " + visiveis.filter(p => !guardada(p)).length;
   const seta = document.createElement("span");
-  seta.className = "seta"; seta.setAttribute("aria-hidden","true");
+  seta.className = "seta";
   cab.append(k, seta);
   card.appendChild(cab);
 
@@ -231,12 +231,14 @@ function montarPendencias(lista, guardadas){
   corpo.className = "corpo";
   card.appendChild(corpo);
 
-  let fechado = false;
-  try { fechado = localStorage.getItem(PEND_FECHADO) === "1"; } catch(e){}
+  /* Nasce fechado: a Home abre limpa, com o título e o número, e a lista fica
+     a um toque. Depois vale a escolha da pessoa, guardada no próprio celular. */
+  let fechado = true;
+  try { fechado = localStorage.getItem(PEND_FECHADO) !== "0"; } catch(e){}
   const pintarAberto = () => {
     corpo.classList.toggle("hide", fechado);
     cab.setAttribute("aria-expanded", String(!fechado));
-    seta.textContent = fechado ? "▸" : "▾";
+    seta.textContent = fechado ? "ver ▾" : "fechar ▴";
   };
   cab.onclick = () => {
     fechado = !fechado;
