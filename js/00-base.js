@@ -184,6 +184,7 @@ let HOME_DIA  = null;   // o dia em que a Home foi montada: se mudou, ela se ref
 let FEITO_DIA = null;   // o dia mostrado na tela de turno fechado e no adendo
 let PE_DIA = null;      // o dia da perda que está sendo registrada
 let PE_VOLTA = "scHome";  // para onde voltar quando sair da tela de perda
+let PE_APOS = false;    // a perda aconteceu depois da contagem de fechamento daquele dia
 
 const diaDoTurno = () => TURNO_DIA || hojeSP();
 const rascunhoKey = () => "jb_rascunho_" + diaDoTurno() + "_" + MOMENTO + (MODO === "repor" ? "_repor" : "");

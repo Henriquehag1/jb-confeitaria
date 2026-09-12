@@ -314,7 +314,7 @@ async function salvar(){
         const b = document.createElement("button");
         b.type = "button"; b.className = "mais";
         b.textContent = "Registrar perda ou descarte";
-        b.onclick = () => abrirPerda(dia, conf.faltas, "scHome");
+        b.onclick = () => abrirPerda(diaAntesDoTurno(), conf.faltas, "scHome", true);
         $("homeMsg").firstChild.appendChild(b);
       }
     }
@@ -380,7 +380,8 @@ async function mostrarResultado(dia){
      um número inventado (a view assume saída total quando não há fechamento). */
   const fechado = linhas.length ? linhas.every(l => l.fechado) : true;
   const ficouDe = l => (!fechado || l.sobrou === null || l.sobrou === undefined) ? null
-                       : Math.max(0, l.sobrou - (l.depois || 0));
+                       : (l.ficou !== null && l.ficou !== undefined ? l.ficou
+                          : Math.max(0, l.sobrou - (l.depois || 0)));
   const saiuDe = l => fechado ? l.saiu_total : null;
   const soma = (f) => linhas.reduce((s,l) => { const v = f(l); return s + (v > 0 ? v : 0); }, 0);
   const total   = soma(saiuDe);
@@ -457,6 +458,12 @@ async function mostrarResultado(dia){
       const dp = document.createElement("span");
       dp.className = "dp perda";
       dp.textContent = "sendo " + l.perdeu + " que não virou venda";
+      txt.appendChild(dp);
+    }
+    if(l.perdeu_depois > 0){
+      const dp = document.createElement("span");
+      dp.className = "dp perda";
+      dp.textContent = "mais " + l.perdeu_depois + " perdidos depois de fechar";
       txt.appendChild(dp);
     }
     nm.appendChild(txt);
@@ -773,17 +780,20 @@ function linhaPerda(x){
 }
 
 /* sugestao: { produto_id: quantidade } para já vir preenchido com o que faltou na conferência */
-async function abrirPerda(dia, sugestao, volta){
+async function abrirPerda(dia, sugestao, volta, apos){
   PE_DIA = dia || diaDoTurno();
   PE_VOLTA = volta || PE_VOLTA || "scHome";
+  /* Perda de dentro do dia sai da conta da venda. Perda do que já estava na sobra
+     da noite sai do saldo que abre o dia seguinte, não da venda. */
+  PE_APOS = !!apos;
   PE = {};
   PE_MOTIVO = "venceu";
   if(sugestao) Object.keys(sugestao).forEach(k => { if(sugestao[k] > 0) PE[k] = sugestao[k]; });
 
-  $("peData").textContent = dataLonga(PE_DIA);
+  $("peData").textContent = dataLonga(PE_DIA) + (PE_APOS ? ", depois de fechar" : "");
   $("peObs").value = "";
   aviso("peMsg", sugestao && Object.keys(PE).length
-    ? "Já preenchi com o que faltou em relação ao fechamento de ontem. Ajuste o que não for perda."
+    ? "Já preenchi com o que faltou em relação ao fechamento deste dia. Ajuste o que não for perda."
     : "", "warn");
 
   const mot = $("peMotivos");
@@ -887,7 +897,8 @@ async function salvarPerda(){
   const obs = ($("peObs").value || "").trim();
   const linhas = Object.keys(PE).filter(k => PE[k] > 0).map(k => ({
     data: PE_DIA, produto_id: Number(k), qtd: PE[k], motivo: PE_MOTIVO,
-    obs: obs || null, registrado_por: EU.user_id, nome_responsavel: EU.nome
+    apos_fechamento: PE_APOS, obs: obs || null,
+    registrado_por: EU.user_id, nome_responsavel: EU.nome
   }));
   if(!linhas.length){ btn.disabled = false; btn.textContent = rotulo; return; }
 
@@ -900,7 +911,8 @@ async function salvarPerda(){
   }
   const total = linhas.reduce((s,l) => s + l.qtd, 0);
   const texto = total + (total === 1 ? " unidade registrada" : " unidades registradas")
-              + " como " + MOTIVO_ROTULO(PE_MOTIVO).toLowerCase() + ". Saiu da conta do que foi vendido.";
+              + " como " + MOTIVO_ROTULO(PE_MOTIVO).toLowerCase() + ". "
+              + (PE_APOS ? "Saiu do saldo que abre o dia seguinte." : "Saiu da conta do que foi vendido.");
   if(PE_VOLTA === "scRes" && RES_DIA){ await mostrarResultado(RES_DIA); toast(texto); }
   else { await carregarHome(); aviso("homeMsg", texto, "ok"); }
   window.scrollTo(0,0);
