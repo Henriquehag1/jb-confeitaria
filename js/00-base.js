@@ -24,7 +24,7 @@ const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
    UTILITÁRIOS
    ============================================================ */
 const $ = id => document.getElementById(id);
-const SC = ["scLogin","scHome","scCount","scRes","scFeito","scAdendo","scHist","scCustos","scFicha","scProd","scReceita","scMes","scDias","scAfa"];
+const SC = ["scLogin","scHome","scCount","scRes","scFeito","scAdendo","scPerda","scHist","scCustos","scFicha","scProd","scReceita","scMes","scDias","scAfa"];
 /* ============================================================
    NAVEGAÇÃO
    Uma barra só, em todas as telas: voltar, título e atualizar.
@@ -47,6 +47,9 @@ const NAV = {
   scAdendo:  { titulo: () => "Saiu depois do fechamento",
                voltar: () => mostrarFeito(FEITO_DIA),
                recarregar: () => abrirAdendo(FEITO_DIA) },
+  scPerda:   { titulo: () => "Perda e descarte",
+               voltar: () => voltarDaPerda(),
+               recarregar: () => abrirPerda(PE_DIA, null, PE_VOLTA) },
   scHist:    { titulo: () => "Últimos dias",
                voltar: () => carregarHome(),
                recarregar: () => abrirHistorico() },
@@ -179,6 +182,8 @@ let CONTAGEM_HOJE = {};
 let TURNO_DIA = null;   // o dia do turno em que o app está, quase sempre hoje
 let HOME_DIA  = null;   // o dia em que a Home foi montada: se mudou, ela se refaz ao voltar
 let FEITO_DIA = null;   // o dia mostrado na tela de turno fechado e no adendo
+let PE_DIA = null;      // o dia da perda que está sendo registrada
+let PE_VOLTA = "scHome";  // para onde voltar quando sair da tela de perda
 
 const diaDoTurno = () => TURNO_DIA || hojeSP();
 const rascunhoKey = () => "jb_rascunho_" + diaDoTurno() + "_" + MOMENTO + (MODO === "repor" ? "_repor" : "");

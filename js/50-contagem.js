@@ -306,9 +306,17 @@ async function salvar(){
         ". A geladeira agora tem " + naGeladeira + (naGeladeira === 1 ? " item." : " itens."), "ok");
     }
     else {
-      const texto = conferenciaComOntem();
+      const conf = conferenciaComOntem();
+      const dia = diaDoTurno();
       await carregarHome();
-      aviso("homeMsg", texto.msg, texto.tipo);
+      aviso("homeMsg", conf.msg, conf.tipo);
+      if(conf.faltas && Object.keys(conf.faltas).length){
+        const b = document.createElement("button");
+        b.type = "button"; b.className = "mais";
+        b.textContent = "Registrar perda ou descarte";
+        b.onclick = () => abrirPerda(dia, conf.faltas, "scHome");
+        $("homeMsg").firstChild.appendChild(b);
+      }
     }
   } catch(err){
     btn.disabled = false; btn.textContent = rotulo;
@@ -331,10 +339,11 @@ function conferenciaComOntem(){
 
   let entraram = 0, faltando = 0;
   const nomes = [];
+  const faltas = {};
   comparaveis.forEach(p => {
     const dif = (VALORES[p.id] || 0) - ONTEM[p.id];
     if(dif > 0) entraram += dif;
-    if(dif < 0){ faltando += -dif; nomes.push(p.nome + " (" + -dif + ")"); }
+    if(dif < 0){ faltando += -dif; nomes.push(p.nome + " (" + -dif + ")"); faltas[p.id] = -dif; }
   });
 
   if(!entraram && !faltando)
@@ -347,8 +356,9 @@ function conferenciaComOntem(){
   return {
     msg: ("Contagem salva. " + parte1 + " Atenção: faltaram " + faltando +
           (faltando === 1 ? " item" : " itens") + " em relação ao fechamento de ontem (" + lista +
-          "). Se não foi perda ou descarte, vale conferir.").replace("  ", " ").trim(),
-    tipo: "warn"
+          "). Se foi perda ou descarte, registre abaixo.").replace("  ", " ").trim(),
+    tipo: "warn",
+    faltas: faltas
   };
 }
 
@@ -358,9 +368,10 @@ function conferenciaComOntem(){
 let RES_DIA = null;
 async function mostrarResultado(dia){
   RES_DIA = dia;
-  const [{ data }, adendos] = await Promise.all([
+  const [{ data }, adendos, perdas] = await Promise.all([
     sb.from("jb_saidas").select("*").eq("data", dia).order("ordem"),
-    listarAdendos(dia)
+    listarAdendos(dia),
+    listarPerdas(dia)
   ]);
   const linhas = data || [];
   /* O que ficou na geladeira agora: a sobra contada no fechamento menos o que
@@ -380,6 +391,8 @@ async function mostrarResultado(dia){
   const vieram  = soma(l => l.de_ontem);
   const entraram = soma(l => l.entrou);
   const sumiram = linhas.filter(l => l.entrou < 0);
+  const perdidos = soma(l => l.perdeu);
+  const venderam = soma(l => fechado ? l.vendeu : null);
   const negativos = fechado ? linhas.filter(l => l.saiu_total < 0) : [];
 
   const box = $("resBox");
@@ -393,7 +406,9 @@ async function mostrarResultado(dia){
       '<span class="k">' + (fechado ? "saíram da geladeira em " : "deixados em ") + dataCurta(dia) + '</span>' +
     '</div>' +
     '<div class="resumo">' +
-      '<div class="saiu"><b>' + (fechado ? total : "?") + '</b><span>saíram</span></div>' +
+      '<div class="saiu"><b>' + (fechado ? (perdidos ? venderam : total) : "?") + '</b><span>' +
+        (perdidos ? "vendidos" : "saíram") + '</span></div>' +
+      (perdidos ? '<div class="perdido"><b>' + perdidos + '</b><span>perdidos</span></div>' : '') +
       '<div class="ficou"><b>' + (fechado ? ficaram : "?") + '</b><span>ficaram na geladeira</span></div>' +
     '</div>' +
     '<table class="tres' + (temOntem ? ' comontem' : '') + '"><thead><tr>' +
@@ -438,6 +453,12 @@ async function mostrarResultado(dia){
       dp.textContent = "sendo " + l.depois + " depois do fechamento";
       txt.appendChild(dp);
     }
+    if(l.perdeu > 0){
+      const dp = document.createElement("span");
+      dp.className = "dp perda";
+      dp.textContent = "sendo " + l.perdeu + " que não virou venda";
+      txt.appendChild(dp);
+    }
     nm.appendChild(txt);
     tdNome.appendChild(nm);
 
@@ -463,6 +484,13 @@ async function mostrarResultado(dia){
     corpo.appendChild(tr);
   });
 
+  /* Registrar perda é do gestor, e é o que impede produto jogado fora de virar venda. */
+  const bPerda = document.createElement("button");
+  bPerda.type = "button"; bPerda.className = "mais";
+  bPerda.textContent = "Registrar perda ou descarte deste dia";
+  bPerda.onclick = () => abrirPerda(dia, null, "scRes");
+  box.appendChild(bPerda);
+
   const leg = document.createElement("p");
   leg.className = "tip";
   leg.textContent = !fechado
@@ -482,6 +510,16 @@ async function mostrarResultado(dia){
       + "no fechamento do dia anterior. Ou saiu alguma coisa depois de fechar sem ser anotada, ou foi perda, "
       + "ou uma das duas contagens errou.";
     box.prepend(w);
+  }
+
+  if(perdidos > 0){
+    const bloco = document.createElement("div");
+    bloco.className = "adja";
+    const h = document.createElement("h3");
+    h.textContent = "Perda e descarte";
+    bloco.appendChild(h);
+    perdas.forEach(x => bloco.appendChild(linhaPerda(x)));
+    box.appendChild(bloco);
   }
 
   /* Os adendos: o que saiu depois que a equipe já tinha fechado o turno. */
@@ -684,6 +722,187 @@ async function salvarAdendo(){
   }
   await mostrarFeito(FEITO_DIA);
   aviso("feitoMsg","Anotado. A contagem que você salvou continua igual.","ok");
+  window.scrollTo(0,0);
+}
+
+/* ============================================================
+   PERDA E DESCARTE
+   Toda diferença da geladeira tem que ter destino: ou virou venda, ou virou perda.
+   Aqui entra o que saiu sem vender, com o motivo. Não mexe em contagem nenhuma.
+   ============================================================ */
+const MOTIVOS = [
+  { chave: "venceu",     rotulo: "Venceu" },
+  { chave: "danificado", rotulo: "Quebrou ou estragou" },
+  { chave: "erro",       rotulo: "Saiu errado" },
+  { chave: "cortesia",   rotulo: "Cortesia ou degustação" },
+  { chave: "contagem",   rotulo: "Acerto de contagem" }
+];
+const MOTIVO_ROTULO = c => (MOTIVOS.find(m => m.chave === c) || { rotulo: c }).rotulo;
+
+let PE = {};                 // produto_id -> quantidade perdida
+let PE_MOTIVO = "venceu";
+
+async function listarPerdas(dia){
+  try{
+    const { data } = await sb.from("jb_perda")
+      .select("id,produto_id,qtd,motivo,obs,nome_responsavel,criado_em")
+      .eq("data", dia).order("criado_em");
+    return data || [];
+  } catch(e){ return []; }
+}
+
+function linhaPerda(x){
+  const nomeDe = {};
+  PRODUTOS.forEach(p => nomeDe[p.id] = p.nome);
+  const l = document.createElement("div");
+  l.className = "l";
+  const esq = document.createElement("span");
+  esq.textContent = nomeDe[x.produto_id] || "Item";
+  const m = document.createElement("span");
+  m.className = "hora";
+  m.textContent = MOTIVO_ROTULO(x.motivo) + (x.obs ? ": " + x.obs : "");
+  esq.appendChild(m);
+  const h = document.createElement("span");
+  h.className = "hora";
+  h.textContent = (x.nome_responsavel || "") + " às " + horaDe(x.criado_em);
+  esq.appendChild(h);
+  const q = document.createElement("span");
+  q.className = "q"; q.textContent = x.qtd;
+  l.append(esq, q);
+  return l;
+}
+
+/* sugestao: { produto_id: quantidade } para já vir preenchido com o que faltou na conferência */
+async function abrirPerda(dia, sugestao, volta){
+  PE_DIA = dia || diaDoTurno();
+  PE_VOLTA = volta || PE_VOLTA || "scHome";
+  PE = {};
+  PE_MOTIVO = "venceu";
+  if(sugestao) Object.keys(sugestao).forEach(k => { if(sugestao[k] > 0) PE[k] = sugestao[k]; });
+
+  $("peData").textContent = dataLonga(PE_DIA);
+  $("peObs").value = "";
+  aviso("peMsg", sugestao && Object.keys(PE).length
+    ? "Já preenchi com o que faltou em relação ao fechamento de ontem. Ajuste o que não for perda."
+    : "", "warn");
+
+  const mot = $("peMotivos");
+  mot.innerHTML = "";
+  MOTIVOS.forEach(m => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.textContent = m.rotulo;
+    b.dataset.motivo = m.chave;
+    b.onclick = () => { PE_MOTIVO = m.chave; pintarPerda(); };
+    mot.appendChild(b);
+  });
+
+  const box = $("peList");
+  box.innerHTML = "";
+  PRODUTOS.forEach(p => {
+    const row = document.createElement("div");
+    row.className = "item";
+    row.dataset.pid = p.id;
+
+    const im = imgFoto(p.foto_url);
+    if(im) row.appendChild(im);
+
+    const nome = document.createElement("div");
+    nome.className = "nome"; nome.textContent = p.nome;
+    row.appendChild(nome);
+
+    const step = document.createElement("div");
+    step.className = "step";
+    const menos = document.createElement("button");
+    menos.type = "button"; menos.textContent = "−"; menos.setAttribute("aria-label","Menos um " + p.nome);
+    const inp = document.createElement("input");
+    inp.type = "tel"; inp.inputMode = "numeric"; inp.maxLength = 3;
+    inp.setAttribute("aria-label", p.nome);
+    if(PE[p.id]) inp.value = PE[p.id];
+    const mais = document.createElement("button");
+    mais.type = "button"; mais.textContent = "+"; mais.setAttribute("aria-label","Mais um " + p.nome);
+
+    const set = v => {
+      v = Math.max(0, Math.min(999, v));
+      if(v === 0){ inp.value = ""; delete PE[p.id]; }
+      else { inp.value = v; PE[p.id] = v; }
+      pintarPerda();
+    };
+    menos.onclick = () => set((parseInt(inp.value,10) || 0) - 1);
+    mais.onclick  = () => set((parseInt(inp.value,10) || 0) + 1);
+    inp.oninput = () => {
+      inp.value = inp.value.replace(/\D/g,"").slice(0,3);
+      const v = parseInt(inp.value,10);
+      if(!v) delete PE[p.id]; else PE[p.id] = v;
+      pintarPerda();
+    };
+    inp.onfocus = () => inp.select();
+    inp.onkeydown = e => { if(e.key === "Enter"){ e.preventDefault(); proximoCampo(inp); } };
+
+    step.append(menos, inp, mais);
+    row.appendChild(step);
+    box.appendChild(row);
+  });
+
+  const ja = $("peJa");
+  ja.innerHTML = "";
+  const perdas = await listarPerdas(PE_DIA);
+  if(perdas.length){
+    const h = document.createElement("h3");
+    h.textContent = "Já registrado neste dia";
+    ja.appendChild(h);
+    perdas.forEach(x => ja.appendChild(linhaPerda(x)));
+  }
+
+  pintarPerda();
+  show("scPerda");
+  window.scrollTo(0,0);
+}
+
+function pintarPerda(){
+  let n = 0, itens = 0;
+  document.querySelectorAll("#peList .item").forEach(row => {
+    const pid = Number(row.dataset.pid);
+    const ok = PE[pid] > 0;
+    row.classList.toggle("filled", ok);
+    if(ok){ n++; itens += PE[pid]; }
+  });
+  document.querySelectorAll("#peMotivos button").forEach(b =>
+    b.setAttribute("aria-pressed", String(b.dataset.motivo === PE_MOTIVO)));
+  $("peProg").textContent = itens ? (itens + (itens === 1 ? " unidade" : " unidades")) : "";
+  $("btnPeSalvar").disabled = !n;
+  $("btnPeSalvar").textContent = n ? "Registrar perda" : "Escolha o que se perdeu";
+}
+
+function voltarDaPerda(){
+  if(PE_VOLTA === "scRes" && RES_DIA) return mostrarResultado(RES_DIA);
+  return carregarHome();
+}
+
+async function salvarPerda(){
+  const btn = $("btnPeSalvar");
+  const rotulo = btn.textContent;
+  btn.disabled = true; btn.textContent = "Salvando...";
+
+  const obs = ($("peObs").value || "").trim();
+  const linhas = Object.keys(PE).filter(k => PE[k] > 0).map(k => ({
+    data: PE_DIA, produto_id: Number(k), qtd: PE[k], motivo: PE_MOTIVO,
+    obs: obs || null, registrado_por: EU.user_id, nome_responsavel: EU.nome
+  }));
+  if(!linhas.length){ btn.disabled = false; btn.textContent = rotulo; return; }
+
+  const { error } = await sb.from("jb_perda").insert(linhas);
+  btn.disabled = false; btn.textContent = rotulo;
+  if(error){
+    aviso("peMsg","Não consegui salvar a perda agora. Tente de novo em instantes.","err");
+    window.scrollTo(0,0);
+    return;
+  }
+  const total = linhas.reduce((s,l) => s + l.qtd, 0);
+  const texto = total + (total === 1 ? " unidade registrada" : " unidades registradas")
+              + " como " + MOTIVO_ROTULO(PE_MOTIVO).toLowerCase() + ". Saiu da conta do que foi vendido.";
+  if(PE_VOLTA === "scRes" && RES_DIA){ await mostrarResultado(RES_DIA); toast(texto); }
+  else { await carregarHome(); aviso("homeMsg", texto, "ok"); }
   window.scrollTo(0,0);
 }
 
