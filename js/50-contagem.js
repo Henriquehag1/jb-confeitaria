@@ -3,10 +3,18 @@
 /* ============================================================
    CONTAGEM
    ============================================================ */
+/* O dia anterior ao turno em que o app está, para cruzar com o fechamento de ontem. */
+function diaAntesDoTurno(){
+  const d = new Date(diaDoTurno() + "T12:00:00Z");
+  d.setUTCDate(d.getUTCDate() - 1);
+  return d.toISOString().slice(0,10);
+}
+
 async function abrirContagem(momento, modo){
   MOMENTO = momento;
   VALORES = {};
   BASE = {};
+  ONTEM = {};
   MODO = "contar";
 
   if(!PRODUTOS_OK || !PRODUTOS.length){
@@ -60,6 +68,20 @@ async function abrirContagem(momento, modo){
     } catch(e){}
   }
 
+  /* A geladeira não começa vazia: o que sobrou ontem continua lá dentro. O app busca
+     esse saldo para a Jessica conferir item a item em vez de contar no escuro, e para
+     nada virar zero por engano. Só vale quando ontem foi fechado de verdade. */
+  if(momento === "abertura" && MODO === "contar"){
+    try {
+      const { data: on } = await sb.from("jb_saidas")
+        .select("produto_id,sobrou,depois,fechado").eq("data", diaAntesDoTurno());
+      (on || []).forEach(l => {
+        if(l.fechado && l.sobrou !== null && l.sobrou !== undefined)
+          ONTEM[l.produto_id] = Math.max(0, l.sobrou - (l.depois || 0));
+      });
+    } catch(e){}
+  }
+
   $("countData").textContent = dataLonga(diaDoTurno());
   const recuperado = rascunho && Object.keys(VALORES).length;
   aviso("countMsg",
@@ -68,6 +90,7 @@ async function abrirContagem(momento, modo){
                     : "Digite só o que você está colocando na geladeira agora. O app soma com o que já estava.")
     : existente ? (recuperado ? "Recuperei a correção que você não tinha conseguido enviar."
                               : "Você está corrigindo uma contagem já salva. O número é o total que fica na geladeira.")
+    : Object.keys(ONTEM).length ? "Cada item mostra o que ficou na geladeira ontem. Confira e corrija só o que estiver diferente."
     : (Object.keys(VALORES).length ? "Recuperei o que você já tinha digitado." : ""),
     MODO === "repor" ? "ok" : existente ? "warn" : "ok");
 
@@ -131,20 +154,31 @@ async function montarLista(){
     nome.textContent = p.nome;
     row.appendChild(nome);
 
-    /* No modo repor, cada linha mostra o que já tem e no que vai ficar. */
-    let base = null;
+    /* Duas ajudas embaixo do nome, conforme o caso:
+       repondo, quanto já tem e no que vai ficar;
+       contando a abertura, quanto ficou ontem e o que a diferença significa. */
     const temNaGeladeira = BASE[p.id] || 0;
-    if(repor){
+    const veioDeOntem = ONTEM[p.id];
+    let base = null;
+    if(repor || veioDeOntem !== undefined){
       base = document.createElement("span");
       base.className = "base";
       nome.appendChild(base);
     }
     const pintarBase = () => {
       if(!base) return;
-      const add = VALORES[p.id] || 0;
-      base.textContent = add > 0
-        ? "tem " + temNaGeladeira + ", fica " + (temNaGeladeira + add)
-        : "tem " + temNaGeladeira + " na geladeira";
+      if(repor){
+        const add = VALORES[p.id] || 0;
+        base.textContent = add > 0
+          ? "tem " + temNaGeladeira + ", fica " + (temNaGeladeira + add)
+          : "tem " + temNaGeladeira + " na geladeira";
+        return;
+      }
+      const v = VALORES[p.id];
+      const dif = v === undefined ? 0 : v - veioDeOntem;
+      base.classList.toggle("falta", dif < 0);
+      base.textContent = "ontem ficaram " + veioDeOntem
+        + (dif > 0 ? ", entraram " + dif : dif < 0 ? ", faltam " + (-dif) : "");
     };
 
     const step = document.createElement("div");
@@ -228,9 +262,17 @@ async function salvar(){
 
   const faltam = repor ? [] : LISTA.filter(p => VALORES[p.id] === undefined);
   if(faltam.length){
-    const ok = confirm(faltam.length + " produto(s) ficaram em branco e vão contar como zero. Salvar assim?");
+    /* Na abertura, item não contado não pode virar zero: o que ficou ontem continua
+       dentro da geladeira. Zero só quando o app não sabe o saldo de ontem. */
+    const mantem = MOMENTO === "abertura" ? faltam.filter(p => ONTEM[p.id] !== undefined) : [];
+    const zera = faltam.filter(p => mantem.indexOf(p) < 0);
+    const linhas = [];
+    if(mantem.length) linhas.push(mantem.length + " produto(s) você não contou: vou manter o que ficou ontem.");
+    if(zera.length) linhas.push(zera.length + " produto(s) ficaram em branco e vão contar como zero.");
+    const ok = confirm(linhas.join("\n") + "\n\nSalvar assim?");
     if(!ok){ btn.disabled = false; btn.textContent = rotulo; return; }
-    faltam.forEach(p => VALORES[p.id] = 0);
+    mantem.forEach(p => VALORES[p.id] = ONTEM[p.id]);
+    zera.forEach(p => VALORES[p.id] = 0);
   }
 
   try{
@@ -263,7 +305,11 @@ async function salvar(){
       aviso("homeMsg", "Reposição somada: " + quantos + (quantos === 1 ? " item" : " itens") +
         ". A geladeira agora tem " + naGeladeira + (naGeladeira === 1 ? " item." : " itens."), "ok");
     }
-    else { await carregarHome(); aviso("homeMsg","Contagem de abertura salva.","ok"); }
+    else {
+      const texto = conferenciaComOntem();
+      await carregarHome();
+      aviso("homeMsg", texto.msg, texto.tipo);
+    }
   } catch(err){
     btn.disabled = false; btn.textContent = rotulo;
     const semPermissao = err && (err.code === "42501" || /permission|policy|sem acesso/i.test(err.message || ""));
@@ -274,6 +320,36 @@ async function salvar(){
     return;
   }
   btn.disabled = false; btn.textContent = "Salvar contagem";
+}
+
+/* Cruza o que a Jessica acabou de contar com o que ficou na geladeira ontem.
+   Diferença para mais é produção nova, e é normal. Diferença para menos é o que
+   precisa de explicação: saiu sem registro, venceu, quebrou, ou a contagem errou. */
+function conferenciaComOntem(){
+  const comparaveis = LISTA.filter(p => ONTEM[p.id] !== undefined);
+  if(!comparaveis.length) return { msg: "Contagem de abertura salva.", tipo: "ok" };
+
+  let entraram = 0, faltando = 0;
+  const nomes = [];
+  comparaveis.forEach(p => {
+    const dif = (VALORES[p.id] || 0) - ONTEM[p.id];
+    if(dif > 0) entraram += dif;
+    if(dif < 0){ faltando += -dif; nomes.push(p.nome + " (" + -dif + ")"); }
+  });
+
+  if(!entraram && !faltando)
+    return { msg: "Contagem salva e bateu certinho com o que ficou ontem na geladeira.", tipo: "ok" };
+
+  const parte1 = entraram ? "Entraram " + entraram + (entraram === 1 ? " item novo" : " itens novos") + " em relação a ontem." : "";
+  if(!faltando) return { msg: ("Contagem salva. " + parte1).trim(), tipo: "ok" };
+
+  const lista = nomes.slice(0, 3).join(", ") + (nomes.length > 3 ? " e mais " + (nomes.length - 3) : "");
+  return {
+    msg: ("Contagem salva. " + parte1 + " Atenção: faltaram " + faltando +
+          (faltando === 1 ? " item" : " itens") + " em relação ao fechamento de ontem (" + lista +
+          "). Se não foi perda ou descarte, vale conferir.").replace("  ", " ").trim(),
+    tipo: "warn"
+  };
 }
 
 /* ============================================================
@@ -299,6 +375,11 @@ async function mostrarResultado(dia){
   const total   = soma(saiuDe);
   const ficaram = soma(ficouDe);
   const deixados = soma(l => l.deixou);
+  /* A geladeira é uma conta corrente: veio de ontem, entrou hoje, saiu, ficou. */
+  const temOntem = linhas.some(l => l.de_ontem !== null && l.de_ontem !== undefined);
+  const vieram  = soma(l => l.de_ontem);
+  const entraram = soma(l => l.entrou);
+  const sumiram = linhas.filter(l => l.entrou < 0);
   const negativos = fechado ? linhas.filter(l => l.saiu_total < 0) : [];
 
   const box = $("resBox");
@@ -315,10 +396,13 @@ async function mostrarResultado(dia){
       '<div class="saiu"><b>' + (fechado ? total : "?") + '</b><span>saíram</span></div>' +
       '<div class="ficou"><b>' + (fechado ? ficaram : "?") + '</b><span>ficaram na geladeira</span></div>' +
     '</div>' +
-    '<table class="tres"><thead><tr>' +
-      '<th>Item</th><th>Deixei</th><th>Saiu</th><th>Ficou</th>' +
+    '<table class="tres' + (temOntem ? ' comontem' : '') + '"><thead><tr>' +
+      '<th>Item</th>' + (temOntem ? '<th>Ontem</th><th>Entrou</th>' : '<th>Deixei</th>') +
+      '<th>Saiu</th><th>Ficou</th>' +
     '</tr></thead><tbody></tbody><tfoot><tr>' +
-      '<th>Total</th><td>' + deixados + '</td><td class="q">' + (fechado ? total : "?") +
+      '<th>Total</th>' +
+      (temOntem ? '<td>' + vieram + '</td><td>' + entraram + '</td>' : '<td>' + deixados + '</td>') +
+      '<td class="q">' + (fechado ? total : "?") +
       '</td><td class="f">' + (fechado ? ficaram : "?") + '</td>' +
     '</tr></tfoot></table>';
   box.appendChild(cx);
@@ -357,24 +441,48 @@ async function mostrarResultado(dia){
     nm.appendChild(txt);
     tdNome.appendChild(nm);
 
-    const tdD = document.createElement("td");
-    tdD.textContent = num(l.deixou);
+    const celulas = [];
+    if(temOntem){
+      const tdO = document.createElement("td");
+      tdO.textContent = num(l.de_ontem);
+      const tdE = document.createElement("td");
+      tdE.textContent = num(l.entrou);
+      if(l.entrou < 0) tdE.className = "falta";
+      celulas.push(tdO, tdE);
+    } else {
+      const tdD = document.createElement("td");
+      tdD.textContent = num(l.deixou);
+      celulas.push(tdD);
+    }
     const tdS = document.createElement("td");
     tdS.className = "q"; tdS.textContent = num(saiu);
     const tdF = document.createElement("td");
     tdF.className = "f"; tdF.textContent = num(ficou);
 
-    tr.append(tdNome, tdD, tdS, tdF);
+    tr.append(tdNome, ...celulas, tdS, tdF);
     corpo.appendChild(tr);
   });
 
   const leg = document.createElement("p");
   leg.className = "tip";
-  leg.textContent = fechado
-    ? "Deixei é o que entrou na geladeira no dia, contando as reposições. "
-      + "Ficou é a sobra do fechamento menos o que saiu depois dele, calculada pelo app."
-    : "O turno ainda não foi fechado. O que saiu e o que ficou aparecem aqui depois da contagem do fechamento.";
+  leg.textContent = !fechado
+    ? "O turno ainda não foi fechado. O que saiu e o que ficou aparecem aqui depois da contagem do fechamento."
+    : temOntem
+      ? "Ontem é o que a geladeira guardou do dia anterior. Entrou é o que a Jessica colocou hoje, "
+        + "na abertura e nas reposições. Ficou é a sobra do fechamento menos o que saiu depois dele. "
+        + "Ontem mais Entrou menos Saiu tem que dar Ficou."
+      : "Deixei é o que entrou na geladeira no dia, contando as reposições. "
+        + "Ficou é a sobra do fechamento menos o que saiu depois dele, calculada pelo app.";
   box.appendChild(leg);
+
+  if(sumiram.length){
+    const w = document.createElement("div");
+    w.className = "msg warn";
+    w.textContent = "Atenção: " + sumiram.length + " produto(s) apareceram na abertura com menos do que tinha ficado "
+      + "no fechamento do dia anterior. Ou saiu alguma coisa depois de fechar sem ser anotada, ou foi perda, "
+      + "ou uma das duas contagens errou.";
+    box.prepend(w);
+  }
 
   /* Os adendos: o que saiu depois que a equipe já tinha fechado o turno. */
   if(adendos.length){
