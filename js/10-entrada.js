@@ -107,6 +107,7 @@ async function carregarHome(){
   await montarMeusDias();
 
   if(!conta){
+    $("btnPerda").classList.add("hide");
     $("btnCustos").classList.add("hide");
     $("btnDias").classList.add("hide");
     $("btnAfazeres").classList.add("hide");
@@ -175,6 +176,7 @@ async function carregarHome(){
     : (ab ? "Conte o que sobrou no fim da noite" : "Só depois que o turno for aberto");
   bFe.disabled = !ab && !fe;
 
+  $("btnPerda").classList.toggle("hide", EU.papel !== "gestor");
   $("btnCustos").classList.toggle("hide", EU.papel !== "gestor");
   $("btnResultado").classList.toggle("hide", EU.papel !== "gestor");
   $("btnDias").classList.toggle("hide", EU.papel !== "gestor");

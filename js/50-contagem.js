@@ -90,7 +90,7 @@ async function abrirContagem(momento, modo){
                     : "Digite só o que você está colocando na geladeira agora. O app soma com o que já estava.")
     : existente ? (recuperado ? "Recuperei a correção que você não tinha conseguido enviar."
                               : "Você está corrigindo uma contagem já salva. O número é o total que fica na geladeira.")
-    : Object.keys(ONTEM).length ? "Cada item mostra o que ficou na geladeira ontem. Confira e corrija só o que estiver diferente."
+    : Object.keys(ONTEM).length ? "Confira a geladeira contra o que ficou ontem. O que estiver igual você deixa em branco; digite só o que mudou."
     : (Object.keys(VALORES).length ? "Recuperei o que você já tinha digitado." : ""),
     MODO === "repor" ? "ok" : existente ? "warn" : "ok");
 
@@ -248,6 +248,20 @@ function pintar(){
     $("btnSalvar").textContent = n === 0 ? "Digite o que você repôs" : "Somar à geladeira";
     return;
   }
+  /* Abertura com o saldo de ontem na tela: o trabalho dela é conferir, não recontar.
+     Item que bate com ontem ela deixa em branco, e o botão diz isso com todas as letras. */
+  const conferindo = MOMENTO === "abertura" && Object.keys(ONTEM).length > 0;
+  if(conferindo){
+    const semSaldo = LISTA.filter(p => ONTEM[p.id] === undefined && VALORES[p.id] === undefined).length;
+    $("countProg").textContent = n === 0 ? "tudo como ontem"
+                                : (n === 1 ? "1 item diferente" : n + " itens diferentes");
+    $("countBar").style.width = (total ? (n/total*100) : 0) + "%";
+    $("btnSalvar").disabled = false;
+    $("btnSalvar").textContent = semSaldo
+      ? "Salvar (" + semSaldo + " em branco)"
+      : (n === 0 ? "Confere com ontem, abrir o turno" : "Salvar abertura");
+    return;
+  }
   $("countProg").textContent = n + " de " + total;
   $("countBar").style.width = (total ? (n/total*100) : 0) + "%";
   $("btnSalvar").disabled = n === 0;
@@ -266,11 +280,12 @@ async function salvar(){
        dentro da geladeira. Zero só quando o app não sabe o saldo de ontem. */
     const mantem = MOMENTO === "abertura" ? faltam.filter(p => ONTEM[p.id] !== undefined) : [];
     const zera = faltam.filter(p => mantem.indexOf(p) < 0);
-    const linhas = [];
-    if(mantem.length) linhas.push(mantem.length + " produto(s) você não contou: vou manter o que ficou ontem.");
-    if(zera.length) linhas.push(zera.length + " produto(s) ficaram em branco e vão contar como zero.");
-    const ok = confirm(linhas.join("\n") + "\n\nSalvar assim?");
-    if(!ok){ btn.disabled = false; btn.textContent = rotulo; return; }
+    /* Deixar em branco um item que bate com ontem é o caminho normal, não uma exceção:
+       não pergunta nada. Perguntar só quando o branco fosse virar zero de verdade. */
+    if(zera.length){
+      const ok = confirm(zera.length + " produto(s) ficaram em branco e vão contar como zero. Salvar assim?");
+      if(!ok){ btn.disabled = false; btn.textContent = rotulo; return; }
+    }
     mantem.forEach(p => VALORES[p.id] = ONTEM[p.id]);
     zera.forEach(p => VALORES[p.id] = 0);
   }
@@ -347,14 +362,14 @@ function conferenciaComOntem(){
   });
 
   if(!entraram && !faltando)
-    return { msg: "Contagem salva e bateu certinho com o que ficou ontem na geladeira.", tipo: "ok" };
+    return { msg: "Conferência feita, turno aberto. A geladeira está igual ao que ficou ontem.", tipo: "ok" };
 
   const parte1 = entraram ? "Entraram " + entraram + (entraram === 1 ? " item novo" : " itens novos") + " em relação a ontem." : "";
-  if(!faltando) return { msg: ("Contagem salva. " + parte1).trim(), tipo: "ok" };
+  if(!faltando) return { msg: ("Turno aberto. " + parte1).trim(), tipo: "ok" };
 
   const lista = nomes.slice(0, 3).join(", ") + (nomes.length > 3 ? " e mais " + (nomes.length - 3) : "");
   return {
-    msg: ("Contagem salva. " + parte1 + " Atenção: faltaram " + faltando +
+    msg: ("Turno aberto. " + parte1 + " Atenção: faltaram " + faltando +
           (faltando === 1 ? " item" : " itens") + " em relação ao fechamento de ontem (" + lista +
           "). Se foi perda ou descarte, registre abaixo.").replace("  ", " ").trim(),
     tipo: "warn",
