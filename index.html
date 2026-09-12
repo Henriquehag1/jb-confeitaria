@@ -155,6 +155,14 @@ button{font-family:inherit;font-size:inherit;cursor:pointer;}
   background:var(--creme);color:var(--tinta-2);font-size:.83rem;line-height:1.2;
 }
 .modos button[aria-pressed="true"]{background:var(--coral-forte);border-color:var(--coral-forte);color:var(--creme);font-weight:500;}
+/* motivos da perda */
+.motivos{display:flex;flex-wrap:wrap;gap:7px;margin:0 2px 14px;}
+.motivos button{
+  padding:8px 13px;border-radius:999px;border:1px solid var(--linha-2);
+  background:var(--creme);color:var(--tinta-2);font-size:.82rem;line-height:1.2;
+}
+.motivos button[aria-pressed="true"]{background:var(--ambar-veu);border-color:#EDD5A8;color:var(--ambar);font-weight:600;}
+.res .ln .dp.perda{color:var(--ambar);}
 .item .base{display:block;font-size:.74rem;color:var(--tinta-3);font-weight:400;margin-top:2px;}
 .item .base.falta{color:var(--ambar);font-weight:500;}
 .bar i{display:block;height:100%;background:var(--coral);width:0;transition:width .2s;}
@@ -247,6 +255,7 @@ button{font-family:inherit;font-size:inherit;cursor:pointer;}
 .res .resumo b{display:block;font-family:"Playfair Display",serif;font-size:1.6rem;font-weight:600;line-height:1.1;font-variant-numeric:tabular-nums;}
 .res .resumo .saiu b{color:var(--coral-forte);}
 .res .resumo .ficou b{color:var(--verde);}
+.res .resumo .perdido b{color:var(--ambar);}
 .res .resumo span{font-size:.64rem;letter-spacing:.16em;text-transform:uppercase;color:var(--tinta-3);display:block;margin-top:3px;}
 
 /* a tabela do turno: item, quanto deixei, quanto saiu, quanto ficou */
@@ -1013,6 +1022,26 @@ button{font-family:inherit;font-size:inherit;cursor:pointer;}
   </section>
 
   <!-- ================= HISTÓRICO ================= -->
+  <!-- ================= PERDA E DESCARTE ================= -->
+  <section id="scPerda" class="hide">
+    <div class="counthead">
+      <div class="row1"><h2 id="peData"></h2><span class="prog" id="peProg"></span></div>
+    </div>
+    <div id="peMsg"></div>
+    <p class="tip" style="margin:2px 2px 10px">Quantas unidades saíram da geladeira sem virar venda. Não mexe em contagem nenhuma: o app tira essas unidades da conta do que foi vendido.</p>
+    <div class="motivos" id="peMotivos"></div>
+    <div id="peList"></div>
+    <div class="adja" id="peJa"></div>
+    <div class="adnota">
+      <label for="peObs">Quer explicar? (opcional)</label>
+      <textarea id="peObs" rows="2" placeholder="Ex.: caiu no chão na hora de embalar"></textarea>
+    </div>
+    <div class="foot">
+      <button id="btnPeSalvar">Registrar perda</button>
+      <button class="link" id="btnPeVoltar">Voltar sem salvar</button>
+    </div>
+  </section>
+
   <section id="scHist" class="hide">
     <div class="card hist" id="histList"></div>
   </section>
@@ -1022,14 +1051,14 @@ button{font-family:inherit;font-size:inherit;cursor:pointer;}
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.116.0/dist/umd/supabase.min.js"></script>
-<script src="js/00-base.js?v=2026-09-12"></script>
-<script src="js/10-entrada.js?v=2026-09-12"></script>
-<script src="js/20-custos.js?v=2026-09-12"></script>
-<script src="js/30-mes.js?v=2026-09-12"></script>
-<script src="js/40-producao.js?v=2026-09-12"></script>
-<script src="js/50-contagem.js?v=2026-09-12"></script>
-<script src="js/60-afazeres.js?v=2026-09-12"></script>
-<script src="js/70-dias.js?v=2026-09-12"></script>
-<script src="js/90-ligacoes.js?v=2026-09-12"></script>
+<script src="js/00-base.js?v=2026-09-12b"></script>
+<script src="js/10-entrada.js?v=2026-09-12b"></script>
+<script src="js/20-custos.js?v=2026-09-12b"></script>
+<script src="js/30-mes.js?v=2026-09-12b"></script>
+<script src="js/40-producao.js?v=2026-09-12b"></script>
+<script src="js/50-contagem.js?v=2026-09-12b"></script>
+<script src="js/60-afazeres.js?v=2026-09-12b"></script>
+<script src="js/70-dias.js?v=2026-09-12b"></script>
+<script src="js/90-ligacoes.js?v=2026-09-12b"></script>
 </body>
 </html>
