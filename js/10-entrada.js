@@ -160,10 +160,10 @@ async function carregarHome(){
   const escondeAb = turnoDeOntem || (!gestor && !aberturaMinha);
 
   bAb.className = "big" + (ab ? " done" : "") + (escondeAb ? " hide" : "");
-  bAb.querySelector(".t").textContent = ab ? "Deixado pronto ✓" : "Deixando pronto";
+  bAb.querySelector(".t").textContent = ab ? "Turno aberto ✓" : "Abertura de turno";
   bAb.querySelector(".s").textContent = ab
     ? "Registrado por " + ab.nome_responsavel + " às " + horaDe(ab.criado_em) + ". Repôs alguma coisa? Toque para somar."
-    : "Conte o que está na geladeira agora";
+    : "Conte o que está na geladeira ao abrir a loja";
 
   bFe.className = "big" + (fe ? " done" : (ab ? "" : " ghost"));
   bFe.querySelector(".t").textContent = fe
@@ -172,7 +172,7 @@ async function carregarHome(){
   bFe.querySelector(".s").textContent = fe
     ? "Registrado por " + fe.nome_responsavel + " às " + horaDe(fe.criado_em) + ". " +
       (gestor ? "Toque para ver o que saiu." : "Toque se saiu algo depois.")
-    : (ab ? "Conte o que sobrou no fim da noite" : "Só depois que alguém deixar a geladeira pronta");
+    : (ab ? "Conte o que sobrou no fim da noite" : "Só depois que o turno for aberto");
   bFe.disabled = !ab && !fe;
 
   $("btnCustos").classList.toggle("hide", EU.papel !== "gestor");

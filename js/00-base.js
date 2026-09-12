@@ -35,7 +35,7 @@ let TELA = "scLogin";
 const NAV = {
   scCount:   { titulo: () => EDIT_LISTA ? "Editando a lista"
                              : MODO === "repor" ? "Repondo na geladeira"
-                             : (MOMENTO === "abertura" ? "O que estou deixando" : "O que sobrou"),
+                             : (MOMENTO === "abertura" ? "Abertura de turno" : "O que sobrou"),
                voltar: () => EDIT_LISTA ? alternarEdicaoLista() : carregarHome(),
                recarregar: () => abrirContagem(MOMENTO, MODO) },
   scRes:     { titulo: () => "Resultado do turno",

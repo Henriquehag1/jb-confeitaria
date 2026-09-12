@@ -544,7 +544,7 @@ async function mostrarResultado(dia){
     const w = document.createElement("div");
     w.className = "msg warn";
     w.textContent = "Atenção: " + negativos.length + " produto(s) com sobra maior do que foi deixado. "
-      + "Costuma ser reposição que não foi somada na geladeira: abra Deixado pronto e some o que você repôs. "
+      + "Costuma ser reposição que não foi somada na geladeira: abra a abertura de turno e some o que você repôs. "
       + "Se não foi isso, foi erro de contagem.";
     box.prepend(w);
   }
