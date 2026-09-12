@@ -156,6 +156,7 @@ button{font-family:inherit;font-size:inherit;cursor:pointer;}
 }
 .modos button[aria-pressed="true"]{background:var(--coral-forte);border-color:var(--coral-forte);color:var(--creme);font-weight:500;}
 .item .base{display:block;font-size:.74rem;color:var(--tinta-3);font-weight:400;margin-top:2px;}
+.item .base.falta{color:var(--ambar);font-weight:500;}
 .bar i{display:block;height:100%;background:var(--coral);width:0;transition:width .2s;}
 
 .item{
@@ -256,6 +257,11 @@ button{font-family:inherit;font-size:inherit;cursor:pointer;}
   font-size:.62rem;letter-spacing:.12em;text-transform:uppercase;font-weight:500;padding:8px 7px;
 }
 .tres th:first-child,.tres td:first-child{text-align:left;padding-left:16px;width:99%;font-weight:400;}
+/* com a coluna do dia anterior sao cinco colunas: aperta um pouco para caber no celular */
+.tres.comontem{font-size:.88rem;}
+.tres.comontem th,.tres.comontem td{padding:10px 5px;}
+.tres.comontem thead th{font-size:.58rem;letter-spacing:.08em;}
+.tres .falta{color:var(--ambar);font-weight:600;}
 .tres th:last-child,.tres td:last-child{padding-right:16px;}
 .tres .nm{display:flex;align-items:center;gap:9px;line-height:1.28;}
 .res .ln .q{font-weight:600;color:var(--coral-forte);}
@@ -1016,14 +1022,14 @@ button{font-family:inherit;font-size:inherit;cursor:pointer;}
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.116.0/dist/umd/supabase.min.js"></script>
-<script src="js/00-base.js?v=2026-09-09c"></script>
-<script src="js/10-entrada.js?v=2026-09-09c"></script>
-<script src="js/20-custos.js?v=2026-09-09c"></script>
-<script src="js/30-mes.js?v=2026-09-09c"></script>
-<script src="js/40-producao.js?v=2026-09-09c"></script>
-<script src="js/50-contagem.js?v=2026-09-09c"></script>
-<script src="js/60-afazeres.js?v=2026-09-09c"></script>
-<script src="js/70-dias.js?v=2026-09-09c"></script>
-<script src="js/90-ligacoes.js?v=2026-09-09c"></script>
+<script src="js/00-base.js?v=2026-09-12"></script>
+<script src="js/10-entrada.js?v=2026-09-12"></script>
+<script src="js/20-custos.js?v=2026-09-12"></script>
+<script src="js/30-mes.js?v=2026-09-12"></script>
+<script src="js/40-producao.js?v=2026-09-12"></script>
+<script src="js/50-contagem.js?v=2026-09-12"></script>
+<script src="js/60-afazeres.js?v=2026-09-12"></script>
+<script src="js/70-dias.js?v=2026-09-12"></script>
+<script src="js/90-ligacoes.js?v=2026-09-12"></script>
 </body>
 </html>
