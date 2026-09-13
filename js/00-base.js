@@ -24,7 +24,7 @@ const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
    UTILITÁRIOS
    ============================================================ */
 const $ = id => document.getElementById(id);
-const SC = ["scLogin","scHome","scCount","scRes","scFeito","scAdendo","scPerda","scHist","scCustos","scFicha","scProd","scReceita","scMes","scDias","scAfa"];
+const SC = ["scLogin","scHome","scCount","scRes","scFeito","scAdendo","scPerda","scHist","scPromo","scCustos","scFicha","scProd","scReceita","scMes","scDias","scAfa"];
 /* ============================================================
    NAVEGAÇÃO
    Uma barra só, em todas as telas: voltar, título e atualizar.
@@ -53,6 +53,9 @@ const NAV = {
   scHist:    { titulo: () => "Últimos dias",
                voltar: () => carregarHome(),
                recarregar: () => abrirHistorico() },
+  scPromo:   { titulo: () => "Promoção do dia",
+               voltar: () => carregarHome(),
+               recarregar: () => { PROMO = null; abrirPromo(); } },
   scCustos:  { titulo: () => "Custos e preços",
                voltar: () => carregarHome(),
                recarregar: () => { CATALOGO = []; INSUMOS_CACHE = null; CANAIS = []; CANAL = null; FOTOS = {}; abrirCustos(); } },

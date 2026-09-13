@@ -57,6 +57,7 @@ $("btnPeSalvar").onclick = salvarPerda;
 $("btnPeVoltar").onclick = voltarDaPerda;
 $("peObs").addEventListener("input", pintarPerda);
 $("adTexto").addEventListener("input", pintarAdendo);
+$("btnPromo").onclick = abrirPromo;
 $("btnPerda").onclick = () => abrirPerda(null, null, "scHome");
 $("btnHist").onclick = abrirHistorico;
 $("btnEditarLista").onclick = alternarEdicaoLista;
