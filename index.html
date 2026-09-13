@@ -163,6 +163,27 @@ button{font-family:inherit;font-size:inherit;cursor:pointer;}
 }
 .motivos button[aria-pressed="true"]{background:var(--ambar-veu);border-color:#EDD5A8;color:var(--ambar);font-weight:600;}
 .res .ln .dp.perda{color:var(--ambar);}
+.promo-intro{margin:0 0 14px;font-size:.86rem;line-height:1.45;color:var(--tinta-2);font-weight:300;}
+.promo-cap{display:block;font-size:.67rem;letter-spacing:.1em;text-transform:uppercase;color:var(--tinta-3);margin-top:13px;}
+.promo-cap:first-of-type{margin-top:0;}
+.promo{padding:6px 0 14px;}
+.promo-cab{
+  font-size:.67rem;letter-spacing:.1em;text-transform:uppercase;font-weight:600;
+  padding:15px 16px 7px;
+}
+.promo-cab.ok{color:var(--verde);} .promo-cab.limite{color:var(--ambar);} .promo-cab.fora{color:var(--coral-fundo);}
+.promo-ln{
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:10px 16px 10px 13px;border-top:1px solid var(--linha);border-left:3px solid transparent;
+}
+.promo-ln.ok{border-left-color:var(--verde);} .promo-ln.limite{border-left-color:var(--ambar);}
+.promo-ln.fora{border-left-color:var(--coral-fundo);}
+.promo-ln .nm{display:block;font-size:.92rem;line-height:1.25;}
+.promo-ln .sub{display:block;font-size:.72rem;color:var(--tinta-3);margin-top:2px;font-variant-numeric:tabular-nums;}
+.promo-ln .vl{font-size:1.02rem;font-weight:500;font-variant-numeric:tabular-nums;white-space:nowrap;}
+.promo-ln.ok .vl{color:var(--verde);} .promo-ln.limite .vl{color:var(--ambar);}
+.promo-ln.fora .vl{color:var(--coral-fundo);}
+.promo-pe{margin:16px 16px 0;font-size:.72rem;line-height:1.5;color:var(--tinta-3);font-weight:300;}
 .item .base{display:block;font-size:.74rem;color:var(--tinta-3);font-weight:400;margin-top:2px;}
 .item .base.falta{color:var(--ambar);font-weight:500;}
 .bar i{display:block;height:100%;background:var(--coral);width:0;transition:width .2s;}
@@ -823,6 +844,10 @@ button{font-family:inherit;font-size:inherit;cursor:pointer;}
       <span class="t">Últimos dias</span>
       <span class="s">O que saiu em cada dia</span>
     </button>
+    <button class="big ghost hide" id="btnPromo">
+      <span class="t">Promoção do dia</span>
+      <span class="s">O que pode ficar na campanha sem dar prejuízo</span>
+    </button>
     <button class="big ghost hide" id="btnPerda">
       <span class="t">Perda e descarte</span>
       <span class="s">O que foi jogado fora ou saiu sem vender</span>
@@ -1046,6 +1071,18 @@ button{font-family:inherit;font-size:inherit;cursor:pointer;}
     </div>
   </section>
 
+  <section id="scPromo" class="hide">
+    <div class="card">
+      <p class="promo-intro">A 99Food escolhe os produtos do Top&nbsp;3 e do Always-On. A Jessica não escolhe, mas pode tirar. Esta é a lista do que tirar.</p>
+      <span class="promo-cap">Canal</span>
+      <div class="modos" id="promoCanais"></div>
+      <span class="promo-cap">Desconto da campanha</span>
+      <div class="modos" id="promoDescs"></div>
+    </div>
+    <p class="msg" id="promoMsg"></p>
+    <div class="card promo" id="promoLista"></div>
+  </section>
+
   <section id="scHist" class="hide">
     <div class="card hist" id="histList"></div>
   </section>
@@ -1055,14 +1092,15 @@ button{font-family:inherit;font-size:inherit;cursor:pointer;}
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.116.0/dist/umd/supabase.min.js"></script>
-<script src="js/00-base.js?v=2026-09-12e"></script>
-<script src="js/10-entrada.js?v=2026-09-12e"></script>
-<script src="js/20-custos.js?v=2026-09-12e"></script>
-<script src="js/30-mes.js?v=2026-09-12e"></script>
-<script src="js/40-producao.js?v=2026-09-12e"></script>
-<script src="js/50-contagem.js?v=2026-09-12e"></script>
-<script src="js/60-afazeres.js?v=2026-09-12e"></script>
-<script src="js/70-dias.js?v=2026-09-12e"></script>
-<script src="js/90-ligacoes.js?v=2026-09-12e"></script>
+<script src="js/00-base.js?v=2026-09-13"></script>
+<script src="js/10-entrada.js?v=2026-09-13"></script>
+<script src="js/20-custos.js?v=2026-09-13"></script>
+<script src="js/25-promo.js?v=2026-09-13"></script>
+<script src="js/30-mes.js?v=2026-09-13"></script>
+<script src="js/40-producao.js?v=2026-09-13"></script>
+<script src="js/50-contagem.js?v=2026-09-13"></script>
+<script src="js/60-afazeres.js?v=2026-09-13"></script>
+<script src="js/70-dias.js?v=2026-09-13"></script>
+<script src="js/90-ligacoes.js?v=2026-09-13"></script>
 </body>
 </html>
