@@ -558,7 +558,7 @@ button{font-family:inherit;font-size:inherit;cursor:pointer;}
 
 /* ---------- produção ---------- */
 .prod{
-  display:flex;align-items:center;gap:11px;background:var(--creme);
+  display:flex;flex-wrap:wrap;align-items:center;gap:11px;background:var(--creme);
   border:1px solid var(--linha);border-radius:13px;border-left:3px solid var(--coral);
   padding:12px 13px;margin-bottom:8px;width:100%;text-align:left;
 }
@@ -579,6 +579,12 @@ button{font-family:inherit;font-size:inherit;cursor:pointer;}
 }
 .prod input.q:focus{outline:2px solid var(--coral);outline-offset:1px;border-color:var(--coral);}
 .prod .un{font-size:.8rem;color:var(--tinta-3);flex:0 0 auto;}
+.prod select.para{
+  order:10;flex:1 0 100%;height:34px;border-radius:999px;border:1px solid var(--linha-2);
+  background:var(--areia);color:var(--tinta-3);font-family:inherit;font-size:.78rem;
+  padding:0 10px;margin-top:-2px;
+}
+.prod select.para:focus{outline:2px solid var(--coral);outline-offset:1px;}
 .prod .tirar{
   flex:0 0 auto;border:none;background:none;color:var(--tinta-3);
   font-size:.8rem;text-decoration:underline;padding:8px 2px;
@@ -1092,15 +1098,15 @@ button{font-family:inherit;font-size:inherit;cursor:pointer;}
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.116.0/dist/umd/supabase.min.js"></script>
-<script src="js/00-base.js?v=2026-09-13"></script>
-<script src="js/10-entrada.js?v=2026-09-13"></script>
-<script src="js/20-custos.js?v=2026-09-13"></script>
-<script src="js/25-promo.js?v=2026-09-13"></script>
-<script src="js/30-mes.js?v=2026-09-13"></script>
-<script src="js/40-producao.js?v=2026-09-13"></script>
-<script src="js/50-contagem.js?v=2026-09-13"></script>
-<script src="js/60-afazeres.js?v=2026-09-13"></script>
-<script src="js/70-dias.js?v=2026-09-13"></script>
-<script src="js/90-ligacoes.js?v=2026-09-13"></script>
+<script src="js/00-base.js?v=2026-09-14"></script>
+<script src="js/10-entrada.js?v=2026-09-14"></script>
+<script src="js/20-custos.js?v=2026-09-14"></script>
+<script src="js/25-promo.js?v=2026-09-14"></script>
+<script src="js/30-mes.js?v=2026-09-14"></script>
+<script src="js/40-producao.js?v=2026-09-14"></script>
+<script src="js/50-contagem.js?v=2026-09-14"></script>
+<script src="js/60-afazeres.js?v=2026-09-14"></script>
+<script src="js/70-dias.js?v=2026-09-14"></script>
+<script src="js/90-ligacoes.js?v=2026-09-14"></script>
 </body>
 </html>
