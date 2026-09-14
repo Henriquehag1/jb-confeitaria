@@ -9,6 +9,9 @@ let PROD_DIA = null;      // data escolhida
 let PROD_ITENS = [];      // itens do dia
 let RECEITAS = null;      // { fichas:[], subs:[] } para o seletor do gestor
 let REC = null;           // receita aberta
+/* quem faz o quê: o gestor escolhe o destino de cada item do dia */
+let PESSOAS = null;       // { producao: "Eliana", equipe: "Yasmin" }
+const PARA_PADRAO = tipo => tipo === "subreceita" ? "producao" : "todos";
 
 function diaMais(n){
   const d = new Date(hojeSP() + "T12:00:00Z");
@@ -37,6 +40,13 @@ async function abrirProducao(){
   if(!PROD_DIA) PROD_DIA = hojeSP();
   const gestor = EU.papel === "gestor";
   $("addProd").classList.toggle("hide", !gestor);
+  if(gestor && !PESSOAS){
+    const { data } = await sb.from("jb_usuario").select("nome,papel,ativo");
+    PESSOAS = { producao: "Produção", equipe: "Noite" };
+    (data || []).filter(u => u.ativo).forEach(u => {
+      if(u.papel === "producao" || u.papel === "equipe") PESSOAS[u.papel] = u.nome;
+    });
+  }
   if(gestor && !RECEITAS){
     const [ff, ss] = await Promise.all([
       sb.from("jb_receita_ficha").select("ficha_id,nome,preparo_conferido").order("nome"),
@@ -159,7 +169,7 @@ function montarProdLista(){
         aviso("prodMsg", it.nome + " saiu do dia.","ok");
         carregarDia();
       };
-      row.append(inp, un, tirar);
+      row.append(inp, un, seletorPara(it), tirar);
     } else {
       const qt = document.createElement("span"); qt.className = "qt";
       qt.textContent = qtdBonita(it.qtd, it.unidade);
@@ -169,11 +179,35 @@ function montarProdLista(){
   });
 }
 
+/* Para quem é este item. Massa e recheio nasce para a produção; produto pronto,
+   para todo mundo. O gestor troca quando quiser. */
+function seletorPara(it){
+  const sel = document.createElement("select");
+  sel.className = "para";
+  sel.setAttribute("aria-label", "Para quem é " + it.nome);
+  [["todos","Todos"], ["producao", PESSOAS.producao], ["equipe", PESSOAS.equipe]].forEach(([v, rot]) => {
+    const o = document.createElement("option");
+    o.value = v; o.textContent = "só " + rot;
+    if(v === "todos") o.textContent = "Todos veem";
+    sel.appendChild(o);
+  });
+  sel.value = it.para || "todos";
+  sel.onchange = async () => {
+    const antes = it.para || "todos";
+    const { error } = await sb.from("jb_producao_item").update({ para: sel.value }).eq("id", it.id);
+    if(error){ sel.value = antes; aviso("prodMsg","Não consegui mudar para quem é esse item.","err"); return; }
+    it.para = sel.value;
+    const quem = sel.value === "todos" ? "todo mundo" : PESSOAS[sel.value];
+    aviso("prodMsg", it.nome + " agora aparece para " + quem + ".", "ok");
+  };
+  return sel;
+}
+
 async function addReceitaAoDia(valor){
   if(!valor) return;
   const [tipo, id] = valor.split(":");
   const { error } = await sb.from("jb_producao_item")
-    .insert({ data: PROD_DIA, tipo, ref_id: Number(id), qtd: 1 });
+    .insert({ data: PROD_DIA, tipo, ref_id: Number(id), qtd: 1, para: PARA_PADRAO(tipo) });
   $("addProd").value = "";
   if(error){
     aviso("prodMsg", String(error.message || "").includes("duplicate")
