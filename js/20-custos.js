@@ -415,6 +415,7 @@ function formEditarInsumo(i, usos){
    PREÇO E MARGEM POR CANAL (só gestor)
    ============================================================ */
 let CANAIS = [];
+let VALE = null;     // a operadora de vale-refeição e a fatia que ela fica, medida no extrato
 let CANAL = null;      // canal selecionado
 let CFG = {};          // jb_config
 let LINHAS = [];       // uma linha por produto no canal selecionado
@@ -465,12 +466,14 @@ async function listarPrecos(){
   const box = $("listaCustos");
   box.innerHTML = "<p class='tip'>Carregando...</p>";
   if(!CANAIS.length){
-    const [c, cfg] = await Promise.all([
+    const [c, cfg, vale] = await Promise.all([
       sb.from("jb_canal").select("*").order("ordem"),
-      sb.from("jb_config").select("chave,valor")
+      sb.from("jb_config").select("chave,valor"),
+      sb.from("jb_vale_taxa").select("operadora,taxa,taxa_contrato,medido_em,antecipacao")
     ]);
     CANAIS = c.data || [];
     (cfg.data || []).forEach(r => CFG[r.chave] = Number(r.valor));
+    VALE = (vale.data || [])[0] || null;
     CANAL = CANAIS[0] || null;
   }
   if(!CANAL){ box.innerHTML = ""; aviso("custosMsg","Nenhum canal cadastrado ainda.","warn"); return; }
@@ -586,7 +589,8 @@ function montarPlacar(){
   const campos = [
     ["taxa","Taxa do app","estimativa"],
     ["promo","Desconto médio","estimativa"],
-    ["taxa_efetiva","Fatia real do app","medido, manda nos outros dois"]
+    ["taxa_efetiva","Fatia real do app","medido, manda nos outros dois"],
+    ["vale_fatia","Pago em vale","quanto do que sai por aqui o cliente paga com vale-refeição"]
   ];
   campos.forEach(([campo,rot,dica]) => {
     const lb = document.createElement("label");
@@ -610,6 +614,7 @@ function montarPlacar(){
       if(novo === (CANAL[campo] == null ? null : Number(CANAL[campo]))) return;
       const patch = { [campo]: novo };
       if(campo === "taxa_efetiva") patch.taxa_efetiva_em = novo == null ? null : hojeSP();
+      if(campo === "vale_fatia")   patch.vale_fatia_em   = novo ? hojeSP() : null;
       const { error } = await sb.from("jb_canal").update(patch).eq("id", CANAL.id);
       if(error){ aviso("custosMsg","Não consegui salvar.","err"); return; }
       Object.assign(CANAL, patch);
@@ -635,6 +640,29 @@ function montarPlacar(){
     expl.textContent = "Sem a fatia real, a conta soma taxa mais desconto e assume que todo pedido pegou o desconto cheio, o que quase nunca é verdade. Para medir: pegue o relatório de repasse do mês, divida o que caiu na conta pela venda bruta, e a fatia real é o que sobra de 100%.";
   }
   box.appendChild(expl);
+
+  /* O vale-refeição não passa pelo app: a plataforma desconta da fatura e quem paga a
+     loja é a operadora do vale, com a taxa dela. Como isso já está somado na fatia
+     acima, a linha aqui serve para a pessoa saber de onde vem aquele pedaço. */
+  if(Number(CANAL.vale_fatia) > 0 && VALE){
+    const v = document.createElement("p");
+    v.className = "nota-taxa vale";
+    const pedaco = Number(CANAL.vale_fatia) * Number(VALE.taxa);
+    v.textContent = pct(CANAL.vale_fatia) + " do que sai por aqui o cliente paga em vale. "
+      + "Essa parte o " + CANAL.nome + " não repassa: quem paga a loja é a " + VALE.operadora
+      + ", ficando com " + pct(VALE.taxa) + ", o que dá "
+      + (pedaco * 100).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2}) + "% do preço"
+      + (VALE.medido_em ? ", medido em " + dataCurta(VALE.medido_em) : "") + ". Já está dentro da fatia acima.";
+    box.appendChild(v);
+    if(VALE.antecipacao && Number(VALE.taxa) - Number(VALE.taxa_contrato) > 0.02){
+      const av = document.createElement("p");
+      av.className = "nota-taxa";
+      av.style.color = "#8A6412";
+      av.textContent = "O contrato da " + VALE.operadora + " é " + pct(VALE.taxa_contrato)
+        + ". A diferença é a antecipação automática, que ainda está ligada.";
+      box.appendChild(av);
+    }
+  }
 
   /* Medir a fatia real com dois números do extrato de repasse, sem conta de cabeça. */
   if(Number(CANAL.taxa) > 0){
