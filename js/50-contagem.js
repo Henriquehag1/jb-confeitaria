@@ -381,6 +381,25 @@ function conferenciaComOntem(){
    RESULTADO
    ============================================================ */
 let RES_DIA = null;
+
+/* Ranking do dia: vendeu mais primeiro. Empate desempata pelo que saiu no total
+   (venda mais perda), depois pelo que ficou na geladeira, depois pelo nome, para a
+   ordem nunca dançar sozinha entre duas aberturas da mesma tela. Produto que não foi
+   contado no fechamento não tem número e vai para o fim. */
+function ordemDoRanking(a, b){
+  const n = v => (v === null || v === undefined) ? null : v;
+  const semNumero = l => n(l.saiu_total) === null;
+  if(semNumero(a) !== semNumero(b)) return semNumero(a) ? 1 : -1;
+  const vendeu = l => n(l.vendeu) !== null ? l.vendeu : (n(l.saiu_total) || 0);
+  const por = [
+    vendeu(b) - vendeu(a),
+    (n(b.saiu_total) || 0) - (n(a.saiu_total) || 0),
+    (n(b.ficou) !== null ? b.ficou : (b.sobrou || 0)) - (n(a.ficou) !== null ? a.ficou : (a.sobrou || 0))
+  ];
+  for(const d of por){ if(d) return d; }
+  return String(a.produto || "").localeCompare(String(b.produto || ""), "pt-BR");
+}
+
 async function mostrarResultado(dia){
   RES_DIA = dia;
   const [{ data }, adendos, perdas] = await Promise.all([
@@ -398,6 +417,11 @@ async function mostrarResultado(dia){
                        : (l.ficou !== null && l.ficou !== undefined ? l.ficou
                           : Math.max(0, l.sobrou - (l.depois || 0)));
   const saiuDe = l => fechado ? l.saiu_total : null;
+  /* Depois que o turno fecha, a lista vira um ranking do dia: o que mais vendeu em
+     cima, o que menos vendeu embaixo, e o que nem foi contado por último. Cada dia
+     tem o seu ranking, então trocar de dia na tela troca a ordem junto. Com o turno
+     aberto ninguém sabe o que saiu, e aí vale a ordem da geladeira. */
+  if(fechado) linhas.sort(ordemDoRanking);
   const soma = (f) => linhas.reduce((s,l) => { const v = f(l); return s + (v > 0 ? v : 0); }, 0);
   const total   = soma(saiuDe);
   const ficaram = soma(ficouDe);
