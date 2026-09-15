@@ -7,6 +7,7 @@
    ============================================================ */
 let MES = null;        // 'aaaa-mm-01'
 let MES_DADOS = null;
+let CANAIS_MES = [];   // todos os canais, ligados e desligados, só para o resultado do mês
 
 function primeiroDia(d){ return d.slice(0,7) + "-01"; }
 function mesAnterior(iso){
@@ -28,9 +29,11 @@ function mesCurto(iso){
 async function abrirMes(){
   aviso("mesMsg","","");
   if(!MES) MES = primeiroDia(hojeSP());
-  if(!CANAIS.length){
+  /* Aqui entram todos os canais, inclusive os desligados: a linha do vale-refeição não
+     tem preço nem promoção, mas recebe dinheiro e precisa aparecer no que entrou. */
+  if(!CANAIS_MES.length){
     const { data } = await sb.from("jb_canal").select("*").order("ordem");
-    CANAIS = data || [];
+    CANAIS_MES = data || [];
   }
   const [r, f] = await Promise.all([
     sb.from("jb_resultado_mes").select("*").eq("mes", MES).maybeSingle(),
@@ -69,7 +72,7 @@ async function salvarMes(campos){
 function atualizarPlacarMes(){
   const g = $("mesG"), p = $("mesP"), tv = $("mesTotal");
   if(!g || !p) return;
-  const entradas = CANAIS.reduce((s,c) => s + (MES_DADOS.porCanal[c.id] || 0), 0);
+  const entradas = CANAIS_MES.reduce((s,c) => s + (MES_DADOS.porCanal[c.id] || 0), 0);
   const resultado = entradas - MES_DADOS.saidas;
   g.className = "g " + (resultado >= 0 ? "bom" : "alerta");
   g.textContent = (resultado < 0 ? "Faltou R$ " + moeda(-resultado) : "Sobrou R$ " + moeda(resultado));
@@ -96,7 +99,7 @@ function montarMes(){
   const box = $("mesCorpo");
   box.innerHTML = "";
 
-  const entradas = CANAIS.reduce((s,c) => s + (MES_DADOS.porCanal[c.id] || 0), 0);
+  const entradas = CANAIS_MES.reduce((s,c) => s + (MES_DADOS.porCanal[c.id] || 0), 0);
   const resultado = entradas - MES_DADOS.saidas;
 
   // o número que decide o mês, primeiro
@@ -124,7 +127,7 @@ function montarMes(){
   ent.className = "razaobox";
   const h1 = document.createElement("h3"); h1.textContent = "Entrou, por canal";
   ent.appendChild(h1);
-  CANAIS.forEach(c => {
+  CANAIS_MES.forEach(c => {
     const l = document.createElement("div"); l.className = "linhaval";
     const n = document.createElement("span"); n.className = "n"; n.textContent = c.nome;
     const inp = document.createElement("input");

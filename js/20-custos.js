@@ -467,7 +467,9 @@ async function listarPrecos(){
   box.innerHTML = "<p class='tip'>Carregando...</p>";
   if(!CANAIS.length){
     const [c, cfg, vale] = await Promise.all([
-      sb.from("jb_canal").select("*").order("ordem"),
+      /* Canal desligado não tem preço nem promoção: fica fora dos chips. É o caso da
+         linha do vale-refeição, que só existe para receber entrada no Resultado do mês. */
+      sb.from("jb_canal").select("*").eq("ativo", true).order("ordem"),
       sb.from("jb_config").select("chave,valor"),
       sb.from("jb_vale_taxa").select("operadora,taxa,taxa_contrato,medido_em,antecipacao")
     ]);
