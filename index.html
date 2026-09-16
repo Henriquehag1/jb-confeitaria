@@ -9,8 +9,8 @@
 
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#FE9C90">
-<link rel="icon" href="icon-192.png?v=2026-09-16" type="image/png">
-<link rel="apple-touch-icon" href="icon-180.png?v=2026-09-16">
+<link rel="icon" href="icon-192.png?v=2026-09-16b" type="image/png">
+<link rel="apple-touch-icon" href="icon-180.png?v=2026-09-16b">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -114,21 +114,48 @@ button{font-family:inherit;font-size:inherit;cursor:pointer;}
 .datebar .d{font-family:var(--display);font-size:1.62rem;font-weight:600;line-height:1.15;}
 .datebar .h{font-size:.85rem;color:var(--tinta-3);font-variant-numeric:tabular-nums;}
 
-/* ---------- botoes grandes ---------- */
+/* ---------- botoes grandes ----------
+   Cada cartao carrega um simbolo proprio, para a pessoa reconhecer pelo desenho
+   antes de ler. A cor cheia continua reservada a uma coisa so: o que fazer agora. */
 .big{
-  position:relative;display:block;width:100%;text-align:left;border:none;
-  border-radius:var(--r);padding:20px 20px 20px 22px;margin-bottom:12px;
+  position:relative;display:flex;align-items:center;gap:13px;
+  width:100%;text-align:left;border:none;
+  border-radius:var(--r);padding:14px 15px;margin-bottom:9px;
   color:var(--creme);background:var(--coral-acao);
   box-shadow:0 2px 0 var(--coral-forte);
 }
 .big:active{transform:translateY(1px);box-shadow:0 1px 0 var(--coral-forte);}
-.big .t{font-family:var(--display);font-size:1.4rem;font-weight:600;display:block;line-height:1.2;}
-.big .s{font-size:.88rem;opacity:.92;display:block;margin-top:3px;font-weight:300;}
+.big .tx{flex:1 1 auto;min-width:0;}
+.big .t{font-family:var(--display);font-size:1.28rem;font-weight:600;display:block;line-height:1.2;}
+.big .s{font-size:.85rem;opacity:.92;display:block;margin-top:2px;font-weight:300;line-height:1.35;}
+.big .ic{
+  flex:0 0 auto;width:44px;height:44px;border-radius:13px;
+  display:flex;align-items:center;justify-content:center;
+  background:rgba(255,255,255,.20);color:var(--creme);
+}
+.big .ic svg{width:23px;height:23px;display:block;}
+.big .seta{flex:0 0 auto;font-size:1.25rem;line-height:1;opacity:.5;margin-right:2px;}
 .big.ghost{background:var(--creme);color:var(--tinta);border:1px solid var(--linha-2);box-shadow:none;}
 .big.ghost .s{color:var(--tinta-2);opacity:1;}
+.big.ghost .seta{color:var(--tinta-3);opacity:.7;}
 .big.done{background:var(--verde-veu);color:var(--verde);border:1px solid var(--verde-linha);box-shadow:none;}
 .big.done .s{color:var(--verde);opacity:.85;}
+.big.done .ic{background:#D7E7DC;color:var(--verde);}
 .big[disabled]{opacity:.5;pointer-events:none;}
+
+/* ---------- grupos da home ----------
+   Tres blocos com nome. Dez cartoes iguais viram tres listas curtas, e o olho
+   acha o que procura pelo bloco antes de ler cartao por cartao. */
+.grupo{margin:0;}
+.grupo>h3{
+  font-family:var(--corpo);font-size:.7rem;font-weight:600;letter-spacing:.15em;
+  text-transform:uppercase;color:var(--tinta-3);margin:20px 3px 9px;
+}
+.grupo:first-of-type>h3{margin-top:4px;}
+/* O tom do simbolo diz de que bloco o cartao e, sem pintar o cartao inteiro. */
+.g-turno  .big.ghost .ic{background:var(--coral-veu);color:var(--coral-acao);}
+.g-atelie .big.ghost .ic{background:#FBE9DA;color:var(--dourado);}
+.g-numero .big.ghost .ic{background:#F1E4DE;color:var(--tinta-2);}
 
 /* ---------- barra de navegação ---------- */
 .navbar{
@@ -828,7 +855,7 @@ button{font-family:inherit;font-size:inherit;cursor:pointer;}
   <!-- ================= LOGIN ================= -->
   <section id="scLogin" class="login hide">
     <div class="mark">
-      <img class="marca-jb" src="marca-jb.png?v=2026-09-16" alt="Jessica Ballassa Confeitaria" width="252" height="145">
+      <img class="marca-jb" src="marca-jb.png?v=2026-09-16b" alt="Jessica Ballassa Confeitaria" width="252" height="145">
       <div class="rule"></div>
       <div class="versao" id="loginVersao"></div>
     </div>
@@ -845,7 +872,7 @@ button{font-family:inherit;font-size:inherit;cursor:pointer;}
   <section id="scHome" class="hide">
     <div class="top">
       <div class="marca">
-        <img class="selo" src="selo-192.png?v=2026-09-16" alt="" width="34" height="34">
+        <img class="selo" src="selo-192.png?v=2026-09-16b" alt="" width="34" height="34">
         <div><b>Jessica Ballassa</b><span id="homeSub">Ateliê</span></div>
       </div>
       <button class="recarregar" id="homeRecarregar" type="button" aria-label="Atualizar" title="Atualizar">&#8635;</button>
@@ -857,47 +884,68 @@ button{font-family:inherit;font-size:inherit;cursor:pointer;}
     </div>
     <div id="homeMsg"></div>
     <div id="cardPend"></div>
+    <div class="grupo g-turno">
+      <h3>O turno de hoje</h3>
     <button class="big" id="btnAbertura">
-      <span class="t">Abertura de turno</span>
-      <span class="s">Conte o que está na geladeira ao abrir a loja</span>
+      <span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="5.2" y="2.6" width="13.6" height="18.8" rx="3"/><path d="M5.2 10.2h13.6"/><path d="M8.7 6v2.1"/><path d="M8.7 13.2v2.6"/></svg></span>
+      <span class="tx"><span class="t">Abertura de turno</span><span class="s">Conte o que est&aacute; na geladeira ao abrir a loja</span></span>
+      <span class="seta" aria-hidden="true">&#8250;</span>
     </button>
     <button class="big ghost" id="btnFechamento">
-      <span class="t">Fechando o turno</span>
-      <span class="s">Conte o que sobrou no fim da noite</span>
-    </button>
-    <button class="big ghost" id="btnHist">
-      <span class="t">Últimos dias</span>
-      <span class="s">O que saiu em cada dia</span>
-    </button>
-    <button class="big ghost hide" id="btnPromo">
-      <span class="t">Promoção do dia</span>
-      <span class="s">O que pode ficar na campanha sem dar prejuízo</span>
+      <span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20.2 14.6A8.6 8.6 0 0 1 9.4 3.8a8.6 8.6 0 1 0 10.8 10.8Z"/></svg></span>
+      <span class="tx"><span class="t">Fechando o turno</span><span class="s">Conte o que sobrou no fim da noite</span></span>
+      <span class="seta" aria-hidden="true">&#8250;</span>
     </button>
     <button class="big ghost hide" id="btnPerda">
-      <span class="t">Perda e descarte</span>
-      <span class="s">O que foi jogado fora ou saiu sem vender</span>
+      <span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6.9h16"/><path d="M9.5 6.9V5.1A1.2 1.2 0 0 1 10.7 3.9h2.6a1.2 1.2 0 0 1 1.2 1.2v1.8"/><path d="M6.6 6.9l.8 12.2A1.9 1.9 0 0 0 9.3 20.9h5.4a1.9 1.9 0 0 0 1.9-1.8l.8-12.2"/></svg></span>
+      <span class="tx"><span class="t">Perda e descarte</span><span class="s">O que foi jogado fora ou saiu sem vender</span></span>
+      <span class="seta" aria-hidden="true">&#8250;</span>
     </button>
+    <button class="big ghost hide" id="btnPromo">
+      <span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12.7 3.2H20a.9.9 0 0 1 .9.9v7.3a.9.9 0 0 1-.3.6l-8.6 8.6a.9.9 0 0 1-1.3 0l-7.4-7.4a.9.9 0 0 1 0-1.3l8.6-8.6a.9.9 0 0 1 .8-.1Z"/><circle cx="16.9" cy="7.2" r="1.3"/></svg></span>
+      <span class="tx"><span class="t">Promo&ccedil;&atilde;o do dia</span><span class="s">O que pode ficar na campanha sem dar preju&iacute;zo</span></span>
+      <span class="seta" aria-hidden="true">&#8250;</span>
+    </button>
+    </div>
+
+    <div class="grupo g-atelie">
+      <h3>O ateli&ecirc;</h3>
     <button class="big hide" id="btnProducao">
-      <span class="t">O que fazer hoje</span>
-      <span class="s">Suas receitas com as quantidades certas</span>
-    </button>
-    <button class="big ghost hide" id="btnResultado">
-      <span class="t">Resultado do mês</span>
-      <span class="s">Quanto entrou, quanto saiu e o que sobrou</span>
-    </button>
-    <button class="big ghost hide" id="btnCustos">
-      <span class="t">Custos e preços</span>
-      <span class="s">Receitas, insumos e quanto sobra em cada canal</span>
+      <span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3.4 11.4h17.2a8.6 8.6 0 0 1-8.6 8.6 8.6 8.6 0 0 1-8.6-8.6Z"/><path d="M9.2 8.5c0-1.6 1.3-1.9 1.3-3.2"/><path d="M13.1 8.5c0-1.6 1.3-1.9 1.3-3.2"/></svg></span>
+      <span class="tx"><span class="t">Plano de produ&ccedil;&atilde;o</span><span class="s">Diga o que precisa ser feito e em que quantidade</span></span>
+      <span class="seta" aria-hidden="true">&#8250;</span>
     </button>
     <button class="big ghost hide" id="btnAfazeres">
-      <span class="t">Afazeres</span>
-      <span class="s">Sua lista de tarefas</span>
+      <span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9.3 6.4h10.9"/><path d="M9.3 12h10.9"/><path d="M9.3 17.6h10.9"/><path d="M3.6 6.2l1.3 1.3 2.2-2.5"/><path d="M3.6 11.8l1.3 1.3 2.2-2.5"/><path d="M3.6 17.4l1.3 1.3 2.2-2.5"/></svg></span>
+      <span class="tx"><span class="t">Afazeres</span><span class="s">Sua lista de tarefas</span></span>
+      <span class="seta" aria-hidden="true">&#8250;</span>
     </button>
     <button class="big ghost hide" id="btnDias">
-      <span class="t">Quem veio no ateliê</span>
-      <span class="s">Os dias da Eliana e da Yasmin no mês</span>
+      <span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="9.1" cy="8" r="3.3"/><path d="M3.3 20.3a5.8 5.8 0 0 1 11.6 0"/><path d="M16.3 5.1a3.3 3.3 0 0 1 0 6.3"/><path d="M17.7 15a5.8 5.8 0 0 1 3.1 5.3"/></svg></span>
+      <span class="tx"><span class="t">Quem veio no ateli&ecirc;</span><span class="s">Os dias da Eliana e da Yasmin no m&ecirc;s</span></span>
+      <span class="seta" aria-hidden="true">&#8250;</span>
     </button>
-    <div id="cardMeusDias"></div>
+      <div id="cardMeusDias"></div>
+    </div>
+
+    <div class="grupo g-numero">
+      <h3>Os n&uacute;meros</h3>
+    <button class="big ghost" id="btnHist">
+      <span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3.4" y="5.1" width="17.2" height="15.5" rx="2.6"/><path d="M3.4 10.1h17.2"/><path d="M8.1 3v4.1"/><path d="M15.9 3v4.1"/></svg></span>
+      <span class="tx"><span class="t">&Uacute;ltimos dias</span><span class="s">O que saiu em cada dia</span></span>
+      <span class="seta" aria-hidden="true">&#8250;</span>
+    </button>
+    <button class="big ghost hide" id="btnResultado">
+      <span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3.8 20.4h16.4"/><rect x="5.4" y="11.2" width="3.5" height="6.4" rx="1.1"/><rect x="10.2" y="6.6" width="3.5" height="11" rx="1.1"/><rect x="15" y="13.6" width="3.5" height="4" rx="1.1"/></svg></span>
+      <span class="tx"><span class="t">Resultado do m&ecirc;s</span><span class="s">Quanto entrou, quanto saiu e o que sobrou</span></span>
+      <span class="seta" aria-hidden="true">&#8250;</span>
+    </button>
+    <button class="big ghost hide" id="btnCustos">
+      <span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2.8" width="14" height="18.4" rx="2.6"/><rect x="8" y="5.9" width="8" height="3.3" rx="1"/><path d="M8.7 13.2h.01"/><path d="M12 13.2h.01"/><path d="M15.3 13.2h.01"/><path d="M8.7 17.2h.01"/><path d="M12 17.2h.01"/><path d="M15.3 17.2h.01"/></svg></span>
+      <span class="tx"><span class="t">Custos e pre&ccedil;os</span><span class="s">Receitas, insumos e quanto sobra em cada canal</span></span>
+      <span class="seta" aria-hidden="true">&#8250;</span>
+    </button>
+    </div>
     <p class="tip" id="homeTip">Conte item por item, sem pressa. Se errar, dá para corrigir no mesmo dia.</p>
     <p class="versao" id="homeVersao"></p>
   </section>
@@ -1049,8 +1097,9 @@ button{font-family:inherit;font-size:inherit;cursor:pointer;}
     <div class="card feito" id="feitoBox"></div>
     <div id="feitoMsg"></div>
     <button class="big" id="btnAdendo">
-      <span class="t">Saiu algo depois que fechei</span>
-      <span class="s">Anote aqui, sem mexer no que já foi salvo</span>
+      <span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.6"/><path d="M12 8.4v7.2"/><path d="M8.4 12h7.2"/></svg></span>
+      <span class="tx"><span class="t">Saiu algo depois que fechei</span><span class="s">Anote aqui, sem mexer no que j&aacute; foi salvo</span></span>
+      <span class="seta" aria-hidden="true">&#8250;</span>
     </button>
     <div class="adja" id="feitoLista"></div>
     <div class="foot"><button id="btnFeitoOk">Concluir</button></div>
@@ -1117,15 +1166,15 @@ button{font-family:inherit;font-size:inherit;cursor:pointer;}
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.116.0/dist/umd/supabase.min.js"></script>
-<script src="js/00-base.js?v=2026-09-16"></script>
-<script src="js/10-entrada.js?v=2026-09-16"></script>
-<script src="js/20-custos.js?v=2026-09-16"></script>
-<script src="js/25-promo.js?v=2026-09-16"></script>
-<script src="js/30-mes.js?v=2026-09-16"></script>
-<script src="js/40-producao.js?v=2026-09-16"></script>
-<script src="js/50-contagem.js?v=2026-09-16"></script>
-<script src="js/60-afazeres.js?v=2026-09-16"></script>
-<script src="js/70-dias.js?v=2026-09-16"></script>
-<script src="js/90-ligacoes.js?v=2026-09-16"></script>
+<script src="js/00-base.js?v=2026-09-16b"></script>
+<script src="js/10-entrada.js?v=2026-09-16b"></script>
+<script src="js/20-custos.js?v=2026-09-16b"></script>
+<script src="js/25-promo.js?v=2026-09-16b"></script>
+<script src="js/30-mes.js?v=2026-09-16b"></script>
+<script src="js/40-producao.js?v=2026-09-16b"></script>
+<script src="js/50-contagem.js?v=2026-09-16b"></script>
+<script src="js/60-afazeres.js?v=2026-09-16b"></script>
+<script src="js/70-dias.js?v=2026-09-16b"></script>
+<script src="js/90-ligacoes.js?v=2026-09-16b"></script>
 </body>
 </html>
