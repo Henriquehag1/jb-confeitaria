@@ -637,7 +637,7 @@ function montarPlacar(){
     expl.textContent = "Usando a fatia real medida de " + pct(CANAL.taxa_efetiva)
       + (CANAL.taxa_efetiva_em ? " em " + dataCurta(CANAL.taxa_efetiva_em) : "")
       + (dias != null && dias > 60 ? ". Já faz " + dias + " dias: vale medir de novo com um repasse recente." : ". A taxa e o desconto acima estão só de referência.");
-    if(dias != null && dias > 60) expl.style.color = "#8A6412";
+    if(dias != null && dias > 60) expl.style.color = "var(--ambar)";
   } else {
     expl.textContent = "Sem a fatia real, a conta soma taxa mais desconto e assume que todo pedido pegou o desconto cheio, o que quase nunca é verdade. Para medir: pegue o relatório de repasse do mês, divida o que caiu na conta pela venda bruta, e a fatia real é o que sobra de 100%.";
   }
@@ -659,7 +659,7 @@ function montarPlacar(){
     if(VALE.antecipacao && Number(VALE.taxa) - Number(VALE.taxa_contrato) > 0.02){
       const av = document.createElement("p");
       av.className = "nota-taxa";
-      av.style.color = "#8A6412";
+      av.style.color = "var(--ambar)";
       av.textContent = "O contrato da " + VALE.operadora + " é " + pct(VALE.taxa_contrato)
         + ". A diferença é a antecipação automática, que ainda está ligada.";
       box.appendChild(av);
