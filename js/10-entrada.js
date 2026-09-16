@@ -79,6 +79,19 @@ async function iniciar(){
   await carregarHome();
 }
 
+/* ---------- grupos da home ----------
+   Os cartões vivem dentro de três blocos com nome. Cada papel vê um punhado
+   diferente deles, então o bloco que ficou sem nenhum cartão some junto com o
+   título, para não sobrar um nome de seção solto no meio da tela. */
+function ajustarGrupos(){
+  document.querySelectorAll("#scHome .grupo").forEach(g => {
+    const temBotao = !!g.querySelector(".big:not(.hide)");
+    const temCard  = Array.prototype.some.call(g.children, c =>
+      !c.classList.contains("big") && c.tagName !== "H3" && c.innerHTML.trim() !== "");
+    g.classList.toggle("hide", !temBotao && !temCard);
+  });
+}
+
 async function carregarHome(){
   $("whoName").textContent = EU.nome;
   $("homeVersao").textContent = "JB OS · versão " + VERSAO;
@@ -113,6 +126,7 @@ async function carregarHome(){
     $("btnDias").classList.add("hide");
     $("btnAfazeres").classList.add("hide");
     aviso("homeMsg","","");
+    ajustarGrupos();
     show("scHome");
     return;
   }
@@ -134,6 +148,7 @@ async function carregarHome(){
        mostrar botões que vão gravar no lugar errado. */
     aviso("homeMsg","Não consegui falar com o servidor agora. Toque em atualizar quando o sinal voltar.","err");
     $("btnAbertura").classList.add("hide"); $("btnFechamento").classList.add("hide");
+    ajustarGrupos();
     show("scHome");
     return;
   }
@@ -193,6 +208,7 @@ async function carregarHome(){
       : "Hora de fechar o turno: conte o que sobrou na geladeira e salve.", "warn");
   }
   if(gestor){ await Promise.all([avisarAfazeres(), avisarPendencias()]); }
+  ajustarGrupos();
   show("scHome");
 }
 
