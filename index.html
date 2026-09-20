@@ -9,8 +9,8 @@
 
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#FE9C90">
-<link rel="icon" href="icon-192.png?v=2026-09-16b" type="image/png">
-<link rel="apple-touch-icon" href="icon-180.png?v=2026-09-16b">
+<link rel="icon" href="icon-192.png?v=2026-09-20" type="image/png">
+<link rel="apple-touch-icon" href="icon-180.png?v=2026-09-20">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -837,6 +837,84 @@ button{font-family:inherit;font-size:inherit;cursor:pointer;}
 .pm input.q:focus{outline:2px solid var(--coral);outline-offset:1px;border-color:var(--coral);}
 .pm .mini{font-size:.79rem;color:var(--tinta-3);font-weight:300;line-height:1.45;}
 .pm .mini b{font-weight:500;color:var(--tinta-2);font-variant-numeric:tabular-nums;}
+.pm .mini b.ok{color:var(--verde);}
+.pm .mini b.ruim{color:var(--coral-fundo);}
+
+/* os dois preços lado a lado: o praticado hoje e o que fecha a meta */
+.pm .precos{display:flex;align-items:flex-end;gap:9px;margin-top:10px;flex-wrap:wrap;}
+.pm .campo{display:flex;flex-direction:column;gap:4px;}
+.pm .campo .rot{
+  font-size:.62rem;letter-spacing:.09em;text-transform:uppercase;
+  color:var(--tinta-3);font-weight:500;
+}
+.pm .campo.alvo{
+  min-width:96px;padding:0 0 1px;
+}
+.pm .campo.alvo .v{
+  height:36px;display:flex;align-items:center;justify-content:center;
+  border-radius:10px;border:1px dashed var(--linha-2);background:transparent;
+  font-size:.98rem;font-weight:500;font-variant-numeric:tabular-nums;color:var(--tinta-2);
+  padding:0 8px;white-space:nowrap;
+}
+.pm .usar{
+  height:36px;padding:0 13px;border:none;border-radius:10px;
+  background:var(--coral-veu);color:var(--coral-acao);
+  font-family:inherit;font-size:.84rem;font-weight:500;cursor:pointer;
+}
+.pm .usar.hide{display:none;}
+
+.pm .verconta{
+  display:block;width:100%;margin-top:9px;border:none;background:none;padding:2px 0 0;
+  color:var(--tinta-3);font-size:.78rem;font-weight:300;text-decoration:underline;text-align:left;
+}
+
+/* a conta aberta do produto */
+.pm .conta{
+  margin-top:9px;padding:10px 11px;border-radius:10px;
+  background:var(--areia);border:1px solid var(--linha);
+}
+.pm .conta .tit{
+  font-size:.64rem;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--tinta-3);font-weight:600;margin:0 0 4px;
+}
+.pm .conta .tit + .tit,.pm .conta .cl + .tit{margin-top:11px;}
+.pm .conta .cl{
+  display:flex;justify-content:space-between;align-items:baseline;gap:10px;
+  font-size:.81rem;font-weight:300;color:var(--tinta-2);padding:3px 0;
+}
+.pm .conta .cl b{font-weight:400;font-variant-numeric:tabular-nums;white-space:nowrap;}
+.pm .conta .cl.menos b{color:var(--tinta-3);}
+.pm .conta .cl.soma{
+  border-top:1px solid var(--linha-2);margin-top:3px;padding-top:6px;color:var(--tinta);
+}
+.pm .conta .cl.soma b{font-weight:600;}
+.pm .conta .cl.fim{
+  border-top:2px solid var(--verde);margin-top:4px;padding-top:7px;color:var(--tinta);
+}
+.pm .conta .cl.fim b{font-weight:600;color:var(--verde);font-size:.92rem;}
+.pm .conta .cl.fim.ruim{border-top-color:var(--coral-forte);}
+.pm .conta .cl.fim.ruim b{color:var(--coral-fundo);}
+.pm .conta .vazia{margin:2px 0 0;font-size:.79rem;font-weight:300;color:var(--tinta-3);}
+.pm .conta .giro{
+  margin:10px 0 0;padding-top:8px;border-top:1px solid var(--linha);
+  font-size:.76rem;font-weight:300;color:var(--tinta-3);line-height:1.5;
+}
+.pm .conta .giro small{display:block;margin-top:4px;color:var(--ambar);}
+
+.placar .sub{margin:3px 0 0;font-size:.82rem;font-weight:400;color:var(--tinta-2);}
+.placar .ganho{
+  margin:9px 0 0;padding:8px 10px;border-radius:9px;
+  background:#D7E7DC;color:var(--verde);
+  font-size:.82rem;font-weight:400;line-height:1.45;
+}
+.placar .formula{
+  margin:11px 0 0;padding:9px 11px;border-radius:9px;background:var(--areia);
+  font-size:.82rem;font-weight:500;color:var(--tinta);
+  font-variant-numeric:tabular-nums;text-align:center;
+}
+.placar .formula small{
+  display:block;margin-top:5px;font-size:.73rem;font-weight:300;color:var(--tinta-3);
+}
 
 @media (prefers-reduced-motion:reduce){*{transition:none!important;}}
 </style>
@@ -855,7 +933,7 @@ button{font-family:inherit;font-size:inherit;cursor:pointer;}
   <!-- ================= LOGIN ================= -->
   <section id="scLogin" class="login hide">
     <div class="mark">
-      <img class="marca-jb" src="marca-jb.png?v=2026-09-16b" alt="Jessica Ballassa Confeitaria" width="252" height="145">
+      <img class="marca-jb" src="marca-jb.png?v=2026-09-20" alt="Jessica Ballassa Confeitaria" width="252" height="145">
       <div class="rule"></div>
       <div class="versao" id="loginVersao"></div>
     </div>
@@ -872,7 +950,7 @@ button{font-family:inherit;font-size:inherit;cursor:pointer;}
   <section id="scHome" class="hide">
     <div class="top">
       <div class="marca">
-        <img class="selo" src="selo-192.png?v=2026-09-16b" alt="" width="34" height="34">
+        <img class="selo" src="selo-192.png?v=2026-09-20" alt="" width="34" height="34">
         <div><b>Jessica Ballassa</b><span id="homeSub">Ateliê</span></div>
       </div>
       <button class="recarregar" id="homeRecarregar" type="button" aria-label="Atualizar" title="Atualizar">&#8635;</button>
@@ -1166,15 +1244,15 @@ button{font-family:inherit;font-size:inherit;cursor:pointer;}
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.116.0/dist/umd/supabase.min.js"></script>
-<script src="js/00-base.js?v=2026-09-16b"></script>
-<script src="js/10-entrada.js?v=2026-09-16b"></script>
-<script src="js/20-custos.js?v=2026-09-16b"></script>
-<script src="js/25-promo.js?v=2026-09-16b"></script>
-<script src="js/30-mes.js?v=2026-09-16b"></script>
-<script src="js/40-producao.js?v=2026-09-16b"></script>
-<script src="js/50-contagem.js?v=2026-09-16b"></script>
-<script src="js/60-afazeres.js?v=2026-09-16b"></script>
-<script src="js/70-dias.js?v=2026-09-16b"></script>
-<script src="js/90-ligacoes.js?v=2026-09-16b"></script>
+<script src="js/00-base.js?v=2026-09-20"></script>
+<script src="js/10-entrada.js?v=2026-09-20"></script>
+<script src="js/20-custos.js?v=2026-09-20"></script>
+<script src="js/25-promo.js?v=2026-09-20"></script>
+<script src="js/30-mes.js?v=2026-09-20"></script>
+<script src="js/40-producao.js?v=2026-09-20"></script>
+<script src="js/50-contagem.js?v=2026-09-20"></script>
+<script src="js/60-afazeres.js?v=2026-09-20"></script>
+<script src="js/70-dias.js?v=2026-09-20"></script>
+<script src="js/90-ligacoes.js?v=2026-09-20"></script>
 </body>
 </html>

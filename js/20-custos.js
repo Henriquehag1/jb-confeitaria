@@ -214,6 +214,13 @@ async function listarFichas(){
 
   const h1 = document.createElement("div"); h1.className = "grupo"; h1.textContent = "Produtos";
   box.appendChild(h1);
+  /* O número da direita nesta aba é o CMV, só o que entra na receita. O custo cheio,
+     com o pedaço de custo fixo e as perdas, mora na aba Preço, onde ele decide alguma
+     coisa. Dizer isso aqui evita a confusão de somar as duas coisas. */
+  const dica = document.createElement("p");
+  dica.className = "tip"; dica.style.margin = "0 3px 8px";
+  dica.textContent = "O valor de cada produto aqui é o CMV, só o que entra na receita. O custo cheio, com custo fixo e perdas, está na aba Preço.";
+  box.appendChild(dica);
   box.appendChild(linhaLista("Nova ficha técnica",
     "Produto novo: nome, ingredientes, rendimento e passo a passo", "+", "", () => abrirFicha(null,"ficha")));
 
@@ -421,6 +428,8 @@ let CFG = {};          // jb_config
 let LINHAS = [];       // uma linha por produto no canal selecionado
 let ajustesAbertos = false;
 let CANAL_ATUALIZADO = false;
+let GIRO = {};            // ficha_id -> quanto sai por dia, medido na contagem
+let CONTA_ABERTA = {};    // ficha_id -> a conta do produto está aberta nesta tela
 
 const pct = v => (Number(v) * 100).toLocaleString("pt-BR",{maximumFractionDigits:1}) + "%";
 /* Um parser de número só, para o app inteiro. Aceita o que o teclado do celular manda:
@@ -447,19 +456,52 @@ const numBR = s => {
 };
 const moeda = v => Number(v).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});
 
+/* ---------- a conta de um produto num canal ----------
+   São duas colunas que só se encontram no lucro.
+
+   Lado do custo. É fixo por unidade e não muda quando o preço muda:
+       custo total = (CMV + custo fixo por unidade) × (1 + perdas)
+
+   Lado do preço. É tudo porcentagem do preço: o app fica com uma fatia, o imposto
+   fica com outra, e o que sobra paga o custo e vira lucro:
+       lucro = preço × (1 − fatia do app − imposto) − custo total
+
+   Por isso taxa e imposto nunca entram no custo do produto. Eles andam junto com o
+   preço e o custo não anda. Somar os dois do mesmo lado faz a conta girar em círculo. */
 function contaLinha(l){
   const fatia = CANAL.taxa_efetiva != null
     ? Number(CANAL.taxa_efetiva) : Number(CANAL.taxa) + Number(CANAL.promo);
-  const sobra = 1 - fatia;                     // quanto do preço sobra depois das taxas
-  const alvo  = Number(CFG.margem_alvo || 0);
+  const imposto = Number(CFG.imposto_pct || 0);
+  const sobra   = 1 - fatia - imposto;          // do preço, o que sobra para custo e lucro
+  const alvo    = Number(CFG.margem_alvo || 0);
+  const perdas  = Number(CFG.perdas_pct || 0);
+  const cmv   = l.cmv == null ? null : Number(l.cmv);
+  const fixo  = l.custo_fixo_un == null ? null : Number(l.custo_fixo_un);
   const custo = Number(l.custo_total || 0);
-  const out = { custo, sobra, empata: sobra > 0 ? custo / sobra : null,
-                minimo: (sobra - alvo) > 0 ? custo / (sobra - alvo) : null };
+  const out = {
+    cmv, fixo, perdas, fatia, imposto, sobra, alvo, custo,
+    perdasRS: (cmv != null && fixo != null) ? (cmv + fixo) * perdas : null,
+    empata: sobra > 0 ? custo / sobra : null,
+    minimo: (sobra - alvo) > 0 ? custo / (sobra - alvo) : null
+  };
+  out.saudavel = preco90(out.minimo);
   if(l.preco == null){ out.preco = null; return out; }
-  out.preco  = Number(l.preco);
-  out.lucro  = out.preco * sobra - custo;
-  out.margem = out.preco > 0 ? out.lucro / out.preco : 0;
+  out.preco     = Number(l.preco);
+  out.taxaRS    = out.preco * fatia;
+  out.impostoRS = out.preco * imposto;
+  out.recebe    = out.preco * (1 - fatia);      // o que o app repassa, antes do imposto
+  out.liquido   = out.preco * sobra;            // o que sobra depois de app e imposto
+  out.lucro     = out.liquido - custo;
+  out.margem    = out.preco > 0 ? out.lucro / out.preco : 0;
   return out;
+}
+
+/* Preço de prateleira sempre termina em ,90: é o que a Jessica pratica e o que o
+   cliente lê melhor. Arredonda para cima, nunca para baixo, para não comer margem. */
+function preco90(v){
+  if(v == null || !isFinite(v) || v <= 0) return null;
+  const i = Math.floor(v);
+  return Number(((v - i <= 0.90 ? i : i + 1) + 0.90).toFixed(2));
 }
 
 async function listarPrecos(){
@@ -483,11 +525,19 @@ async function listarPrecos(){
     const { data: ft } = await sb.from("jb_ficha").select("id,foto_url");
     (ft || []).forEach(f => { if(f.foto_url) FOTOS[f.id] = f.foto_url; });
   }
-  const { data, error } = await sb.from("jb_margem")
-    .select("ficha_id,produto,rascunho,preco,custo_total,cmv")
-    .eq("canal_id", CANAL.id);
-  if(error){ box.innerHTML = ""; aviso("custosMsg","Não consegui carregar os preços agora.","err"); return; }
-  LINHAS = (data || []).filter(l => l.custo_total != null);
+  const [m, g] = await Promise.all([
+    sb.from("jb_margem")
+      .select("ficha_id,produto,rascunho,preco,custo_total,custo_fixo_un,cmv")
+      .eq("canal_id", CANAL.id),
+    /* O giro vem da mesma contagem que alimenta o card Últimos dias. Serve para dois
+       usos: mostrar o peso de cada produto na linha, e deixar claro que o custo fixo
+       por unidade cai quando sai mais. */
+    sb.from("jb_giro_produto").select("*")
+  ]);
+  if(m.error){ box.innerHTML = ""; aviso("custosMsg","Não consegui carregar os preços agora.","err"); return; }
+  GIRO = {};
+  (g.data || []).forEach(r => GIRO[r.ficha_id] = r);
+  LINHAS = (m.data || []).filter(l => l.custo_total != null);
   desenharPrecos();
 }
 
@@ -565,26 +615,68 @@ function montarPlacar(){
   const box = $("precoPlacar");
   const contas = LINHAS.filter(l => !l.rascunho).map(contaLinha);
   const comPreco = contas.filter(c => c.preco != null);
-  const ruins = comPreco.filter(c => c.lucro < 0);
+  const ruins  = comPreco.filter(c => c.lucro < 0);
+  const abaixo = comPreco.filter(c => c.lucro >= 0 && c.margem < c.alvo);
+  const alvo   = Number(CFG.margem_alvo || 0);
   const media = comPreco.length
     ? comPreco.reduce((s,c) => s + c.lucro, 0) / comPreco.length : 0;
+  /* Margem do canal ponderada pelo giro: o produto que sai 8 vezes por dia pesa mais
+     na saúde da loja do que o que sai uma vez por semana. Sem giro medido, peso 1. */
+  const peso = l => { const g = GIRO[l.ficha_id]; return g && g.por_mes > 0 ? Number(g.por_mes) : 1; };
+  const comGiro = LINHAS.filter(l => !l.rascunho && l.preco != null);
+  const vendaTot = comGiro.reduce((s,l) => s + Number(l.preco) * peso(l), 0);
+  const lucroTot = comGiro.reduce((s,l) => s + contaLinha(l).lucro * peso(l), 0);
+  const margemCanal = vendaTot > 0 ? lucroTot / vendaTot : null;
 
   box.innerHTML = "";
   const g = document.createElement("div");
-  g.className = "g " + (ruins.length ? "alerta" : "bom");
-  g.textContent = ruins.length
-    ? ruins.length + " de " + comPreco.length + " no prejuízo"
-    : (comPreco.length ? "Todos no azul" : "Sem preços aqui ainda");
+  g.className = "g " + (ruins.length ? "alerta" : margemCanal != null && margemCanal < alvo ? "alerta" : "bom");
+  g.textContent = !comPreco.length ? "Sem preços aqui ainda"
+    : margemCanal != null ? "Margem de " + pct(margemCanal) + " no " + CANAL.nome
+    : "Todos no azul";
+  const sub = document.createElement("p");
+  sub.className = "sub";
+  if(comPreco.length){
+    const partes = [];
+    if(margemCanal != null) partes.push(margemCanal >= alvo
+      ? "acima da meta de " + pct(alvo)
+      : pct(alvo - margemCanal) + " abaixo da meta de " + pct(alvo));
+    if(ruins.length)  partes.push(ruins.length + " no prejuízo");
+    if(abaixo.length) partes.push(abaixo.length + " abaixo da meta");
+    if(!ruins.length && !abaixo.length) partes.push("todos os produtos na meta");
+    sub.textContent = partes.join(" · ") + ".";
+  }
+  /* Quanto a meta vale em dinheiro por mês, no ritmo de venda que a contagem mostra.
+     É o número que transforma "está 24% abaixo da meta" em algo que dá para decidir. */
+  let ganho = 0, temGiro = false;
+  comGiro.forEach(l => {
+    const g = GIRO[l.ficha_id];
+    if(!g || !(Number(g.por_mes) > 0)) return;
+    const c2 = contaLinha(l);
+    if(c2.saudavel == null || c2.saudavel <= c2.preco) return;
+    const l2 = Object.assign({}, l, { preco: c2.saudavel });
+    ganho += (contaLinha(l2).lucro - c2.lucro) * Number(g.por_mes);
+    temGiro = true;
+  });
   const p = document.createElement("p");
   const fatia = CANAL.taxa_efetiva != null
     ? Number(CANAL.taxa_efetiva) : Number(CANAL.taxa) + Number(CANAL.promo);
+  const imp = Number(CFG.imposto_pct || 0);
   const taxaTxt = "O app fica com " + pct(fatia) + " do preço" +
-    (CANAL.taxa_efetiva != null ? ", medido" : ", estimado");
+    (CANAL.taxa_efetiva != null ? ", medido" : ", estimado") +
+    (imp > 0 ? ", e o imposto com " + pct(imp) + ". Sobra " + pct(1 - fatia - imp) + " para custo e lucro" : "");
   p.textContent = comPreco.length
     ? taxaTxt + ". Cada venda deixa em média " +
       (media < 0 ? "um prejuízo de R$ " + moeda(-media) : "R$ " + moeda(media)) + "."
     : taxaTxt + ". Coloque os preços abaixo para ver a margem.";
-  box.append(g, p);
+  box.append(g, sub, p);
+  if(temGiro && ganho > 0){
+    const gp = document.createElement("p");
+    gp.className = "ganho";
+    gp.textContent = "Levando todo mundo ao preço saudável, seriam cerca de R$ "
+      + moeda(ganho) + " a mais por mês no " + CANAL.nome + ", no ritmo de venda de hoje.";
+    box.appendChild(gp);
+  }
 
   const taxas = document.createElement("div");
   taxas.className = "taxas";
@@ -708,6 +800,7 @@ function montarPlacar(){
     const campos = [
       ["custo_hora","Custo da hora (R$)",1],
       ["perdas_pct","Perdas (%)",100],
+      ["imposto_pct","Imposto sobre a venda (%)",100],
       ["margem_alvo","Margem que você quer (%)",100]
     ];
     campos.forEach(([chave,rot,mult]) => {
@@ -722,7 +815,8 @@ function montarPlacar(){
         if(n == null || n < 0){ inp.value = (Number(CFG[chave]||0)*mult).toLocaleString("pt-BR",{maximumFractionDigits:2}); return; }
         const novo = n / mult;
         if(novo === Number(CFG[chave])) return;
-        const { error } = await sb.from("jb_config").update({ valor: novo }).eq("chave", chave);
+        const { error } = await sb.from("jb_config")
+          .upsert({ chave, valor: novo }, { onConflict: "chave" });
         if(error){ aviso("custosMsg","Não consegui salvar esse ajuste.","err"); return; }
         CFG[chave] = novo;
         aviso("custosMsg","Ajuste salvo. Todos os produtos já recalcularam.","ok");
@@ -810,19 +904,25 @@ async function montarCustosDaCasa(casa){
   };
   casa.appendChild(add);
 
+  /* ---------- o volume, que é o divisor de tudo ----------
+     Quanto mais sai por mês, menor o pedaço de custo fixo que cada docinho carrega.
+     O número real vem da contagem de turno. Enquanto não houver dias fechados
+     suficientes, vale o que foi digitado à mão, e a tela deixa os dois à vista. */
+  const daContagem = v.origem === "contagem";
   const volRow = document.createElement("div"); volRow.className = "cl volume";
   const vn = document.createElement("span"); vn.className = "nm";
   vn.textContent = "Unidades vendidas por mês";
   const vo = document.createElement("small");
-  vo.textContent = v.origem === "contagem"
+  vo.textContent = daContagem
     ? "média real da contagem: " + v.media_dia + " por dia em " + v.dias_de_contagem + " dias fechados"
-    : "do cadastro. Vira a média real quando houver 14 dias de contagem fechados" + (v.dias_de_contagem ? " (" + v.dias_de_contagem + " até agora)" : "");
+    : "do cadastro. Vira a média real com " + (v.min_dias || 7) + " dias de contagem fechados"
+      + (v.dias_de_contagem ? " (" + v.dias_de_contagem + " até agora)" : "");
   vn.appendChild(vo);
   volRow.appendChild(vn);
   const vi = document.createElement("input");
   vi.type = "tel"; vi.inputMode = "numeric"; vi.className = "q";
-  vi.value = Number(CFG.volume_mes || 0).toLocaleString("pt-BR");
-  vi.disabled = v.origem === "contagem";
+  vi.value = Number(v.volume || CFG.volume_mes || 0).toLocaleString("pt-BR");
+  vi.disabled = daContagem;
   vi.onblur = async () => {
     const n = numBR(vi.value);
     if(n == null || n <= 0){ vi.value = Number(CFG.volume_mes||0).toLocaleString("pt-BR"); return; }
@@ -837,11 +937,46 @@ async function montarCustosDaCasa(casa){
   volRow.appendChild(vi);
   casa.appendChild(volRow);
 
+  /* Quando o cadastro e a contagem discordam, a tela mostra a diferença em dinheiro
+     por unidade, que é o que muda a decisão, e oferece adotar o número real. */
+  const real = Number(v.volume_real || 0), cad = Number(v.volume_cadastro || CFG.volume_mes || 0);
+  if(!daContagem && real > 0 && cad > 0 && Math.abs(real - cad) / cad > 0.05){
+    const dif = document.createElement("p");
+    dif.className = "nota-taxa"; dif.style.color = "var(--ambar)";
+    dif.textContent = "A contagem de " + v.dias_de_contagem + (v.dias_de_contagem === 1 ? " dia aponta " : " dias aponta ")
+      + real.toLocaleString("pt-BR") + " por mês, e não " + cad.toLocaleString("pt-BR") + ". "
+      + "Com o número real, o custo fixo por unidade vai de R$ " + moeda(total / cad)
+      + " para R$ " + moeda(total / real) + ".";
+    casa.appendChild(dif);
+    const adotar = document.createElement("button");
+    adotar.type = "button"; adotar.className = "abrir";
+    adotar.textContent = "usar a média real de " + real.toLocaleString("pt-BR") + " por mês";
+    adotar.onclick = async () => {
+      const { error } = await sb.from("jb_config").update({ valor: real }).eq("chave","volume_mes");
+      if(error){ aviso("custosMsg","Não consegui salvar o volume.","err"); return; }
+      CFG.volume_mes = real;
+      aviso("custosMsg","Volume atualizado para " + real.toLocaleString("pt-BR") + ". Todos os produtos já recalcularam.","ok");
+      listarPrecos();
+    };
+    casa.appendChild(adotar);
+  }
+
+  const volUsado = Number(v.volume || CFG.volume_mes || 1);
   const nota = document.createElement("p");
   nota.className = "tip"; nota.style.margin = "10px 2px 0";
-  nota.textContent = "Custo fixo por unidade: R$ " + moeda(total / Number(v.volume || CFG.volume_mes || 1))
-    + ". A folha vem dos acordos em Quem veio no ateliê e o pró-labore fica fora do caixa.";
+  nota.textContent = "Custo fixo por unidade: R$ " + moeda(total / volUsado)
+    + ", que é " + moeda(total) + " dividido por " + volUsado.toLocaleString("pt-BR") + ". "
+    + "A folha vem dos acordos em Quem veio no ateliê e o pró-labore fica fora do caixa.";
   casa.appendChild(nota);
+
+  /* A fórmula escrita, do jeito que ela é, para ninguém precisar adivinhar de onde
+     saiu o número vermelho da lista de fichas. */
+  const form = document.createElement("p");
+  form.className = "formula";
+  form.innerHTML = "custo total = (CMV + R$ " + moeda(total / volUsado) + ") × "
+    + (1 + Number(CFG.perdas_pct || 0)).toLocaleString("pt-BR",{minimumFractionDigits:2})
+    + "<small>A taxa do app e o imposto não entram aqui: eles saem do preço, não do custo.</small>";
+  casa.appendChild(form);
 }
 
 function textoResPreco(l, c){
@@ -849,18 +984,87 @@ function textoResPreco(l, c){
     : c.preco == null ? "sem preço"
     : (c.lucro < 0 ? "perde R$ " + moeda(-c.lucro) : "sobra R$ " + moeda(c.lucro));
 }
+
+/* A linha curta embaixo do preço: o veredito em uma frase, sem obrigar a abrir a conta. */
 function textoMiniPreco(l, c){
   if(l.rascunho) return "a receita ainda não está preenchida, então o custo aqui não vale. Complete a ficha para ver a margem.";
-  const alvo = Number(CFG.margem_alvo || 0);
+  if(c.preco == null){
+    return c.saudavel != null
+      ? "custo cheio <b>R$ " + moeda(c.custo) + "</b> · para a meta de " + pct(c.alvo) + " cobrar <b>R$ " + moeda(c.saudavel) + "</b>"
+      : "custo cheio <b>R$ " + moeda(c.custo) + "</b> · com essa taxa a meta de " + pct(c.alvo) + " não fecha";
+  }
+  const dif = c.margem - c.alvo;
   let dica;
-  if(c.preco != null && c.margem >= alvo) dica = "acima da meta de " + pct(alvo);
-  else if(c.minimo == null || c.minimo > 2 * c.empata) dica = "com essa taxa a meta de " + pct(alvo) + " não fecha";
-  else dica = "para " + pct(alvo) + " cobrar R$ " + moeda(c.minimo);
-  return (c.preco != null ? "margem <b>" + pct(c.margem) + "</b> · " : "")
-    + (l.cmv != null ? "CMV <b>R$ " + moeda(l.cmv) + "</b> · " : "")
-    + "custo cheio <b>R$ " + moeda(c.custo) + "</b> · "
-    + (c.empata != null ? "empata em <b>R$ " + moeda(c.empata) + "</b> · " : "")
-    + dica;
+  if(dif >= 0) dica = "<b class='ok'>" + pct(dif) + " acima da meta</b>";
+  else if(c.saudavel == null) dica = "<b class='ruim'>com essa taxa a meta de " + pct(c.alvo) + " não fecha em preço nenhum</b>";
+  else dica = "<b class='ruim'>" + pct(-dif) + " abaixo da meta</b>";
+  return "margem <b>" + pct(c.margem) + "</b> · empata em <b>R$ " + moeda(c.empata) + "</b> · " + dica;
+}
+
+/* ---------- a conta aberta do produto ----------
+   A mesma fórmula do topo do arquivo, linha por linha, com os números deste produto.
+   Fica escondida por padrão e só abre quando a pessoa pede, para a lista não virar
+   uma parede de número. */
+function montarConta(l, c){
+  const box = document.createElement("div");
+  box.className = "conta";
+  const linha = (rot, valor, classe) => {
+    const d = document.createElement("div");
+    d.className = "cl" + (classe ? " " + classe : "");
+    const a = document.createElement("span"); a.textContent = rot;
+    const b = document.createElement("b"); b.textContent = valor;
+    d.append(a, b);
+    box.appendChild(d);
+    return d;
+  };
+
+  const t1 = document.createElement("div"); t1.className = "tit";
+  t1.textContent = "O que custa fazer";
+  box.appendChild(t1);
+  linha("CMV, o que entra na receita", c.cmv == null ? "sem ficha" : "R$ " + moeda(c.cmv));
+  linha("Custo fixo por unidade", c.fixo == null ? "-" : "R$ " + moeda(c.fixo));
+  linha("Perdas de " + pct(c.perdas), c.perdasRS == null ? "-" : "R$ " + moeda(c.perdasRS));
+  linha("Custo total", "R$ " + moeda(c.custo), "soma");
+
+  const t2 = document.createElement("div"); t2.className = "tit";
+  t2.textContent = "O que sobra do preço";
+  box.appendChild(t2);
+  if(c.preco == null){
+    const p = document.createElement("p"); p.className = "vazia";
+    p.textContent = "Coloque o preço acima para ver esta parte.";
+    box.appendChild(p);
+  } else {
+    linha("Preço que o cliente paga", "R$ " + moeda(c.preco));
+    linha(CANAL.nome + " fica com " + pct(c.fatia), "− R$ " + moeda(c.taxaRS), "menos");
+    if(c.imposto > 0) linha("Imposto de " + pct(c.imposto), "− R$ " + moeda(c.impostoRS), "menos");
+    linha("Chega na conta da JB", "R$ " + moeda(c.liquido), "soma");
+    linha("Menos o custo total", "− R$ " + moeda(c.custo), "menos");
+    linha("Lucro", (c.lucro < 0 ? "− R$ " + moeda(-c.lucro) : "R$ " + moeda(c.lucro))
+          + "  ·  " + pct(c.margem), c.lucro < 0 ? "fim ruim" : "fim");
+  }
+
+  const g = GIRO[l.ficha_id];
+  const pe = document.createElement("p"); pe.className = "giro";
+  if(g && g.dias){
+    const partes = [];
+    partes.push("Sai " + Number(g.por_dia).toLocaleString("pt-BR",{maximumFractionDigits:1}) + " por dia, medido em " + g.dias + (g.dias === 1 ? " dia" : " dias") + " de contagem");
+    if(g.fatia != null) partes.push(pct(g.fatia) + " de tudo que sai da geladeira");
+    if(g.perda_pct != null && Number(g.perda_pct) > 0) partes.push("perda de " + pct(g.perda_pct));
+    if(c.preco != null && c.lucro != null && g.por_mes) {
+      partes.push((c.lucro < 0 ? "tira" : "traz") + " cerca de R$ "
+        + moeda(Math.abs(c.lucro * Number(g.por_mes))) + " por mês nesse ritmo");
+    }
+    pe.textContent = partes.join(" · ") + ".";
+    if(g.inconsistente){
+      const av = document.createElement("small");
+      av.textContent = "A contagem deste produto fechou negativa em algum dia, então o giro aqui está subestimado. Vale conferir a entrada e a sobra.";
+      pe.appendChild(av);
+    }
+  } else {
+    pe.textContent = "Sem giro medido: este produto ainda não aparece na contagem, ou o nome na contagem está diferente do nome da ficha.";
+  }
+  box.appendChild(pe);
+  return box;
 }
 
 function montarListaPrecos(){
@@ -888,19 +1092,59 @@ function montarListaPrecos(){
     res.textContent = textoResPreco(l, c);
     top.append(nm, res);
 
-    const bot = document.createElement("div"); bot.className = "bot";
+    /* Os dois preços lado a lado: o que está sendo praticado hoje, editável, e o que
+       daria a meta de margem, com um toque para adotar. */
+    const bot = document.createElement("div"); bot.className = "precos";
+
+    const cHoje = document.createElement("label"); cHoje.className = "campo";
+    const rHoje = document.createElement("span"); rHoje.className = "rot"; rHoje.textContent = "hoje";
     const inp = document.createElement("input");
     inp.className = "q"; inp.type = "tel"; inp.inputMode = "decimal";
     inp.setAttribute("aria-label","Preço de " + l.produto + " no " + CANAL.nome);
     inp.value = c.preco == null ? "" : moeda(c.preco);
+    cHoje.append(rHoje, inp);
+
+    const cAlvo = document.createElement("div"); cAlvo.className = "campo alvo";
+    const rAlvo = document.createElement("span"); rAlvo.className = "rot";
+    rAlvo.textContent = "saudável (" + pct(c.alvo) + ")";
+    const vAlvo = document.createElement("span"); vAlvo.className = "v";
+    vAlvo.textContent = c.saudavel == null ? "não fecha" : "R$ " + moeda(c.saudavel);
+    cAlvo.append(rAlvo, vAlvo);
+
+    const usar = document.createElement("button");
+    usar.type = "button"; usar.className = "usar";
+    usar.textContent = "usar";
+
+    bot.append(cHoje, cAlvo);
+    if(c.saudavel != null) bot.appendChild(usar);
+
+    const mini = document.createElement("div"); mini.className = "mini";
+    mini.style.marginTop = "8px";
+    mini.innerHTML = textoMiniPreco(l, c);
+
+    const verConta = document.createElement("button");
+    verConta.type = "button"; verConta.className = "verconta";
+    const caixa = document.createElement("div");
+
+    const redesenhar = () => {
+      const c2 = contaLinha(l);
+      row.className = "pm " + (l.rascunho || c2.preco == null ? "vazio" : c2.lucro < 0 ? "perde" : "");
+      res.textContent = textoResPreco(l, c2);
+      mini.innerHTML = textoMiniPreco(l, c2);
+      inp.value = c2.preco == null ? "" : moeda(c2.preco);
+      vAlvo.textContent = c2.saudavel == null ? "não fecha" : "R$ " + moeda(c2.saudavel);
+      usar.classList.toggle("hide", c2.saudavel == null || c2.saudavel === c2.preco);
+      caixa.innerHTML = "";
+      if(CONTA_ABERTA[l.ficha_id]) caixa.appendChild(montarConta(l, c2));
+      verConta.textContent = CONTA_ABERTA[l.ficha_id] ? "fechar a conta" : "abrir a conta deste produto";
+      montarPlacar();
+    };
+
     let salvando = false;   // desativar o campo dispara blur de novo: não pode salvar duas vezes
-    inp.onblur = async () => {
+    const gravar = async n => {
       if(salvando) return;
-      const n = numBR(inp.value);
-      if(inp.value.trim() !== "" && n == null) return;
       if(n === (l.preco == null ? null : Number(l.preco))) return;
-      salvando = true;
-      inp.disabled = true;
+      salvando = true; inp.disabled = true;
       let error;
       if(n == null){
         ({ error } = await sb.from("jb_preco").delete().eq("ficha_id", l.ficha_id).eq("canal_id", CANAL.id));
@@ -914,25 +1158,22 @@ function montarListaPrecos(){
       l.preco = n;
       /* Atualiza só esta linha e o placar. Redesenhar a lista inteira jogava a
          página para o topo a cada preço digitado. */
-      const c2 = contaLinha(l);
-      row.className = "pm " + (l.rascunho || c2.preco == null ? "vazio" : c2.lucro < 0 ? "perde" : "");
-      res.textContent = textoResPreco(l, c2);
-      mini.innerHTML = textoMiniPreco(l, c2);
-      inp.value = c2.preco == null ? "" : moeda(c2.preco);
-      montarPlacar();
+      redesenhar();
       toast("Preço de " + l.produto + " no " + CANAL.nome + " salvo.");
     };
+
+    inp.onblur = () => {
+      const n = numBR(inp.value);
+      if(inp.value.trim() !== "" && n == null) return;
+      gravar(n);
+    };
     inp.addEventListener("keydown", e => { if(e.key === "Enter") inp.blur(); });
-    const rot = document.createElement("span"); rot.className = "mini";
-    rot.textContent = "preço no " + CANAL.nome;
-    bot.append(inp, rot);
+    usar.onclick = () => { const c2 = contaLinha(l); if(c2.saudavel != null) gravar(c2.saudavel); };
+    verConta.onclick = () => { CONTA_ABERTA[l.ficha_id] = !CONTA_ABERTA[l.ficha_id]; redesenhar(); };
 
-    const mini = document.createElement("div"); mini.className = "mini";
-    mini.style.marginTop = "8px";
-    mini.innerHTML = textoMiniPreco(l, c);
-
-    row.append(top, bot, mini);
+    row.append(top, bot, mini, verConta, caixa);
     box.appendChild(row);
+    redesenhar();
   });
 
   if(!ord.length) box.innerHTML = "<p class='tip'>Nenhuma ficha com custo fechado ainda. Complete as fichas para ver a margem.</p>";
