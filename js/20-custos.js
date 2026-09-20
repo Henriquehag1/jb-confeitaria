@@ -1055,13 +1055,21 @@ function montarConta(l, c){
         + moeda(Math.abs(c.lucro * Number(g.por_mes))) + " por mês nesse ritmo");
     }
     pe.textContent = partes.join(" · ") + ".";
+    /* A contagem tem lista própria de produtos. Quando o nome de lá é diferente do
+       nome da ficha, a tela diz qual é, para ninguém achar que é outro produto. */
+    if(g.nome_na_contagem && g.nome_na_contagem !== l.produto){
+      const nc = document.createElement("small");
+      nc.style.color = "var(--tinta-3)";
+      nc.textContent = "Na contagem este produto se chama \u201c" + g.nome_na_contagem + "\u201d.";
+      pe.appendChild(nc);
+    }
     if(g.inconsistente){
       const av = document.createElement("small");
       av.textContent = "A contagem deste produto fechou negativa em algum dia, então o giro aqui está subestimado. Vale conferir a entrada e a sobra.";
       pe.appendChild(av);
     }
   } else {
-    pe.textContent = "Sem giro medido: este produto ainda não aparece na contagem, ou o nome na contagem está diferente do nome da ficha.";
+    pe.textContent = "Sem giro medido: esta ficha ainda não está ligada a um produto da contagem de turno.";
   }
   box.appendChild(pe);
   return box;
