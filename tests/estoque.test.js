@@ -252,7 +252,7 @@ test("dá para cadastrar foto, prateleira e embalagem pelo formulário do insumo
 
   const campos = await a.page.evaluate(() =>
     [...document.querySelectorAll("#formCustos label")].map(l => l.childNodes[0].textContent));
-  assert.ok(campos.includes("Foto (link ou caminho)"), "o campo de foto existe: " + JSON.stringify(campos));
+  assert.ok(campos.includes("Foto"), "o campo de foto existe: " + JSON.stringify(campos));
   assert.ok(campos.includes("Onde fica"));
   assert.ok(campos.includes("Como é a embalagem"));
 
@@ -260,11 +260,11 @@ test("dá para cadastrar foto, prateleira e embalagem pelo formulário do insumo
     const val = (rotulo, v) => {
       const l = [...document.querySelectorAll("#formCustos label")]
         .find(x => x.childNodes[0].textContent === rotulo);
-      const el = l.querySelector("input,select");
+      const el = l.querySelector(".urlfoto") || l.querySelector("input:not([type=file]),select");
       el.value = v;
     };
     // um arquivo que existe de verdade: senão o navegador reclama de imagem faltando
-    val("Foto (link ou caminho)", "img/insumos/nutella.jpg");
+    val("Foto", "img/insumos/nutella.jpg");
     val("Onde fica", "geladeira");
     val("Como é a embalagem", "cartela 30un");
     val("Quanto vem nela", "30");

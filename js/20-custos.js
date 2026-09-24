@@ -182,6 +182,105 @@ function imgFoto(url, classe){
   return im;
 }
 
+/* ============================================================
+   FOTO TIRADA NA HORA
+   O botão abre a câmera ou a galeria do celular. A imagem é recortada em
+   quadrado e encolhida aqui mesmo, antes de subir: o que sai do celular tem
+   uns 60kB, não os 4MB da foto original. O que vai para o banco é o link.
+   ============================================================ */
+const FOTO_LADO = 640;
+const FOTO_BUCKET = "fotos";
+
+function encolherFoto(file){
+  return new Promise((ok, falhou) => {
+    const url = URL.createObjectURL(file);
+    const im = new Image();
+    im.onload = () => {
+      URL.revokeObjectURL(url);
+      const lado = Math.min(im.naturalWidth, im.naturalHeight);
+      if(!lado){ falhou(new Error("vazia")); return; }
+      const cv = document.createElement("canvas");
+      cv.width = FOTO_LADO; cv.height = FOTO_LADO;
+      const cx = cv.getContext("2d");
+      cx.drawImage(im,
+        (im.naturalWidth - lado) / 2, (im.naturalHeight - lado) / 2, lado, lado,
+        0, 0, FOTO_LADO, FOTO_LADO);
+      cv.toBlob(b => b ? ok(b) : falhou(new Error("canvas")), "image/jpeg", 0.82);
+    };
+    im.onerror = () => { URL.revokeObjectURL(url); falhou(new Error("formato")); };
+    im.src = url;
+  });
+}
+
+async function subirFoto(file, prefixo){
+  const blob = await encolherFoto(file);
+  const caminho = prefixo + "-" + Date.now() + ".jpg";
+  const { error } = await sb.storage.from(FOTO_BUCKET)
+    .upload(caminho, blob, { contentType: "image/jpeg", upsert: true });
+  if(error) throw error;
+  return sb.storage.from(FOTO_BUCKET).getPublicUrl(caminho).data.publicUrl;
+}
+
+/* Erro de upload não pode virar "Erro: {}". Cada caso tem a sua frase. */
+function recadoDaFoto(e){
+  const m = String((e && (e.message || e.error)) || "").toLowerCase();
+  if(m.includes("formato")) return "O celular mandou num formato que o navegador não abre. Tente tirar a foto pela câmera, ali no mesmo botão.";
+  if(m.includes("row-level") || m.includes("unauthorized") || m.includes("policy")) return "Esse login não pode subir foto.";
+  if(m.includes("exceeded") || m.includes("too large")) return "A foto ficou grande demais. Tente de novo.";
+  if(m.includes("failed to fetch") || m.includes("network")) return "A internet caiu no meio. Tente de novo.";
+  return "Não consegui subir a foto agora.";
+}
+
+/* O pedaço de tela que junta miniatura, botão e o endereço da foto.
+   Devolve o input escondido que guarda o link, para o formulário ler. */
+function campoDeFoto(prefixo, valor, dica){
+  const cx = document.createElement("div"); cx.className = "campofoto";
+  const prev = document.createElement("div"); prev.className = "prev";
+
+  const url = document.createElement("input");
+  url.type = "text"; url.className = "urlfoto";
+  url.value = valor || "";
+  url.placeholder = dica || "img/insumos/arquivo.jpg";
+
+  const pintar = () => {
+    prev.innerHTML = "";
+    const im = imgFoto(url.value.trim(), "mini");
+    if(im) prev.appendChild(im);
+    else { const v = document.createElement("span"); v.className = "sem"; v.textContent = "sem foto"; prev.appendChild(v); }
+  };
+  pintar();
+  url.addEventListener("change", pintar);
+  url.addEventListener("blur", pintar);
+
+  const arq = document.createElement("input");
+  arq.type = "file"; arq.accept = "image/*"; arq.className = "hide";
+  arq.setAttribute("aria-hidden", "true"); arq.tabIndex = -1;
+
+  const bt = document.createElement("button");
+  bt.type = "button"; bt.className = "fotobt";
+  const rotulo = () => url.value.trim() ? "Trocar a foto" : "Tirar ou escolher foto";
+  bt.textContent = rotulo();
+  bt.onclick = () => arq.click();
+
+  arq.onchange = async () => {
+    const f = arq.files && arq.files[0];
+    arq.value = "";
+    if(!f) return;
+    bt.disabled = true; bt.textContent = "Subindo...";
+    try {
+      url.value = await subirFoto(f, prefixo);
+      pintar();
+      toast("Foto no ar. Agora é só salvar.");
+    } catch(e){
+      toast(recadoDaFoto(e), "err");
+    }
+    bt.disabled = false; bt.textContent = rotulo();
+  };
+
+  cx.append(prev, bt, arq, url);
+  return { caixa: cx, valor: url };
+}
+
 function linhaLista(titulo, sub, valor, classe, onclick, foto){
   const b = document.createElement("button");
   b.type = "button";
@@ -277,6 +376,8 @@ async function listarInsumos(){
     "Nome, unidade de compra e preço", "+", "",
     () => miniForm("formCustos", "Ingrediente novo", [
       { chave:"nome", rotulo:"Nome", largo:true, dica:"Ex.: Pistache moído" },
+      { chave:"foto_url", rotulo:"Foto", largo:true, valor:"",
+        foto:"insumo/novo", dica:"ou cole um link aqui" },
       { chave:"unidade", rotulo:"Comprado por", opcoes:UNIDADES, valor:"kg" },
       { chave:"custo", rotulo:"Preço por essa unidade", numero:true, dica:"0,00" },
       { chave:"categoria", rotulo:"É o quê", opcoes:[["ingrediente","ingrediente"],["embalagem","embalagem"]], valor:"ingrediente" },
@@ -284,7 +385,7 @@ async function listarInsumos(){
     ], async v => {
       if(!v.nome){ aviso("custosMsg","Dê um nome ao ingrediente.","warn"); return false; }
       const { error } = await sb.from("jb_insumo").insert({
-        nome:v.nome, unidade:v.unidade, custo_unit:numBR(v.custo),
+        nome:v.nome, unidade:v.unidade, custo_unit:numBR(v.custo), foto_url: v.foto_url || null,
         categoria:v.categoria, fornecedor:v.fornecedor || null, ativo:true });
       if(error){ aviso("custosMsg","Não consegui criar. Talvez já exista um com esse nome.","err"); return false; }
       CATALOGO = []; INSUMOS_CACHE = null;
@@ -373,6 +474,8 @@ async function listarInsumos(){
 function formEditarInsumo(i, usos){
   const campos = [
     { chave:"nome", rotulo:"Nome", largo:true, valor:i.nome },
+    { chave:"foto_url", rotulo:"Foto", largo:true, valor:i.foto_url || "",
+      foto:"insumo/" + i.id, dica:"ou cole um link aqui" },
     { chave:"unidade", rotulo:"Comprado por", opcoes:UNIDADES, valor:i.unidade || "kg" },
     { chave:"custo", rotulo:"Preço por essa unidade", numero:true,
       valor: i.custo_unit == null ? "" : Number(i.custo_unit).toFixed(2) },
@@ -381,8 +484,6 @@ function formEditarInsumo(i, usos){
     { chave:"equiv_g", rotulo:"Peso do pacote em g", numero:true,
       valor: i.equiv_g == null ? "" : String(i.equiv_g) },
     { chave:"fornecedor", rotulo:"Fornecedor", valor:i.fornecedor || "", largo:true },
-    { chave:"foto_url", rotulo:"Foto (link ou caminho)", largo:true, valor:i.foto_url || "",
-      dica:"img/insumos/arquivo.jpg" },
     { chave:"no_estoque", rotulo:"Entra na contagem do estoque",
       opcoes:[["nao","não"],["sim","sim"]], valor: i.no_estoque ? "sim" : "nao" },
     { chave:"local", rotulo:"Onde fica", opcoes:LOCAIS_INSUMO, valor: i.local || "" },
@@ -417,7 +518,8 @@ function formEditarInsumo(i, usos){
     aviso("custosMsg", v.nome + " atualizado. As receitas que usam já recalcularam.","ok");
     listarInsumos();
   }, {
-    nota: "Peso do pacote só importa quando você compra por unidade e usa por grama, como o Kinder e o Oreo."
+    nota: "A foto: toque no botão, escolha tirar agora ou pegar da galeria, e pronto. Ela encolhe sozinha antes de subir."
+        + " Peso do pacote só importa quando você compra por unidade e usa por grama, como o Kinder e o Oreo."
         + " A embalagem é como o item é contado no estoque: um saco de 5kg é \u0022saco 5kg\u0022 e 5."
         + (usos ? " Este item está em " + usos + " receita(s)." : " Não está em nenhuma receita."),
     aoApagar: async () => {
@@ -1346,6 +1448,13 @@ function miniForm(alvo, titulo, campos, aoSalvar, opcoes){
     if(c.largo) lb.className = "wide";
     lb.appendChild(document.createTextNode(c.rotulo));
     let el;
+    if(c.foto){
+      const cf = campoDeFoto(c.foto, c.valor, c.dica);
+      lb.appendChild(cf.caixa);
+      refs[c.chave] = cf.valor;
+      lin.appendChild(lb);
+      return;
+    }
     if(c.opcoes){
       el = document.createElement("select");
       c.opcoes.forEach(([v,t]) => {

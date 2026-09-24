@@ -523,7 +523,22 @@ ${agora ? "window.__AGORA=" + JSON.stringify(agora) + ";" : ""}
       onAuthStateChange: (cb) => { window.__authCb = cb; return { data: { subscription: { unsubscribe(){} } } }; }
     },
     rpc,
-    from: query
+    from: query,
+    /* Storage de mentira: guarda o que subiu e devolve um link estável,
+       do mesmo formato que o Supabase devolve. */
+    storage: {
+      from: (balde) => ({
+        upload: async (caminho, blob, opts) => {
+          if(!gestor()) return { data:null, error:{ message:"new row violates row-level security policy" } };
+          if(window.__FALHA && window.__FALHA.upload) return { data:null, error:{ message:"Failed to fetch" } };
+          window.__LOG.push(["upload", balde, caminho, blob ? blob.size : 0, (opts||{}).contentType]);
+          return { data:{ path: caminho }, error:null };
+        },
+        getPublicUrl: (caminho) => ({
+          data: { publicUrl: "https://stub.local/storage/v1/object/public/" + balde + "/" + caminho }
+        })
+      })
+    }
   })};
 })();`;
 }

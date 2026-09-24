@@ -92,6 +92,22 @@ $("btnProducao").onclick = abrirProducao;
 $("addProd").onchange = () => addReceitaAoDia($("addProd").value);
 $("btnRecFeito").onclick = marcarFeito;
 $("btnFichaApagar").onclick = apagarFicha;
+$("btnFFoto").onclick = () => $("fFotoArq").click();
+$("fFotoArq").onchange = async () => {
+  const arq = $("fFotoArq"), bt = $("btnFFoto");
+  const f = arq.files && arq.files[0];
+  arq.value = "";
+  if(!f) return;
+  bt.disabled = true; bt.textContent = "Subindo...";
+  try {
+    $("fFoto").value = await subirFoto(f, "ficha/" + (FICHA && FICHA.id ? FICHA.id : "nova"));
+    mostrarFoto();
+    toast("Foto no ar. Agora é só salvar a ficha.");
+  } catch(e){
+    toast(recadoDaFoto(e), "err");
+  }
+  bt.disabled = false; bt.textContent = $("fFoto").value.trim() ? "Trocar a foto" : "Tirar ou escolher foto";
+};
 $("fFoto").addEventListener("change", mostrarFoto);
 $("fFoto").addEventListener("blur", mostrarFoto);
 $("fPreparo").addEventListener("input", avisoPreparo);
