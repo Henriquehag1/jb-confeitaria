@@ -146,6 +146,9 @@ function linhaEstoque(l){
   const it = EST.itens[l.insumo_id];
   if(it) row.classList.add("filled");
 
+  const im = imgFoto(l.foto_url);
+  if(im) row.appendChild(im);
+
   const nome = document.createElement("div");
   nome.className = "nome";
   nome.textContent = l.nome;
@@ -353,7 +356,11 @@ function linhaCompra(l){
     else row.classList.add("ok");
   }
 
+  const im = imgFoto(l.foto_url);
+  if(im) row.appendChild(im);
+
   const esq = document.createElement("div");
+  esq.className = "tx";
   const nm = document.createElement("span");
   nm.className = "nm";
   nm.textContent = l.nome;
