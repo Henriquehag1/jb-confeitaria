@@ -71,6 +71,10 @@ $("btnCustos").onclick = abrirCustos;
 $("btnResultado").onclick = abrirMes;
 $("btnDias").onclick = abrirDias;
 $("btnAfazeres").onclick = abrirAfazeres;
+$("btnEstoque").onclick = abrirEstoque;
+$("abaEstContar").onclick  = () => trocarAbaEstoque("contar");
+$("abaEstComprar").onclick = () => trocarAbaEstoque("comprar");
+$("btnEstFechar").onclick = fecharContagemEstoque;
 $("afaAdd").onclick = addTarefa;
 $("afaTexto").addEventListener("input", () => {
   const escrevendo = $("afaTexto").value.trim().length > 0;

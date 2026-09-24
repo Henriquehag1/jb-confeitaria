@@ -125,6 +125,7 @@ async function carregarHome(){
     $("btnCustos").classList.add("hide");
     $("btnDias").classList.add("hide");
     $("btnAfazeres").classList.add("hide");
+    $("btnEstoque").classList.add("hide");
     aviso("homeMsg","","");
     ajustarGrupos();
     show("scHome");
@@ -198,6 +199,7 @@ async function carregarHome(){
   $("btnResultado").classList.toggle("hide", EU.papel !== "gestor");
   $("btnDias").classList.toggle("hide", EU.papel !== "gestor");
   $("btnAfazeres").classList.toggle("hide", EU.papel !== "gestor");
+  $("btnEstoque").classList.toggle("hide", EU.papel !== "gestor");
 
   aviso("homeMsg","", "");
   /* Lembrete ativo para a equipe: perto de fechar a loja, com a geladeira pronta
