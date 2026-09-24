@@ -188,3 +188,28 @@ test("a lista para o WhatsApp sai separada por fornecedor", async () => {
   assert.match(txt, /- Ovos: 200 un/, "sem embalagem cadastrada, sai na unidade: " + txt);
   semErros(a); await a.fechar();
 });
+
+test("a foto do insumo aparece na contagem e na lista de compra", async () => {
+  const a = await abrir("uJes");
+  await a.page.click("#btnEstoque"); await a.espera(600);
+
+  const fotos = await a.page.evaluate(() =>
+    [...document.querySelectorAll("#estLista .item")].map(r => {
+      const im = r.querySelector("img.foto");
+      return { nome: r.querySelector(".nome").childNodes[0].textContent.trim(), src: im ? im.getAttribute("src") : null };
+    }));
+  const choco = fotos.find(f => f.nome === "Chocolate 50%");
+  assert.equal(choco.src, "img/insumos/chocolate-blend-melken.jpg", "o caminho relativo passa inteiro");
+  assert.equal(fotos.find(f => f.nome === "Ovos").src, null, "sem foto cadastrada, a linha fica sem imagem");
+
+  await a.page.click("#abaEstComprar"); await a.espera(400);
+  const naCompra = await a.page.evaluate(() => {
+    const ln = [...document.querySelectorAll("#estLista .promo-ln")]
+      .find(r => r.querySelector(".nm").textContent === "Chocolate 50%");
+    const im = ln.querySelector("img.foto");
+    return { src: im ? im.getAttribute("src") : null, ordem: ln.firstElementChild.tagName };
+  });
+  assert.equal(naCompra.src, "img/insumos/chocolate-blend-melken.jpg");
+  assert.equal(naCompra.ordem, "IMG", "a foto vem antes do texto");
+  semErros(a); await a.fechar();
+});

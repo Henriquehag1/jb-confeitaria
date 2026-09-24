@@ -49,7 +49,8 @@ function baseDB(agora){
     ],
     jb_insumo: [
       { id: 100, nome: "Chocolate 50%", unidade: "kg", custo_unit: 40, fornecedor: "Distribuidora", categoria: "ingrediente", equiv_g: null, ativo: true,
-        no_estoque: true, local: "secos", emb_nome: "pacote 2,05kg", emb_qtd: 2.05, cobertura_semanas: 2, consumo_semana_manual: 3 },
+        no_estoque: true, local: "secos", emb_nome: "pacote 2,05kg", emb_qtd: 2.05, cobertura_semanas: 2, consumo_semana_manual: 3,
+        foto_url: "img/insumos/chocolate-blend-melken.jpg" },
       { id: 101, nome: "Ovos",          unidade: "un", custo_unit: 0.72, fornecedor: "Granja", categoria: "ingrediente", equiv_g: null, ativo: true,
         no_estoque: true, local: "secos", emb_nome: null, emb_qtd: null, cobertura_semanas: 2, consumo_semana_manual: 100 },
       { id: 102, nome: "Açúcar",        unidade: "kg", custo_unit: 2.69, fornecedor: null, categoria: "ingrediente", equiv_g: null, ativo: true,
@@ -269,7 +270,7 @@ ${agora ? "window.__AGORA=" + JSON.stringify(agora) + ";" : ""}
       const falta = Math.round(Math.max((consumo || 0) * cob - saldo, 0) * 10000) / 10000;
       return {
         insumo_id: i.id, nome: i.nome, unidade: i.unidade, categoria: i.categoria,
-        local: i.local || "sem prateleira", emb_nome: i.emb_nome, emb_qtd: i.emb_qtd,
+        local: i.local || "sem prateleira", emb_nome: i.emb_nome, emb_qtd: i.emb_qtd, foto_url: i.foto_url || null,
         custo_unit: i.custo_unit, fornecedor: i.fornecedor, cobertura_semanas: cob,
         consumo_semana_manual: i.consumo_semana_manual,
         contado_em: atual ? atual.data : null,
