@@ -259,7 +259,7 @@ async function listarInsumos(){
   /* Os dados ficam em memória: a busca filtra sem ir ao banco a cada tecla. */
   if(!INSUMOS_CACHE){
     const [ins, uso, pago] = await Promise.all([
-      sb.from("jb_insumo").select("id,nome,unidade,custo_unit,fornecedor,categoria,equiv_g,ativo").order("nome"),
+      sb.from("jb_insumo").select("id,nome,unidade,custo_unit,fornecedor,categoria,equiv_g,ativo,foto_url,no_estoque,local,emb_nome,emb_qtd,cobertura_semanas").order("nome"),
       sb.from("jb_uso_ingrediente").select("nome,em_fichas,em_subreceitas"),
       sb.from("jb_insumo_ultimo_pago").select("insumo_id,compra_item_id,data,fornecedor,custo_base,unidade_base")
     ]);
@@ -296,9 +296,12 @@ async function listarInsumos(){
     const row = document.createElement("div");
     row.className = "ing" + (i.custo_unit === null ? " semq" : "");
     const top = document.createElement("div"); top.className = "top";
+    const im = imgFoto(i.foto_url, "mini");
+    if(im) top.appendChild(im);
     const nm = document.createElement("span"); nm.className = "nm"; nm.textContent = i.nome;
     const cs = document.createElement("span"); cs.className = "cst";
-    cs.textContent = "por " + (i.unidade || "un") + (i.fornecedor ? " · " + i.fornecedor : "");
+    cs.textContent = "por " + (i.unidade || "un") + (i.fornecedor ? " · " + i.fornecedor : "")
+      + (i.no_estoque ? " · na contagem" + (i.emb_nome ? ", " + i.emb_nome : ", falta a embalagem") : "");
     top.append(nm, cs);
     const bot = document.createElement("div"); bot.className = "bot";
     const inp = document.createElement("input");
@@ -377,7 +380,17 @@ function formEditarInsumo(i, usos){
       opcoes:[["ingrediente","ingrediente"],["embalagem","embalagem"]], valor:i.categoria || "ingrediente" },
     { chave:"equiv_g", rotulo:"Peso do pacote em g", numero:true,
       valor: i.equiv_g == null ? "" : String(i.equiv_g) },
-    { chave:"fornecedor", rotulo:"Fornecedor", valor:i.fornecedor || "", largo:true }
+    { chave:"fornecedor", rotulo:"Fornecedor", valor:i.fornecedor || "", largo:true },
+    { chave:"foto_url", rotulo:"Foto (link ou caminho)", largo:true, valor:i.foto_url || "",
+      dica:"img/insumos/arquivo.jpg" },
+    { chave:"no_estoque", rotulo:"Entra na contagem do estoque",
+      opcoes:[["nao","não"],["sim","sim"]], valor: i.no_estoque ? "sim" : "nao" },
+    { chave:"local", rotulo:"Onde fica", opcoes:LOCAIS_INSUMO, valor: i.local || "" },
+    { chave:"emb_nome", rotulo:"Como é a embalagem", valor:i.emb_nome || "", dica:"saco 5kg" },
+    { chave:"emb_qtd", rotulo:"Quanto vem nela", numero:true,
+      valor: i.emb_qtd == null ? "" : String(i.emb_qtd), dica:"5" },
+    { chave:"cobertura_semanas", rotulo:"Semanas de estoque a manter", numero:true,
+      valor: i.cobertura_semanas == null ? "2" : String(i.cobertura_semanas) }
   ];
   miniForm("formCustos", i.nome, campos, async v => {
     if(!v.nome){ aviso("custosMsg","O nome não pode ficar vazio.","warn"); return false; }
@@ -391,7 +404,13 @@ function formEditarInsumo(i, usos){
     }
     const { error } = await sb.from("jb_insumo").update({
       unidade: v.unidade, custo_unit: numBR(v.custo), categoria: v.categoria,
-      equiv_g: numBR(v.equiv_g), fornecedor: v.fornecedor || null
+      equiv_g: numBR(v.equiv_g), fornecedor: v.fornecedor || null,
+      foto_url: v.foto_url || null,
+      no_estoque: v.no_estoque === "sim",
+      local: v.local || null,
+      emb_nome: v.emb_nome || null,
+      emb_qtd: numBR(v.emb_qtd),
+      cobertura_semanas: numBR(v.cobertura_semanas) ?? 2
     }).eq("id", i.id);
     if(error){ aviso("custosMsg","Não consegui salvar.","err"); return false; }
     CATALOGO = []; INSUMOS_CACHE = null;
@@ -399,6 +418,7 @@ function formEditarInsumo(i, usos){
     listarInsumos();
   }, {
     nota: "Peso do pacote só importa quando você compra por unidade e usa por grama, como o Kinder e o Oreo."
+        + " A embalagem é como o item é contado no estoque: um saco de 5kg é \u0022saco 5kg\u0022 e 5."
         + (usos ? " Este item está em " + usos + " receita(s)." : " Não está em nenhuma receita."),
     aoApagar: async () => {
       if(usos > 0){
@@ -1380,6 +1400,13 @@ function miniForm(alvo, titulo, campos, aoSalvar, opcoes){
 }
 
 const UNIDADES = [["kg","kg"],["g","g"],["L","L"],["ml","ml"],["un","un"],["m","m"]];
+const LOCAIS_INSUMO = [
+  ["", "sem prateleira"],
+  ["secos", "prateleira de secos"],
+  ["geladeira", "geladeira e freezer"],
+  ["embalagem", "armário de embalagem"],
+  ["limpeza", "limpeza e consumo"]
+];
 
 function formNovoInsumo(){
   miniForm("novoIng", "Ingrediente novo", [
