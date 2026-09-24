@@ -85,7 +85,7 @@ function baseDB(agora){
     ],
     jb_custo_fixo_total: [{ total: 8099.44, folha: 3683.33, contas: 1916.11, pro_labore: 2500 }],
     jb_volume_calculado: [{ volume: 1700, dias_de_contagem: 1, origem: "cadastro", media_dia: 32,
-      min_dias: 7, volume_real: 960, volume_cadastro: 1700 }],
+      min_dias: 7, volume_real: 960, volume_cadastro: 1700, dias_fora: 0 }],
     jb_giro_produto: [
       { ficha_id: 10, produto: "Brownie Brigadeiro", nome_na_contagem: "Brownie Classico",
         vendeu: 60, perdeu: 2, dias: 12,
@@ -95,10 +95,10 @@ function baseDB(agora){
       { ficha_id: 10, canal_id: 1, preco: 18 }, { ficha_id: 10, canal_id: 2, preco: 22 }
     ],
     jb_margem: [
-      { ficha_id: 10, produto: "Brownie Brigadeiro", rascunho: false, canal_id: 1, preco: 18, custo_total: 12, custo_fixo_un: 5.43, cmv: 6 },
-      { ficha_id: 10, produto: "Brownie Brigadeiro", rascunho: false, canal_id: 2, preco: 22, custo_total: 12, custo_fixo_un: 5.43, cmv: 6 },
-      { ficha_id: 10, produto: "Brownie Brigadeiro", rascunho: false, canal_id: 3, preco: null, custo_total: 12, custo_fixo_un: 5.43, cmv: 6 },
-      { ficha_id: 11, produto: "Pudim", rascunho: true, canal_id: 1, preco: null, custo_total: 9, custo_fixo_un: 5.43, cmv: 4 }
+      { ficha_id: 10, produto: "Brownie Brigadeiro", rascunho: false, canal_id: 1, preco: 18, custo_total: 12, custo_fixo_un: 5.43, cmv: 6, fatia_app: 0 },
+      { ficha_id: 10, produto: "Brownie Brigadeiro", rascunho: false, canal_id: 2, preco: 22, custo_total: 12, custo_fixo_un: 5.43, cmv: 6, fatia_app: 0.334 },
+      { ficha_id: 10, produto: "Brownie Brigadeiro", rascunho: false, canal_id: 3, preco: 24, custo_total: 12, custo_fixo_un: 5.43, cmv: 6, fatia_app: 0.528 },
+      { ficha_id: 11, produto: "Pudim", rascunho: true, canal_id: 1, preco: null, custo_total: 9, custo_fixo_un: 5.43, cmv: 4, fatia_app: 0 }
     ],
     jb_promo_teto: [
       { produto: "Bolo Gelado Supreme", canal: "99Food", canal_ordem: 30, preco: 26.98, cmv: 5.07, custo_fixo_un: 4.94,
@@ -231,6 +231,79 @@ ${agora ? "window.__AGORA=" + JSON.stringify(agora) + ";" : ""}
                custo_fixo_referencia: (DB.jb_custo_fixo_total[0] || {}).total || null };
     });
   }
+  /* espelho de jb_dia_vendas */
+  function viewDiaVendas(){
+    const m = {};
+    viewSaidas().forEach(r => {
+      const d = m[r.data] || (m[r.data] = { data: r.data, vendeu: 0, perdeu: 0, fechado: true });
+      d.vendeu += Number(r.vendeu || 0);
+      d.perdeu += Number(r.perdeu || 0);
+      if(!r.fechado) d.fechado = false;
+    });
+    return Object.values(m).map(d => ({ ...d, confiavel: d.fechado && d.vendeu >= 0 }));
+  }
+  /* espelho de jb_kpi_destino: para onde vai cada R$1 do preco de tabela */
+  function pesosDoMes(mes){
+    const cfgN = c => { const r = DB.jb_config.find(x => x.chave === c); return r ? Number(r.valor) : 0; };
+    const mix = DB.jb_giro_produto.filter(g => Number(g.fatia || 0) > 0 && !g.inconsistente);
+    const linhas = [];
+    DB.jb_faturamento.filter(f => f.mes === mes && Number(f.valor) > 0).forEach(f => {
+      const cn = DB.jb_canal.find(c => c.id === f.canal_id); if(!cn) return;
+      const fatia = cn.taxa_efetiva != null ? Number(cn.taxa_efetiva) : Number(cn.taxa||0) + Number(cn.promo||0);
+      if(!(fatia < 1)) return;
+      const bruto = Number(f.valor) / (1 - fatia);
+      mix.forEach(g => {
+        const m = DB.jb_margem.find(x => x.canal_id === f.canal_id && x.ficha_id === g.ficha_id);
+        if(!m || m.rascunho || !(Number(m.preco) > 0)) return;
+        linhas.push({
+          peso: bruto * Number(g.fatia),
+          p_app: Number(m.fatia_app || 0),
+          p_imp: cfgN("imposto_pct"),
+          p_ingr: Number(m.cmv) * (1 + cfgN("perdas_pct")) / Number(m.preco),
+          p_fixo: Number(m.custo_fixo_un) * (1 + cfgN("perdas_pct")) / Number(m.preco),
+          preco: Number(m.preco),
+          contrib: Number(m.preco) * (1 - Number(m.fatia_app || 0) - cfgN("imposto_pct")) - Number(m.cmv) * (1 + cfgN("perdas_pct"))
+        });
+      });
+    });
+    return linhas;
+  }
+  const r4 = v => Math.round(v * 10000) / 10000;
+  function viewKpiDestino(){
+    const meses = [...new Set(DB.jb_faturamento.map(f => f.mes))];
+    return meses.map(mes => {
+      const L = pesosDoMes(mes), P = L.reduce((s,l) => s + l.peso, 0);
+      if(!P) return null;
+      const md = k => L.reduce((s,l) => s + l.peso * l[k], 0) / P;
+      return { mes, app: r4(md("p_app")), imposto: r4(md("p_imp")), ingrediente: r4(md("p_ingr")),
+               custo_fixo: r4(md("p_fixo")),
+               sobra: r4(1 - md("p_app") - md("p_imp") - md("p_ingr") - md("p_fixo")),
+               bruto_estimado: Math.round(P * 100) / 100 };
+    }).filter(Boolean);
+  }
+  /* espelho de jb_kpi_mes */
+  function viewKpiMes(){
+    const fixo = DB.jb_custo_fixo_total[0] || {};
+    const vol = DB.jb_volume_calculado[0] || {};
+    return viewResultadoMes().map(r => {
+      const L = pesosDoMes(r.mes), P = L.reduce((s,l) => s + l.peso, 0);
+      const md = k => P ? L.reduce((s,l) => s + l.peso * l[k], 0) / P : null;
+      const contrib = P ? md("contrib") : null;
+      return {
+        mes: r.mes, entradas: r.entradas, saidas: r.saidas, resultado: r.resultado, margem: r.margem,
+        atualizado_em: r.atualizado_em,
+        custo_fixo_mes: fixo.total ?? null, pro_labore: fixo.pro_labore ?? null,
+        unidades_dia: vol.media_dia ?? null, unidades_mes: vol.volume ?? null,
+        dias_contados: vol.dias_de_contagem ?? null, dias_fora: vol.dias_fora ?? 0,
+        volume_origem: vol.origem ?? null,
+        custo_fixo_un: vol.volume ? r4(Number(fixo.total) / Number(vol.volume)) : null,
+        preco_medio: P ? Math.round(md("preco") * 100) / 100 : null,
+        contrib_un: contrib == null ? null : Math.round(contrib * 100) / 100,
+        equilibrio_dia: contrib > 0 ? Math.ceil(Number(fixo.total) / contrib / 30) : null
+      };
+    });
+  }
+
   /* espelho de jb_estoque_saldo + jb_estoque_compras + jb_estoque_sugestao */
   function viewEstoqueSugestao(){
     const fechadas = (DB.jb_estoque_contagem||[]).filter(c => c.fechada)
@@ -298,6 +371,9 @@ ${agora ? "window.__AGORA=" + JSON.stringify(agora) + ";" : ""}
     if(t === "jb_produto_app") return viewProdutoApp();
     if(t === "jb_ficha_item_custo") return gestor() ? viewFichaItemCusto() : [];
     if(t === "jb_resultado_mes") return gestor() ? viewResultadoMes() : [];
+    if(t === "jb_kpi_mes")     return gestor() ? viewKpiMes() : [];
+    if(t === "jb_kpi_destino") return gestor() ? viewKpiDestino() : [];
+    if(t === "jb_dia_vendas")  return gestor() ? viewDiaVendas() : [];
     if(t === "jb_saidas") return viewSaidas();
     if(t === "jb_contagem_item") return itensVisiveis();
     if(t === "jb_receita_ficha") return viewReceitaFicha();
@@ -311,7 +387,8 @@ ${agora ? "window.__AGORA=" + JSON.stringify(agora) + ";" : ""}
     const soGestor = ["jb_perda","jb_tarefa","jb_acordo","jb_pessoal_mes","jb_pendencias","jb_custo_fixo_item","jb_custo_fixo_calculado",
                       "jb_custo_fixo_total","jb_volume_calculado","jb_giro_produto","jb_insumo","jb_preco","jb_margem","jb_promo_teto","jb_canal","jb_config","jb_vale_taxa","jb_meio_pagamento",
                       "jb_mes","jb_faturamento","jb_ficha","jb_ficha_item","jb_subreceita","jb_subreceita_item","jb_uso_ingrediente",
-                      "jb_insumo_ultimo_pago","jb_ficha_alertas","jb_compra","jb_compra_item","jb_estoque_contagem","jb_estoque_item","jb_estoque_sugestao"];
+                      "jb_insumo_ultimo_pago","jb_ficha_alertas","jb_compra","jb_compra_item","jb_estoque_contagem","jb_estoque_item","jb_estoque_sugestao",
+                      "jb_kpi_mes","jb_kpi_destino","jb_dia_vendas"];
     if(soGestor.includes(t) && !gestor()) return [];
     if(t === "jb_dia_trabalhado" && !gestor()) return (DB[t]||[]).filter(r => r.user_id === window.__UID);
     if(t === "jb_adendo" && !gestor()) return (DB[t]||[]).filter(r => r.registrado_por === window.__UID);
