@@ -9,8 +9,8 @@
 
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#FE9C90">
-<link rel="icon" href="icon-192.png?v=2026-09-24c" type="image/png">
-<link rel="apple-touch-icon" href="icon-180.png?v=2026-09-24c">
+<link rel="icon" href="icon-192.png?v=2026-09-24d" type="image/png">
+<link rel="apple-touch-icon" href="icon-180.png?v=2026-09-24d">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -586,6 +586,59 @@ button{font-family:inherit;font-size:inherit;cursor:pointer;}
 .linhaval.total{border-top:2px solid var(--linha-2);margin-top:2px;font-weight:600;}
 .linhaval.leve .n,.linhaval.leve .v{color:var(--tinta-3);font-size:.86rem;font-weight:400;}
 
+/* ---------- KPIs e gráficos do mês ---------- */
+.kpis{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:12px;}
+.kpi{
+  background:var(--creme);border:1px solid var(--linha);border-radius:var(--r);
+  padding:13px 14px;min-width:0;
+}
+.kpi .rot{
+  font-size:.66rem;letter-spacing:.1em;text-transform:uppercase;color:var(--tinta-3);
+  font-weight:600;line-height:1.35;
+}
+.kpi .num{
+  font-family:var(--display);font-size:1.3rem;font-weight:600;color:var(--tinta);
+  line-height:1.15;margin-top:5px;font-variant-numeric:tabular-nums;
+}
+.kpi .num.bom{color:var(--verde);}
+.kpi .num.alerta{color:var(--coral-fundo);}
+.kpi .sub{font-size:.75rem;font-weight:300;color:var(--tinta-2);line-height:1.4;margin-top:3px;}
+
+.graf{
+  background:var(--creme);border:1px solid var(--linha);border-radius:var(--r);
+  padding:16px 18px;margin-bottom:12px;
+}
+.graf h3{
+  font-size:.7rem;letter-spacing:.22em;text-transform:uppercase;color:var(--tinta-3);
+  font-weight:600;margin:0 0 4px;
+}
+.graf .dica{font-size:.78rem;font-weight:300;color:var(--tinta-2);margin:0 0 13px;line-height:1.45;}
+.graf .rodape{font-size:.76rem;font-weight:300;color:var(--tinta-2);margin:12px 0 0;line-height:1.45;}
+
+.barras{display:flex;flex-direction:column;gap:11px;}
+.barra .cab{
+  display:flex;align-items:baseline;justify-content:space-between;gap:10px;
+  font-size:.87rem;color:var(--tinta);margin-bottom:4px;
+}
+.barra .cab b{font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap;}
+.barra .cab small{display:block;font-size:.73rem;font-weight:300;color:var(--tinta-2);line-height:1.35;}
+.barra .trilho{display:flex;gap:2px;height:12px;border-radius:4px;background:var(--linha-2);overflow:hidden;}
+.barra .preenche{height:100%;background:var(--tinta-2);min-width:2px;}
+.barra .depois{height:100%;background:var(--linha-2);min-width:0;}
+.barra.destaque .preenche{background:var(--verde);}
+.barra.destaque .cab b{color:var(--verde);}
+.barra.destaque.ruim .preenche{background:var(--coral-fundo);}
+.barra.destaque.ruim .cab b{color:var(--coral-fundo);}
+
+.colunas{display:block;width:100%;height:auto;overflow:visible;}
+.colunas .col{fill:var(--tinta-2);}
+.colunas .col.fora{fill:var(--linha-2);}
+.colunas .base{stroke:var(--linha-2);stroke-width:1;}
+.colunas .corte{stroke:var(--tinta-3);stroke-width:1.2;fill:none;}
+.colunas .meta{stroke:var(--coral-fundo);stroke-width:1.4;stroke-dasharray:4 3;fill:none;}
+.colunas text{font-family:inherit;font-size:9px;font-weight:400;fill:var(--tinta-3);}
+.colunas text.metaTx{fill:var(--coral-fundo);font-size:9.5px;font-weight:600;}
+
 /* ---------- fotos dos produtos ---------- */
 .foto{
   flex:0 0 auto;width:46px;height:46px;border-radius:10px;object-fit:cover;
@@ -935,7 +988,7 @@ button{font-family:inherit;font-size:inherit;cursor:pointer;}
   <!-- ================= LOGIN ================= -->
   <section id="scLogin" class="login hide">
     <div class="mark">
-      <img class="marca-jb" src="marca-jb.png?v=2026-09-24c" alt="Jessica Ballassa Confeitaria" width="252" height="145">
+      <img class="marca-jb" src="marca-jb.png?v=2026-09-24d" alt="Jessica Ballassa Confeitaria" width="252" height="145">
       <div class="rule"></div>
       <div class="versao" id="loginVersao"></div>
     </div>
@@ -952,7 +1005,7 @@ button{font-family:inherit;font-size:inherit;cursor:pointer;}
   <section id="scHome" class="hide">
     <div class="top">
       <div class="marca">
-        <img class="selo" src="selo-192.png?v=2026-09-24c" alt="" width="34" height="34">
+        <img class="selo" src="selo-192.png?v=2026-09-24d" alt="" width="34" height="34">
         <div><b>Jessica Ballassa</b><span id="homeSub">Ateliê</span></div>
       </div>
       <button class="recarregar" id="homeRecarregar" type="button" aria-label="Atualizar" title="Atualizar">&#8635;</button>
@@ -1265,16 +1318,16 @@ button{font-family:inherit;font-size:inherit;cursor:pointer;}
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.116.0/dist/umd/supabase.min.js"></script>
-<script src="js/00-base.js?v=2026-09-24c"></script>
-<script src="js/10-entrada.js?v=2026-09-24c"></script>
-<script src="js/20-custos.js?v=2026-09-24c"></script>
-<script src="js/25-promo.js?v=2026-09-24c"></script>
-<script src="js/30-mes.js?v=2026-09-24c"></script>
-<script src="js/40-producao.js?v=2026-09-24c"></script>
-<script src="js/50-contagem.js?v=2026-09-24c"></script>
-<script src="js/60-afazeres.js?v=2026-09-24c"></script>
-<script src="js/70-dias.js?v=2026-09-24c"></script>
-<script src="js/80-estoque.js?v=2026-09-24c"></script>
-<script src="js/90-ligacoes.js?v=2026-09-24c"></script>
+<script src="js/00-base.js?v=2026-09-24d"></script>
+<script src="js/10-entrada.js?v=2026-09-24d"></script>
+<script src="js/20-custos.js?v=2026-09-24d"></script>
+<script src="js/25-promo.js?v=2026-09-24d"></script>
+<script src="js/30-mes.js?v=2026-09-24d"></script>
+<script src="js/40-producao.js?v=2026-09-24d"></script>
+<script src="js/50-contagem.js?v=2026-09-24d"></script>
+<script src="js/60-afazeres.js?v=2026-09-24d"></script>
+<script src="js/70-dias.js?v=2026-09-24d"></script>
+<script src="js/80-estoque.js?v=2026-09-24d"></script>
+<script src="js/90-ligacoes.js?v=2026-09-24d"></script>
 </body>
 </html>
