@@ -213,3 +213,70 @@ test("a foto do insumo aparece na contagem e na lista de compra", async () => {
   assert.equal(naCompra.ordem, "IMG", "a foto vem antes do texto");
   semErros(a); await a.fechar();
 });
+
+test("a aba Insumos mostra a miniatura e diz quem está na contagem", async () => {
+  const a = await abrir("uJes");
+  await a.page.click("#btnCustos"); await a.espera(600);
+  await a.page.click("#abaInsumos"); await a.espera(600);
+
+  const linhas = await a.page.evaluate(() =>
+    [...document.querySelectorAll("#listaCustos .ing")].map(r => ({
+      nome: r.querySelector(".nm").textContent,
+      cst: r.querySelector(".cst").textContent,
+      foto: (r.querySelector("img.foto") || {}).src || null
+    })));
+  const choco = linhas.find(l => l.nome === "Chocolate 50%");
+  assert.ok(/chocolate-blend-melken\.jpg$/.test(choco.foto || ""), "miniatura na lista: " + choco.foto);
+  assert.match(choco.cst, /na contagem, pacote 2,05kg/);
+
+  const ovos = linhas.find(l => l.nome === "Ovos");
+  assert.equal(ovos.foto, null);
+  assert.match(ovos.cst, /na contagem, falta a embalagem/, "avisa que falta cadastrar: " + ovos.cst);
+
+  const acucar = linhas.find(l => l.nome === "Açúcar");
+  assert.ok(!/na contagem/.test(acucar.cst), "quem está fora não ganha o selo: " + acucar.cst);
+  semErros(a); await a.fechar();
+});
+
+test("dá para cadastrar foto, prateleira e embalagem pelo formulário do insumo", async () => {
+  const a = await abrir("uJes");
+  await a.page.click("#btnCustos"); await a.espera(600);
+  await a.page.click("#abaInsumos"); await a.espera(600);
+
+  await a.page.evaluate(() => {
+    const r = [...document.querySelectorAll("#listaCustos .ing")]
+      .find(x => x.querySelector(".nm").textContent === "Ovos");
+    [...r.querySelectorAll("button")].find(b => b.textContent === "editar").click();
+  });
+  await a.espera(400);
+
+  const campos = await a.page.evaluate(() =>
+    [...document.querySelectorAll("#formCustos label")].map(l => l.childNodes[0].textContent));
+  assert.ok(campos.includes("Foto (link ou caminho)"), "o campo de foto existe: " + JSON.stringify(campos));
+  assert.ok(campos.includes("Onde fica"));
+  assert.ok(campos.includes("Como é a embalagem"));
+
+  await a.page.evaluate(() => {
+    const val = (rotulo, v) => {
+      const l = [...document.querySelectorAll("#formCustos label")]
+        .find(x => x.childNodes[0].textContent === rotulo);
+      const el = l.querySelector("input,select");
+      el.value = v;
+    };
+    // um arquivo que existe de verdade: senão o navegador reclama de imagem faltando
+    val("Foto (link ou caminho)", "img/insumos/nutella.jpg");
+    val("Onde fica", "geladeira");
+    val("Como é a embalagem", "cartela 30un");
+    val("Quanto vem nela", "30");
+    [...document.querySelectorAll("#formCustos .acoes button")][0].click();
+  });
+  await a.espera(900);
+
+  const ovos = (await a.db("jb_insumo")).find(i => i.nome === "Ovos");
+  assert.equal(ovos.foto_url, "img/insumos/nutella.jpg");
+  assert.equal(ovos.local, "geladeira");
+  assert.equal(ovos.emb_nome, "cartela 30un");
+  assert.equal(Number(ovos.emb_qtd), 30);
+  assert.equal(ovos.no_estoque, true, "continua na contagem");
+  semErros(a); await a.fechar();
+});
