@@ -33,7 +33,7 @@ function comDias(db, n, opcoes = {}){
 
 const barras = (a, titulo) => a.page.evaluate(t => {
   const g = [...document.querySelectorAll("#mesCorpo .graf")]
-              .find(x => x.querySelector("h3").textContent === t);
+              .find(x => x.querySelector("h3").childNodes[0].textContent.trim() === t);
   if(!g) return null;
   return [...g.querySelectorAll(".barra")].map(b => ({
     nome: b.querySelector(".cab span").childNodes[0].textContent.trim(),
@@ -94,7 +94,7 @@ test("de onde vem o dinheiro: a barra mostra o que o cliente pagou, não só o r
   assert.deepEqual(bs.map(b => b.valor), ["R$ 3.011,12","R$ 317,02"]);
   const notas = await a.page.evaluate(() => {
     const g = [...document.querySelectorAll("#mesCorpo .graf")]
-                .find(x => x.querySelector("h3").textContent === "De onde vem o dinheiro");
+                .find(x => x.querySelector("h3").childNodes[0].textContent.trim() === "De onde vem o dinheiro");
     return [...g.querySelectorAll(".barra .cab small")].map(e => e.textContent);
   });
   // 3011,12 / (1 - 0,74) = 11.581,23
@@ -117,7 +117,7 @@ test("unidades por dia: uma coluna por dia, e o dia de contagem torta fica marca
   assert.ok(marcados.some(c => /turno ainda aberto/.test(c.titulo)), JSON.stringify(marcados));
   const rod = await a.page.evaluate(() => {
     const g = [...document.querySelectorAll("#mesCorpo .graf")]
-                .find(x => x.querySelector("h3").textContent === "Unidades por dia");
+                .find(x => x.querySelector("h3").childNodes[0].textContent.trim() === "Unidades por dia");
     return (g.querySelector(".rodape") || {}).textContent || "";
   });
   assert.match(rod, /2 dias estão claros/);
