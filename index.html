@@ -9,8 +9,8 @@
 
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#FE9C90">
-<link rel="icon" href="icon-192.png?v=2026-09-20b" type="image/png">
-<link rel="apple-touch-icon" href="icon-180.png?v=2026-09-20b">
+<link rel="icon" href="icon-192.png?v=2026-09-24a" type="image/png">
+<link rel="apple-touch-icon" href="icon-180.png?v=2026-09-24a">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -933,7 +933,7 @@ button{font-family:inherit;font-size:inherit;cursor:pointer;}
   <!-- ================= LOGIN ================= -->
   <section id="scLogin" class="login hide">
     <div class="mark">
-      <img class="marca-jb" src="marca-jb.png?v=2026-09-20b" alt="Jessica Ballassa Confeitaria" width="252" height="145">
+      <img class="marca-jb" src="marca-jb.png?v=2026-09-24a" alt="Jessica Ballassa Confeitaria" width="252" height="145">
       <div class="rule"></div>
       <div class="versao" id="loginVersao"></div>
     </div>
@@ -950,7 +950,7 @@ button{font-family:inherit;font-size:inherit;cursor:pointer;}
   <section id="scHome" class="hide">
     <div class="top">
       <div class="marca">
-        <img class="selo" src="selo-192.png?v=2026-09-20b" alt="" width="34" height="34">
+        <img class="selo" src="selo-192.png?v=2026-09-24a" alt="" width="34" height="34">
         <div><b>Jessica Ballassa</b><span id="homeSub">Ateliê</span></div>
       </div>
       <button class="recarregar" id="homeRecarregar" type="button" aria-label="Atualizar" title="Atualizar">&#8635;</button>
@@ -1021,6 +1021,11 @@ button{font-family:inherit;font-size:inherit;cursor:pointer;}
     <button class="big ghost hide" id="btnCustos">
       <span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2.8" width="14" height="18.4" rx="2.6"/><rect x="8" y="5.9" width="8" height="3.3" rx="1"/><path d="M8.7 13.2h.01"/><path d="M12 13.2h.01"/><path d="M15.3 13.2h.01"/><path d="M8.7 17.2h.01"/><path d="M12 17.2h.01"/><path d="M15.3 17.2h.01"/></svg></span>
       <span class="tx"><span class="t">Custos e pre&ccedil;os</span><span class="s">Receitas, insumos e quanto sobra em cada canal</span></span>
+      <span class="seta" aria-hidden="true">&#8250;</span>
+    </button>
+    <button class="big ghost hide" id="btnEstoque">
+      <span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3.2" y="4" width="17.6" height="4.4" rx="1.2"/><rect x="3.2" y="9.8" width="17.6" height="4.4" rx="1.2"/><rect x="3.2" y="15.6" width="17.6" height="4.4" rx="1.2"/><path d="M7.6 4v16"/><path d="M13.4 4v16"/></svg></span>
+      <span class="tx"><span class="t">Estoque</span><span class="s">Contagem da semana e o que precisa comprar</span></span>
       <span class="seta" aria-hidden="true">&#8250;</span>
     </button>
     </div>
@@ -1142,6 +1147,20 @@ button{font-family:inherit;font-size:inherit;cursor:pointer;}
     <p class="tip">Toque num dia para marcar que a pessoa veio. Toque de novo para apagar. Só você e a Jessica conseguem mexer aqui.</p>
   </section>
 
+  <!-- ================= ESTOQUE (só gestor) ================= -->
+  <section id="scEstoque" class="hide">
+    <div class="abas">
+      <button id="abaEstContar" aria-pressed="true">Contagem</button>
+      <button id="abaEstComprar" aria-pressed="false">O que comprar</button>
+    </div>
+    <div id="estMsg"></div>
+    <div id="estCab"></div>
+    <div id="estLista"></div>
+    <div class="foot hide" id="estFoot">
+      <button id="btnEstFechar">Fechar a contagem</button>
+    </div>
+  </section>
+
   <!-- ================= CONTAGEM ================= -->
   <section id="scCount" class="hide">
     <div class="counthead">
@@ -1244,15 +1263,16 @@ button{font-family:inherit;font-size:inherit;cursor:pointer;}
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.116.0/dist/umd/supabase.min.js"></script>
-<script src="js/00-base.js?v=2026-09-20b"></script>
-<script src="js/10-entrada.js?v=2026-09-20b"></script>
-<script src="js/20-custos.js?v=2026-09-20b"></script>
-<script src="js/25-promo.js?v=2026-09-20b"></script>
-<script src="js/30-mes.js?v=2026-09-20b"></script>
-<script src="js/40-producao.js?v=2026-09-20b"></script>
-<script src="js/50-contagem.js?v=2026-09-20b"></script>
-<script src="js/60-afazeres.js?v=2026-09-20b"></script>
-<script src="js/70-dias.js?v=2026-09-20b"></script>
-<script src="js/90-ligacoes.js?v=2026-09-20b"></script>
+<script src="js/00-base.js?v=2026-09-24a"></script>
+<script src="js/10-entrada.js?v=2026-09-24a"></script>
+<script src="js/20-custos.js?v=2026-09-24a"></script>
+<script src="js/25-promo.js?v=2026-09-24a"></script>
+<script src="js/30-mes.js?v=2026-09-24a"></script>
+<script src="js/40-producao.js?v=2026-09-24a"></script>
+<script src="js/50-contagem.js?v=2026-09-24a"></script>
+<script src="js/60-afazeres.js?v=2026-09-24a"></script>
+<script src="js/70-dias.js?v=2026-09-24a"></script>
+<script src="js/80-estoque.js?v=2026-09-24a"></script>
+<script src="js/90-ligacoes.js?v=2026-09-24a"></script>
 </body>
 </html>
