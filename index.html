@@ -9,8 +9,8 @@
 
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#FE9C90">
-<link rel="icon" href="icon-192.png?v=2026-09-24d" type="image/png">
-<link rel="apple-touch-icon" href="icon-180.png?v=2026-09-24d">
+<link rel="icon" href="icon-192.png?v=2026-09-24e" type="image/png">
+<link rel="apple-touch-icon" href="icon-180.png?v=2026-09-24e">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -646,6 +646,22 @@ button{font-family:inherit;font-size:inherit;cursor:pointer;}
 }
 .foto.g{width:100%;height:auto;max-height:230px;border-radius:var(--r);margin-bottom:12px;display:block;}
 .foto.mini{width:32px;height:32px;border-radius:8px;}
+
+/* botão de subir foto pelo celular */
+.campofoto{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:4px;}
+.campofoto .prev{flex:0 0 auto;display:flex;align-items:center;}
+.campofoto .prev .sem{
+  width:32px;height:32px;border-radius:8px;border:1px dashed var(--linha-2);
+  display:flex;align-items:center;justify-content:center;
+  font-size:.52rem;color:var(--tinta-3);text-align:center;line-height:1.1;
+}
+.campofoto .urlfoto{flex:1 1 100%;min-width:0;font-size:.8rem;color:var(--tinta-3);}
+button.fotobt{
+  flex:0 0 auto;background:var(--areia);border:1px solid var(--linha-2);color:var(--coral-forte);
+  border-radius:10px;padding:10px 14px;font-family:inherit;font-size:.88rem;font-weight:500;
+}
+button.fotobt:disabled{color:var(--tinta-3);}
+#lbFoto button.fotobt{display:block;width:100%;margin-top:4px;text-align:center;}
 .lin .foto{margin-right:2px;}
 .item .foto{margin-right:2px;}
 .tres .nm .foto{margin-right:1px;}
@@ -988,7 +1004,7 @@ button{font-family:inherit;font-size:inherit;cursor:pointer;}
   <!-- ================= LOGIN ================= -->
   <section id="scLogin" class="login hide">
     <div class="mark">
-      <img class="marca-jb" src="marca-jb.png?v=2026-09-24d" alt="Jessica Ballassa Confeitaria" width="252" height="145">
+      <img class="marca-jb" src="marca-jb.png?v=2026-09-24e" alt="Jessica Ballassa Confeitaria" width="252" height="145">
       <div class="rule"></div>
       <div class="versao" id="loginVersao"></div>
     </div>
@@ -1005,7 +1021,7 @@ button{font-family:inherit;font-size:inherit;cursor:pointer;}
   <section id="scHome" class="hide">
     <div class="top">
       <div class="marca">
-        <img class="selo" src="selo-192.png?v=2026-09-24d" alt="" width="34" height="34">
+        <img class="selo" src="selo-192.png?v=2026-09-24e" alt="" width="34" height="34">
         <div><b>Jessica Ballassa</b><span id="homeSub">Ateliê</span></div>
       </div>
       <button class="recarregar" id="homeRecarregar" type="button" aria-label="Atualizar" title="Atualizar">&#8635;</button>
@@ -1113,8 +1129,10 @@ button{font-family:inherit;font-size:inherit;cursor:pointer;}
       <input id="fNome" type="text" placeholder="Ex.: Bolo de Pote de Ninho">
     </label>
     <div id="fFotoPrev"></div>
-    <label class="campo-nome" id="lbFoto">Foto (link da imagem)
-      <input id="fFoto" type="url" placeholder="cole aqui o link da foto do produto">
+    <label class="campo-nome" id="lbFoto">Foto do produto
+      <button type="button" id="btnFFoto" class="fotobt">Tirar ou escolher foto</button>
+      <input id="fFotoArq" type="file" accept="image/*" class="hide" aria-hidden="true" tabindex="-1">
+      <input id="fFoto" type="url" placeholder="ou cole aqui o link da foto">
     </label>
     <div class="campos">
       <label id="lbRend">Rende (unidades)<input id="fRend" type="tel" inputmode="decimal"></label>
@@ -1318,16 +1336,16 @@ button{font-family:inherit;font-size:inherit;cursor:pointer;}
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.116.0/dist/umd/supabase.min.js"></script>
-<script src="js/00-base.js?v=2026-09-24d"></script>
-<script src="js/10-entrada.js?v=2026-09-24d"></script>
-<script src="js/20-custos.js?v=2026-09-24d"></script>
-<script src="js/25-promo.js?v=2026-09-24d"></script>
-<script src="js/30-mes.js?v=2026-09-24d"></script>
-<script src="js/40-producao.js?v=2026-09-24d"></script>
-<script src="js/50-contagem.js?v=2026-09-24d"></script>
-<script src="js/60-afazeres.js?v=2026-09-24d"></script>
-<script src="js/70-dias.js?v=2026-09-24d"></script>
-<script src="js/80-estoque.js?v=2026-09-24d"></script>
-<script src="js/90-ligacoes.js?v=2026-09-24d"></script>
+<script src="js/00-base.js?v=2026-09-24e"></script>
+<script src="js/10-entrada.js?v=2026-09-24e"></script>
+<script src="js/20-custos.js?v=2026-09-24e"></script>
+<script src="js/25-promo.js?v=2026-09-24e"></script>
+<script src="js/30-mes.js?v=2026-09-24e"></script>
+<script src="js/40-producao.js?v=2026-09-24e"></script>
+<script src="js/50-contagem.js?v=2026-09-24e"></script>
+<script src="js/60-afazeres.js?v=2026-09-24e"></script>
+<script src="js/70-dias.js?v=2026-09-24e"></script>
+<script src="js/80-estoque.js?v=2026-09-24e"></script>
+<script src="js/90-ligacoes.js?v=2026-09-24e"></script>
 </body>
 </html>

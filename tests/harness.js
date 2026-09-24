@@ -30,6 +30,9 @@ async function abrir(uid, opts = {}){
 
   await page.route("**/cdn.jsdelivr.net/**", r => r.fulfill({ contentType: "application/javascript", body: src }));
   await page.route("**/fonts.googleapis.com/**", r => r.fulfill({ contentType: "text/css", body: "" }));
+  /* O storage de mentira devolve links em stub.local. Sem uma rota aqui a
+     miniatura quebraria por rede, não por bug. */
+  await page.route("**/stub.local/**", r => r.fulfill({ contentType: "image/png", body: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64") }));
   await page.route("**/static.ifood-static.com.br/**", r => r.fulfill({ contentType: "image/png", body: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64") }));
   await page.goto(URL);
   // espera o app sair da tela em branco: ou entrou numa tela, ou mostrou o login
