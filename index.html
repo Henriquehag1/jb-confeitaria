@@ -9,8 +9,8 @@
 
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#FE9C90">
-<link rel="icon" href="icon-192.png?v=2026-09-29a" type="image/png">
-<link rel="apple-touch-icon" href="icon-180.png?v=2026-09-29a">
+<link rel="icon" href="icon-192.png?v=2026-09-29b" type="image/png">
+<link rel="apple-touch-icon" href="icon-180.png?v=2026-09-29b">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -917,6 +917,26 @@ button.fotobt:disabled{color:var(--tinta-3);}
 .legenda i.veio{background:var(--coral-acao);}
 .legenda i.pend{background:var(--ambar-veu);border:1px solid var(--ambar-linha);}
 .legenda i.comb{border:1px dashed var(--linha-2);background:#fff;}
+.legenda i.atr{background:#fff;border:1px solid var(--linha);position:relative;}
+.legenda i.atr::after{content:"";position:absolute;left:50%;bottom:1px;width:5px;height:5px;margin-left:-2.5px;border-radius:50%;background:var(--ambar);}
+.cal button{position:relative;}
+.cal button.atraso::after{content:"";position:absolute;left:50%;bottom:4px;width:5px;height:5px;margin-left:-2.5px;border-radius:50%;background:var(--ambar);}
+.cal button.veio.atraso::after{background:var(--creme);}
+.chegadas{margin-top:13px;border-top:1px solid var(--linha);padding-top:11px;}
+.res-atraso{font-size:.83rem;color:var(--tinta-3);font-weight:300;line-height:1.45;}
+.res-atraso b{color:var(--ambar);font-weight:600;font-variant-numeric:tabular-nums;}
+.chegadas details{margin-top:8px;}
+.chegadas summary{font-size:.8rem;color:var(--coral-forte);cursor:pointer;padding:4px 0;font-weight:500;}
+.ch-ln{display:grid;grid-template-columns:5.2em 1fr auto auto;gap:4px 8px;align-items:center;
+  padding:8px 0;border-bottom:1px solid var(--linha);font-size:.8rem;color:var(--tinta-2);font-variant-numeric:tabular-nums;}
+.ch-ln .dia{color:var(--tinta);font-weight:500;}
+.ch-ln .info{font-weight:300;}
+.ch-ln .min{font-weight:600;color:var(--verde);white-space:nowrap;}
+.ch-ln.atrasou .min{color:var(--ambar);}
+.ch-ed{border:1px solid var(--linha);background:#fff;border-radius:999px;padding:4px 10px;font-size:.74rem;color:var(--tinta-2);}
+.ch-form{grid-column:1 / -1;display:flex;gap:8px;margin-top:4px;}
+.ch-form input{flex:1;min-height:40px;border:1px solid var(--linha);border-radius:10px;padding:0 10px;font-size:1rem;background:#fff;color:var(--tinta);}
+.ch-form button{border:none;border-radius:10px;padding:0 16px;background:var(--coral-acao);color:var(--creme);font-weight:500;}
 
 /* ---------- preço e margem ---------- */
 .chips{display:flex;gap:6px;margin-bottom:12px;overflow-x:auto;padding-bottom:2px;}
@@ -1083,7 +1103,7 @@ button.fotobt:disabled{color:var(--tinta-3);}
   <!-- ================= LOGIN ================= -->
   <section id="scLogin" class="login hide">
     <div class="mark">
-      <img class="marca-jb" src="marca-jb.png?v=2026-09-29a" alt="Jessica Ballassa Confeitaria" width="252" height="145">
+      <img class="marca-jb" src="marca-jb.png?v=2026-09-29b" alt="Jessica Ballassa Confeitaria" width="252" height="145">
       <div class="rule"></div>
       <div class="versao" id="loginVersao"></div>
     </div>
@@ -1100,7 +1120,7 @@ button.fotobt:disabled{color:var(--tinta-3);}
   <section id="scHome" class="hide">
     <div class="top">
       <div class="marca">
-        <img class="selo" src="selo-192.png?v=2026-09-29a" alt="" width="34" height="34">
+        <img class="selo" src="selo-192.png?v=2026-09-29b" alt="" width="34" height="34">
         <div><b>Jessica Ballassa</b><span id="homeSub">Ateliê</span></div>
       </div>
       <button class="recarregar" id="homeRecarregar" type="button" aria-label="Atualizar" title="Atualizar">&#8635;</button>
@@ -1158,6 +1178,7 @@ button.fotobt:disabled{color:var(--tinta-3);}
       <span class="tx"><span class="t">Quem veio no ateli&ecirc;</span><span class="s">Os dias da Eliana e da Yasmin no m&ecirc;s</span></span>
       <span class="seta" aria-hidden="true">&#8250;</span>
     </button>
+      <div id="cardCheguei"></div>
       <div id="cardMeusDias"></div>
     </div>
 
@@ -1299,9 +1320,10 @@ button.fotobt:disabled{color:var(--tinta-3);}
       <span><i class="veio"></i>veio</span>
       <span><i class="pend"></i>o app marcou, falta você confirmar</span>
       <span><i class="comb"></i>dia combinado</span>
+      <span><i class="atr"></i>chegou atrasada</span>
     </div>
     <div id="diasCorpo"></div>
-    <p class="tip">Toque num dia para marcar que a pessoa veio. Toque de novo para apagar. Só você e a Jessica conseguem mexer aqui.</p>
+    <p class="tip">Toque num dia para marcar que a pessoa veio. Toque de novo para apagar. A hora de chegada vem do botão Cheguei no celular delas; se estiver errada ou faltando, corrija em Ver chegadas dia a dia. O atraso é só registro, não muda o valor a pagar. Só você e a Jessica conseguem mexer aqui.</p>
   </section>
 
   <!-- ================= ESTOQUE (só gestor) ================= -->
@@ -1430,17 +1452,17 @@ button.fotobt:disabled{color:var(--tinta-3);}
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.116.0/dist/umd/supabase.min.js"></script>
-<script src="js/00-base.js?v=2026-09-29a"></script>
-<script src="js/10-entrada.js?v=2026-09-29a"></script>
-<script src="js/20-custos.js?v=2026-09-29a"></script>
-<script src="js/25-promo.js?v=2026-09-29a"></script>
-<script src="js/30-mes.js?v=2026-09-29a"></script>
-<script src="js/40-producao.js?v=2026-09-29a"></script>
-<script src="js/50-contagem.js?v=2026-09-29a"></script>
-<script src="js/60-afazeres.js?v=2026-09-29a"></script>
-<script src="js/70-dias.js?v=2026-09-29a"></script>
-<script src="js/80-estoque.js?v=2026-09-29a"></script>
-<script src="js/85-encomendas.js?v=2026-09-29a"></script>
-<script src="js/90-ligacoes.js?v=2026-09-29a"></script>
+<script src="js/00-base.js?v=2026-09-29b"></script>
+<script src="js/10-entrada.js?v=2026-09-29b"></script>
+<script src="js/20-custos.js?v=2026-09-29b"></script>
+<script src="js/25-promo.js?v=2026-09-29b"></script>
+<script src="js/30-mes.js?v=2026-09-29b"></script>
+<script src="js/40-producao.js?v=2026-09-29b"></script>
+<script src="js/50-contagem.js?v=2026-09-29b"></script>
+<script src="js/60-afazeres.js?v=2026-09-29b"></script>
+<script src="js/70-dias.js?v=2026-09-29b"></script>
+<script src="js/80-estoque.js?v=2026-09-29b"></script>
+<script src="js/85-encomendas.js?v=2026-09-29b"></script>
+<script src="js/90-ligacoes.js?v=2026-09-29b"></script>
 </body>
 </html>

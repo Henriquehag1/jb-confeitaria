@@ -117,6 +117,7 @@ async function carregarHome(){
     ? "O que saiu em cada dia"
     : "Os dias que já foram fechados";
 
+  await montarCheguei();
   await montarMeusDias();
 
   if(!conta){
