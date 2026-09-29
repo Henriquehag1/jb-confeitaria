@@ -28,6 +28,8 @@ document.addEventListener("visibilitychange", async () => {
     if(EU.papel !== "gestor") await baterPonto();
     if(TELA === "scHome") await carregarHome();
     else HOME_DIA = null;   // na próxima volta para a Home ela se refaz
+  } else if(EU.papel !== "gestor" && TELA === "scHome"){
+    await montarCheguei();   // o botão "Cheguei" some de madrugada e volta de manhã
   }
 });
 

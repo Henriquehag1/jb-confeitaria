@@ -153,6 +153,12 @@ function baseDB(agora){
       { id: 3, user_id: "uYas", inicio: "2026-09-01", fim: null, regime: "semanal", valor: 850, dias_semana: [0, 1, 2, 3, 4, 5, 6], turno: "noite", obs: null, a_confirmar: false }
     ],
     jb_dia_trabalhado: [],
+    jb_escala: [
+      { id: 1, user_id: "uEli", dia_semana: 4, entrada: "09:00:00", saida: null, inicio: "2026-01-01", fim: null },
+      { id: 2, user_id: "uEli", dia_semana: 5, entrada: "09:00:00", saida: null, inicio: "2026-01-01", fim: null },
+      ...[["0","14:00"],["1","18:00"],["2","16:30"],["3","18:40"],["4","16:30"],["5","18:40"],["6","17:30"]].map(([d,h], i) =>
+        ({ id: 10 + i, user_id: "uYas", dia_semana: Number(d), entrada: h + ":00", saida: "23:00:00", inicio: "2026-09-01", fim: null }))
+    ],
     jb_pessoal_mes: [],
     jb_mes: [{ mes, saidas: 8687.25, saidas_manual: false, obs: "Contas fixas mais gastos", atualizado_em: new Date(Date.now() - 2 * 86400000).toISOString() }],
     jb_faturamento: [
@@ -392,6 +398,29 @@ ${agora ? "window.__AGORA=" + JSON.stringify(agora) + ";" : ""}
     });
   }
 
+  /* jb_atraso_dia: chegada contra a entrada da escala do dia da semana (fuso de São Paulo) */
+  function viewAtrasoDia(){
+    const horaSP = ts => new Intl.DateTimeFormat("en-GB",{timeZone:"America/Sao_Paulo",hour:"2-digit",minute:"2-digit",hourCycle:"h23"}).format(new Date(ts));
+    const dataSP = ts => new Intl.DateTimeFormat("en-CA",{timeZone:"America/Sao_Paulo",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date(ts));
+    const visiveis = (DB.jb_dia_trabalhado||[]).filter(r => gestor() || r.user_id === window.__UID);
+    return visiveis.map(d => {
+      const dow = new Date(d.data + "T12:00:00Z").getUTCDay();
+      const e = (DB.jb_escala||[]).filter(x => x.user_id === d.user_id && x.dia_semana === dow && x.inicio <= d.data && (!x.fim || x.fim >= d.data))
+                                   .sort((a,b) => a.inicio < b.inicio ? 1 : -1)[0];
+      let atraso = null;
+      if(d.chegada && e){
+        const [hc, mc] = horaSP(d.chegada).split(":").map(Number);
+        const [he, me] = e.entrada.split(":").map(Number);
+        const diasDif = (Date.parse(dataSP(d.chegada)) - Date.parse(d.data)) / 864e5;
+        atraso = Math.max(0, diasDif * 1440 + hc * 60 + mc - (he * 60 + me));
+      }
+      const u = DB.jb_usuario.find(x => x.user_id === d.user_id) || {};
+      return { id: d.id, user_id: d.user_id, nome: u.nome, data: d.data, status: d.status, chegada: d.chegada || null,
+               chegada_origem: d.chegada_origem || null, hora_chegada: d.chegada ? horaSP(d.chegada) : null,
+               entrada_prevista: e ? e.entrada.slice(0,5) : null, atraso_min: atraso };
+    });
+  }
+
   function tabela(t){
     if(t === "jb_estoque_sugestao") return gestor() ? viewEstoqueSugestao() : [];
     if(t === "jb_produto_app") return viewProdutoApp();
@@ -401,6 +430,8 @@ ${agora ? "window.__AGORA=" + JSON.stringify(agora) + ";" : ""}
     if(t === "jb_kpi_destino") return gestor() ? viewKpiDestino() : [];
     if(t === "jb_dia_vendas")  return gestor() ? viewDiaVendas() : [];
     if(t === "jb_saidas") return viewSaidas();
+    if(t === "jb_atraso_dia") return viewAtrasoDia();
+    if(t === "jb_escala" && !gestor()) return (DB[t]||[]).filter(r => r.user_id === window.__UID);
     if(t === "jb_contagem_item") return itensVisiveis();
     if(t === "jb_receita_ficha") return viewReceitaFicha();
     if(t === "jb_receita_ficha_item") return viewReceitaFichaItem();
@@ -524,6 +555,14 @@ ${agora ? "window.__AGORA=" + JSON.stringify(agora) + ";" : ""}
       if(!pg) return { data:null, error:{ message:"item sem insumo ligado" } };
       const i = DB.jb_insumo.find(x => x.id === pg.insumo_id); i.custo_unit = pg.custo_base;
       return { data:pg.custo_base, error:null };
+    }
+    if(nome === "jb_cheguei"){
+      const u = eu(); if(!u || u.papel === "gestor") return { data:null, error:null };
+      const hoje = hojeSP();
+      let d = DB.jb_dia_trabalhado.find(x => x.user_id === u.user_id && x.data === hoje);
+      if(!d){ d = { id: nextId("jb_dia_trabalhado"), user_id:u.user_id, data:hoje, turno:"noite", status:"sugerido", origem:"auto" }; DB.jb_dia_trabalhado.push(d); }
+      if(!d.chegada){ d.chegada = (window.__AGORA ? new Date(window.__AGORA) : new Date()).toISOString(); d.chegada_origem = "app"; d.chegada_por = u.user_id; }
+      return { data:d.chegada, error:null };
     }
     if(nome === "jb_marcar_presenca"){
       const u = eu(); if(!u || u.papel === "gestor") return { data:"nada a fazer", error:null };
