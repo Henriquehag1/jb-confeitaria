@@ -126,6 +126,7 @@ async function carregarHome(){
     $("btnDias").classList.add("hide");
     $("btnAfazeres").classList.add("hide");
     $("btnEstoque").classList.add("hide");
+    $("btnEncomendas").classList.add("hide");
     aviso("homeMsg","","");
     ajustarGrupos();
     show("scHome");
@@ -169,6 +170,11 @@ async function carregarHome(){
   HOME_DIA = hoje;
   CONTAGEM_HOJE = turnoDeOntem ? on : hj;
   montarPendencias(rp.data || [], rok.data || []);
+  const encNovas = (rp.data || []).find(p => p.grupo === "encomenda" && p.ordem === 3);
+  $("encSub").textContent = encNovas
+    ? encNovas.qtd + (encNovas.qtd === 1 ? " nova esperando você" : " novas esperando você")
+    : "Pedidos do site, por data de retirada";
+  $("btnEncomendas").classList.toggle("ghost", !encNovas);
   const ab = CONTAGEM_HOJE.abertura, fe = CONTAGEM_HOJE.fechamento;
   const bAb = $("btnAbertura"), bFe = $("btnFechamento");
   /* Deixar a geladeira pronta é parte da Jessica. O cartão nem aparece para a
@@ -200,6 +206,7 @@ async function carregarHome(){
   $("btnDias").classList.toggle("hide", EU.papel !== "gestor");
   $("btnAfazeres").classList.toggle("hide", EU.papel !== "gestor");
   $("btnEstoque").classList.toggle("hide", EU.papel !== "gestor");
+  $("btnEncomendas").classList.toggle("hide", EU.papel !== "gestor");
 
   aviso("homeMsg","", "");
   /* Lembrete ativo para a equipe: perto de fechar a loja, com a geladeira pronta
@@ -277,7 +284,8 @@ function montarPendencias(lista, guardadas){
     preco:    () => { ABA = "preco";   abrirCustos(); },
     insumo:   () => { ABA = "insumos"; abrirCustos(); },
     presenca: () => abrirDias(),
-    sync:     () => abrirMes()
+    sync:     () => abrirMes(),
+    encomenda:() => { ENC_ABA = "pedidos"; abrirEncomendas(); }
   };
   const linha = p => {
     const row = document.createElement("div");
