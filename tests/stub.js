@@ -57,6 +57,32 @@ function baseDB(agora){
         no_estoque: false, cobertura_semanas: 2 }
     ],
     jb_estoque_contagem: [],
+    jb_bolo_opcao: [
+      { id:"tam_pp", grupo:"tamanho", nome:"PP", descricao:"13cm", ordem:10, ativo:true, preco_pp:0, preco_p:0, preco_m:0, preco_g:0 },
+      { id:"tam_m",  grupo:"tamanho", nome:"M",  descricao:"17cm", ordem:30, ativo:true, preco_pp:0, preco_p:0, preco_m:0, preco_g:0 },
+      { id:"mod_naked", grupo:"modelo", nome:"Naked Cake", ordem:10, ativo:true, preco_pp:194, preco_p:226, preco_m:260, preco_g:320 },
+      { id:"mod_chant", grupo:"modelo", nome:"Chantininho", ordem:20, ativo:true, preco_pp:240, preco_p:290, preco_m:340, preco_g:390 },
+      { id:"mas_brownie", grupo:"massa", nome:"Brownie", ordem:40, ativo:true, premium:true, preco_pp:64, preco_p:64, preco_m:88, preco_g:88 },
+      { id:"rec_kinder", grupo:"recheio", nome:"Kinder Bueno", ordem:50, ativo:true, premium:true, preco_pp:45, preco_p:45, preco_m:68, preco_g:68 }
+    ],
+    jb_encomenda: [
+      { id: 1, codigo:"JB1001", cliente_nome:"Ana Paula", cliente_whats:"11988887777", status:"nova", sinal_pago:false,
+        retirada_em: new Date(Date.now() + 3 * 864e5).toISOString(), forma:"uber",
+        total: 712, sinal: 356, cor:"rosa bebê", escrita:"Feliz 30, Ana", ocasiao:"aniversário", obs:null, orcamento:false, nota_interna:null,
+        itens: [ { grupo:"tamanho", nome:"Tamanho M, 17cm", valor:0 }, { grupo:"modelo", nome:"Chantininho", valor:340 },
+                 { grupo:"massa", nome:"Massa brownie", valor:88 }, { grupo:"combinacao", nome:"Duo brownie, com ninho trufado", valor:76 },
+                 { grupo:"adicional", nome:"Morangos frescos", valor:60 }, { grupo:"decoracao", nome:"Espatulado com escrita", valor:80 },
+                 { grupo:"acabamento", nome:"Glitter, pérolas ou dragées", valor:68 } ] },
+      { id: 2, codigo:"JB1002", cliente_nome:"Bruno", cliente_whats:"11977776666", status:"confirmada", sinal_pago:true,
+        retirada_em: new Date(Date.now() + 5 * 864e5).toISOString(), forma:"retirada",
+        total: 194, sinal: 97, orcamento:false, nota_interna:null,
+        itens: [ { grupo:"tamanho", nome:"Tamanho PP, 13cm", valor:0 }, { grupo:"modelo", nome:"Naked Cake", valor:194 },
+                 { grupo:"massa", nome:"Massa baunilha", valor:0 }, { grupo:"recheio", nome:"Recheio doce de leite", valor:0 } ] },
+      { id: 3, codigo:"JB1003", cliente_nome:"Carla", cliente_whats:"11966665555", status:"entregue", sinal_pago:true,
+        retirada_em: new Date(Date.now() - 2 * 864e5).toISOString(), forma:"retirada",
+        total: 260, sinal: 130, orcamento:false, nota_interna:null,
+        itens: [ { grupo:"modelo", nome:"Naked Cake", valor:260 } ] }
+    ],
     jb_estoque_item: [],
     jb_uso_ingrediente: [{ nome: "Chocolate 50%", em_fichas: 1, em_subreceitas: 1 }, { nome: "Ovos", em_fichas: 1, em_subreceitas: 0 }],
     jb_insumo_ultimo_pago: [
@@ -388,7 +414,7 @@ ${agora ? "window.__AGORA=" + JSON.stringify(agora) + ";" : ""}
                       "jb_custo_fixo_total","jb_volume_calculado","jb_giro_produto","jb_insumo","jb_preco","jb_margem","jb_promo_teto","jb_canal","jb_config","jb_vale_taxa","jb_meio_pagamento",
                       "jb_mes","jb_faturamento","jb_ficha","jb_ficha_item","jb_subreceita","jb_subreceita_item","jb_uso_ingrediente",
                       "jb_insumo_ultimo_pago","jb_ficha_alertas","jb_compra","jb_compra_item","jb_estoque_contagem","jb_estoque_item","jb_estoque_sugestao",
-                      "jb_kpi_mes","jb_kpi_destino","jb_dia_vendas"];
+                      "jb_kpi_mes","jb_kpi_destino","jb_dia_vendas","jb_encomenda","jb_bolo_opcao"];
     if(soGestor.includes(t) && !gestor()) return [];
     if(t === "jb_dia_trabalhado" && !gestor()) return (DB[t]||[]).filter(r => r.user_id === window.__UID);
     if(t === "jb_adendo" && !gestor()) return (DB[t]||[]).filter(r => r.registrado_por === window.__UID);

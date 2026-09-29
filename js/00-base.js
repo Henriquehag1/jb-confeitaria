@@ -15,7 +15,7 @@ const LOGINS = [
 ];
 
 const TZ = "America/Sao_Paulo";
-const VERSAO = "2026-09-24f";   // aparece no login e no pé da Home, para saber qual versão cada celular tem
+const VERSAO = "2026-09-29a";   // aparece no login e no pé da Home, para saber qual versão cada celular tem
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
   auth: { persistSession: true, autoRefreshToken: true }
 });
@@ -24,7 +24,7 @@ const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
    UTILITÁRIOS
    ============================================================ */
 const $ = id => document.getElementById(id);
-const SC = ["scLogin","scHome","scCount","scRes","scFeito","scAdendo","scPerda","scHist","scPromo","scCustos","scFicha","scProd","scReceita","scMes","scDias","scAfa","scEstoque"];
+const SC = ["scLogin","scHome","scCount","scRes","scFeito","scAdendo","scPerda","scHist","scPromo","scCustos","scFicha","scProd","scReceita","scMes","scDias","scAfa","scEstoque","scEnc"];
 /* ============================================================
    NAVEGAÇÃO
    Uma barra só, em todas as telas: voltar, título e atualizar.
@@ -74,6 +74,9 @@ const NAV = {
   scEstoque: { titulo: () => EST_ABA === "comprar" ? "O que comprar" : "Estoque",
                voltar: () => carregarHome(),
                recarregar: () => abrirEstoque() },
+  scEnc:     { titulo: () => ENC_ABA === "cardapio" ? "Cardápio de bolos" : "Encomendas de bolo",
+               voltar: () => carregarHome(),
+               recarregar: () => abrirEncomendas() },
   scAfa:     { titulo: () => "Afazeres",
                voltar: () => carregarHome(),
                recarregar: () => abrirAfazeres() },
