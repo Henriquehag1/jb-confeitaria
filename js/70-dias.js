@@ -68,11 +68,11 @@ async function montarCheguei(){
   let reg = null, entrada = null;
   try {
     const [d, e] = await Promise.all([
-      sb.from("jb_dia_trabalhado").select("data,chegada").eq("data", hoje).maybeSingle(),
+      sb.rpc("jb_minha_chegada_hoje"),   // só a hora de hoje; atraso e dias passados ficam com o gestor
       sb.from("jb_escala").select("dia_semana,entrada,inicio,fim").eq("dia_semana", diaDaSemana(hoje))
     ]);
     if(d.error) return;
-    reg = d.data;
+    reg = d.data ? { data: hoje, chegada: d.data } : null;
     const vig = (e.data || []).filter(x => x.inicio <= hoje && (!x.fim || x.fim >= hoje))
                               .sort((a,b) => a.inicio < b.inicio ? 1 : -1)[0];
     if(vig) entrada = String(vig.entrada).slice(0,5);

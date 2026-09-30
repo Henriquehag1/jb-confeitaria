@@ -138,3 +138,21 @@ test("gestor: lembrete de atraso sem data aparece junto do resumo e some ao reso
   assert.deepEqual(lidos, []);
   semErros(y); await y.fechar();
 });
+
+test("Yasmin não lê atraso nem chegadas de outros dias; vê só a chegada de hoje", async () => {
+  const a = await abrir("uYas", { agora: "2026-09-30T22:10:00Z",
+    db: db => { db.jb_dia_trabalhado = [
+      { id: 1, user_id: "uYas", data: "2026-09-27", turno: "noite", status: "confirmado", origem: "auto", chegada: "2026-09-27T14:30:00-03:00", chegada_origem: "gestor" },
+      { id: 2, user_id: "uYas", data: "2026-09-30", turno: "noite", status: "sugerido", origem: "auto", chegada: "2026-09-30T21:52:00Z", chegada_origem: "app" } ]; } });
+  assert.match(await a.texto("#btnCheguei"), /Chegada às 18:52/);
+  const r = await a.page.evaluate(async () => ({
+    atraso: (await sb.from("jb_atraso_dia").select("*")).data,
+    rpc: (await sb.rpc("jb_minha_chegada_hoje")).data
+  }));
+  assert.deepEqual(r.atraso, []);
+  assert.equal(r.rpc, "2026-09-30T21:52:00Z");
+  assert.doesNotMatch(await a.page.locator("body").innerText(), /atras|14:30/i);
+  const leitura = (await a.log("select")).filter(l => l[1] === "jb_dia_trabalhado" && /chegada/.test(String(l[2])));
+  assert.equal(leitura.length, 0, "o app da equipe não pede a coluna chegada");
+  semErros(a); await a.fechar();
+});

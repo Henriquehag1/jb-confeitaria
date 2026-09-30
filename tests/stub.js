@@ -431,7 +431,7 @@ ${agora ? "window.__AGORA=" + JSON.stringify(agora) + ";" : ""}
     if(t === "jb_kpi_destino") return gestor() ? viewKpiDestino() : [];
     if(t === "jb_dia_vendas")  return gestor() ? viewDiaVendas() : [];
     if(t === "jb_saidas") return viewSaidas();
-    if(t === "jb_atraso_dia") return viewAtrasoDia();
+    if(t === "jb_atraso_dia") return gestor() ? viewAtrasoDia() : [];   // atraso é só do gestor (como no banco)
     if(t === "jb_escala" && !gestor()) return (DB[t]||[]).filter(r => r.user_id === window.__UID);
     if(t === "jb_contagem_item") return itensVisiveis();
     if(t === "jb_receita_ficha") return viewReceitaFicha();
@@ -457,7 +457,7 @@ ${agora ? "window.__AGORA=" + JSON.stringify(agora) + ";" : ""}
   function query(t){
     const filtros = []; let ordem = null; let limite = null;
     const api = {
-      select(){ return api; },
+      select(cols){ window.__LOG.push(["select", t, cols || "*"]); return api; },
       order(c, o){ ordem = { c, asc: !(o && o.ascending === false) }; return api; },
       limit(n){ limite = n; return api; },
       eq(c, v){ filtros.push(r => String(r[c]) === String(v)); return api; },
@@ -556,6 +556,11 @@ ${agora ? "window.__AGORA=" + JSON.stringify(agora) + ";" : ""}
       if(!pg) return { data:null, error:{ message:"item sem insumo ligado" } };
       const i = DB.jb_insumo.find(x => x.id === pg.insumo_id); i.custo_unit = pg.custo_base;
       return { data:pg.custo_base, error:null };
+    }
+    if(nome === "jb_minha_chegada_hoje"){
+      const u = eu(); if(!u) return { data:null, error:null };
+      const d = DB.jb_dia_trabalhado.find(x => x.user_id === u.user_id && x.data === hojeSP());
+      return { data: (d && d.chegada) || null, error:null };
     }
     if(nome === "jb_cheguei"){
       const u = eu(); if(!u || u.papel === "gestor") return { data:null, error:null };
