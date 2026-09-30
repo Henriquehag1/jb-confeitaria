@@ -10,6 +10,7 @@ let ACORDOS  = [];       // acordos de trabalho vigentes no mês
 let DIAS     = [];       // linhas de jb_dia_trabalhado do mês
 let DIAS_RES = [];       // resumo por pessoa vindo de jb_pessoal_mes
 let ATRASOS  = [];       // linhas de jb_atraso_dia do mês: hora de chegada, entrada da escala, minutos
+let LEMBRETES = [];      // jb_ocorrencia do mês ainda abertas: o que o gestor não pode esquecer (ex.: atraso sem data)
 
 const DOW = ["dom","seg","ter","qua","qui","sex","sáb"];
 
@@ -174,13 +175,14 @@ async function abrirDias(){
   if(!DIAS_MES) DIAS_MES = primeiroDia(hojeSP());
   const ini = DIAS_MES, fim = ultimoDia(DIAS_MES);
 
-  const [ac, dt, rs, at] = await Promise.all([
+  const [ac, dt, rs, at, oc] = await Promise.all([
     sb.from("jb_acordo").select("id,user_id,inicio,fim,regime,valor,dias_semana,turno,obs,a_confirmar")
       .lte("inicio", fim).or("fim.is.null,fim.gte." + ini),
     sb.from("jb_dia_trabalhado").select("id,user_id,data,turno,status").gte("data", ini).lte("data", fim),
     sb.from("jb_pessoal_mes").select("*").eq("mes", ini),
     sb.from("jb_atraso_dia").select("id,user_id,data,chegada,chegada_origem,hora_chegada,entrada_prevista,atraso_min")
-      .gte("data", ini).lte("data", fim)
+      .gte("data", ini).lte("data", fim),
+    sb.from("jb_ocorrencia").select("id,user_id,mes,texto,resolvida").eq("mes", ini).eq("resolvida", false)
   ]);
   if(ac.error || dt.error){
     aviso("diasMsg","Não consegui carregar os dias agora. Toque em atualizar.","err");
@@ -190,6 +192,7 @@ async function abrirDias(){
   DIAS     = dt.data || [];
   DIAS_RES = rs.data || [];
   ATRASOS  = (at && !at.error && at.data) || [];
+  LEMBRETES = (oc && !oc.error && oc.data) || [];
   montarCalendarioDias();
   show("scDias");
 }
@@ -262,6 +265,15 @@ async function salvarChegada(diaId, iso, hhmm){
   montarCalendarioDias();
 }
 
+async function resolverLembrete(id){
+  const { error } = await sb.from("jb_ocorrencia")
+    .update({ resolvida: true, resolvida_em: new Date().toISOString() }).eq("id", id);
+  if(error){ aviso("diasMsg","Não consegui marcar o lembrete agora.","err"); return; }
+  LEMBRETES = LEMBRETES.filter(l => l.id !== id);
+  toast("Lembrete resolvido");
+  montarCalendarioDias();
+}
+
 function minutosTx(n){
   if(n < 60) return n + " min";
   const h = Math.floor(n / 60), m = n % 60;
@@ -293,6 +305,26 @@ function blocoChegadas(uid){
       comHora.length + (comHora.length === 1 ? " dia com hora registrada." : " dias com hora registrada.")));
   }
   wrap.appendChild(res);
+
+  // lembretes do gestor (ex.: atraso sem data), logo abaixo do resumo
+  LEMBRETES.filter(l => l.user_id === uid).forEach(l => {
+    const box = document.createElement("div");
+    box.className = "lembrete";
+    const t = document.createElement("p");
+    const b = document.createElement("b");
+    b.textContent = "Não esquecer: ";
+    t.appendChild(b);
+    t.appendChild(document.createTextNode(l.texto));
+    box.appendChild(t);
+    const ok = document.createElement("button");
+    ok.type = "button";
+    ok.className = "lembrete-ok";
+    ok.textContent = "Resolvido";
+    ok.setAttribute("aria-label", "Marcar o lembrete como resolvido");
+    ok.onclick = () => resolverLembrete(l.id);
+    box.appendChild(ok);
+    wrap.appendChild(box);
+  });
 
   if(!dias.length) return wrap;
 

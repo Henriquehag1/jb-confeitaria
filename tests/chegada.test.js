@@ -106,3 +106,35 @@ test("gestor: resumo de atrasos, marca no calendário e correção da hora", asy
   assert.match(await a.texto(bloco("Yasmin") + " .sub"), /R\$ 3\.642,86/);
   semErros(a); await a.fechar();
 });
+
+test("gestor: lembrete de atraso sem data aparece junto do resumo e some ao resolver; equipe não lê", async () => {
+  const a = await abrir("uHen", {
+    agora: "2026-09-30T23:00:00Z",
+    db: db => {
+      db.jb_dia_trabalhado = [
+        { id: 1, user_id: "uYas", data: "2026-09-20", turno: "noite", status: "confirmado", origem: "gestor", chegada: "2026-09-20T14:15:00-03:00", chegada_origem: "gestor" },
+        { id: 2, user_id: "uYas", data: "2026-09-27", turno: "noite", status: "confirmado", origem: "auto",   chegada: "2026-09-27T14:30:00-03:00", chegada_origem: "gestor" }
+      ];
+      db.jb_ocorrencia = [{ id: 7, user_id: "uYas", mes: "2026-09-01", texto: "Atraso de 2h sem data: entrada às 16:30, chegou às 18:30.", resolvida: false }];
+      db.jb_pessoal_mes = [{ user_id: "uYas", nome: "Yasmin", mes: "2026-09-01", dias_combinados: 30, dias_veio: 2, dias_pendentes: 0, custo: 3642.86 }];
+    }
+  });
+  await a.page.click("#btnDias"); await a.espera(500);
+  const bloco = `.pessoa:has(h3:text-is("Yasmin"))`;
+  const txt = sel => a.page.locator(sel).first().innerText();
+  assert.match(await txt(bloco + " .res-atraso"), /2 atrasos no mês, 45 min no total/);
+  assert.match(await txt(bloco + " .lembrete"), /Não esquecer: Atraso de 2h sem data/);
+
+  await a.page.click(bloco + " .lembrete-ok"); await a.espera(400);
+  assert.equal(await a.page.locator(bloco + " .lembrete").count(), 0);
+  const oc = (await a.db("jb_ocorrencia")).find(o => o.id === 7);
+  assert.equal(oc.resolvida, true);
+  semErros(a); await a.fechar();
+
+  // a Yasmin não lê lembretes
+  const y = await abrir("uYas", { agora: "2026-09-30T23:00:00Z",
+    db: db => { db.jb_ocorrencia = [{ id: 7, user_id: "uYas", mes: "2026-09-01", texto: "x", resolvida: false }]; } });
+  const lidos = await y.page.evaluate(async () => (await sb.from("jb_ocorrencia").select("*")).data);
+  assert.deepEqual(lidos, []);
+  semErros(y); await y.fechar();
+});
