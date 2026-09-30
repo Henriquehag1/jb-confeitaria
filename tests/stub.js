@@ -153,6 +153,7 @@ function baseDB(agora){
       { id: 3, user_id: "uYas", inicio: "2026-09-01", fim: null, regime: "semanal", valor: 850, dias_semana: [0, 1, 2, 3, 4, 5, 6], turno: "noite", obs: null, a_confirmar: false }
     ],
     jb_dia_trabalhado: [],
+    jb_ocorrencia: [],
     jb_escala: [
       { id: 1, user_id: "uEli", dia_semana: 4, entrada: "09:00:00", saida: null, inicio: "2026-01-01", fim: null },
       { id: 2, user_id: "uEli", dia_semana: 5, entrada: "09:00:00", saida: null, inicio: "2026-01-01", fim: null },
@@ -430,7 +431,7 @@ ${agora ? "window.__AGORA=" + JSON.stringify(agora) + ";" : ""}
     if(t === "jb_kpi_destino") return gestor() ? viewKpiDestino() : [];
     if(t === "jb_dia_vendas")  return gestor() ? viewDiaVendas() : [];
     if(t === "jb_saidas") return viewSaidas();
-    if(t === "jb_atraso_dia") return viewAtrasoDia();
+    if(t === "jb_atraso_dia") return gestor() ? viewAtrasoDia() : [];   // atraso é só do gestor (como no banco)
     if(t === "jb_escala" && !gestor()) return (DB[t]||[]).filter(r => r.user_id === window.__UID);
     if(t === "jb_contagem_item") return itensVisiveis();
     if(t === "jb_receita_ficha") return viewReceitaFicha();
@@ -445,7 +446,7 @@ ${agora ? "window.__AGORA=" + JSON.stringify(agora) + ";" : ""}
                       "jb_custo_fixo_total","jb_volume_calculado","jb_giro_produto","jb_insumo","jb_preco","jb_margem","jb_promo_teto","jb_canal","jb_config","jb_vale_taxa","jb_meio_pagamento",
                       "jb_mes","jb_faturamento","jb_ficha","jb_ficha_item","jb_subreceita","jb_subreceita_item","jb_uso_ingrediente",
                       "jb_insumo_ultimo_pago","jb_ficha_alertas","jb_compra","jb_compra_item","jb_estoque_contagem","jb_estoque_item","jb_estoque_sugestao",
-                      "jb_kpi_mes","jb_kpi_destino","jb_dia_vendas","jb_encomenda","jb_bolo_opcao"];
+                      "jb_kpi_mes","jb_kpi_destino","jb_dia_vendas","jb_encomenda","jb_bolo_opcao","jb_ocorrencia"];
     if(soGestor.includes(t) && !gestor()) return [];
     if(t === "jb_dia_trabalhado" && !gestor()) return (DB[t]||[]).filter(r => r.user_id === window.__UID);
     if(t === "jb_adendo" && !gestor()) return (DB[t]||[]).filter(r => r.registrado_por === window.__UID);
@@ -456,7 +457,7 @@ ${agora ? "window.__AGORA=" + JSON.stringify(agora) + ";" : ""}
   function query(t){
     const filtros = []; let ordem = null; let limite = null;
     const api = {
-      select(){ return api; },
+      select(cols){ window.__LOG.push(["select", t, cols || "*"]); return api; },
       order(c, o){ ordem = { c, asc: !(o && o.ascending === false) }; return api; },
       limit(n){ limite = n; return api; },
       eq(c, v){ filtros.push(r => String(r[c]) === String(v)); return api; },
@@ -555,6 +556,11 @@ ${agora ? "window.__AGORA=" + JSON.stringify(agora) + ";" : ""}
       if(!pg) return { data:null, error:{ message:"item sem insumo ligado" } };
       const i = DB.jb_insumo.find(x => x.id === pg.insumo_id); i.custo_unit = pg.custo_base;
       return { data:pg.custo_base, error:null };
+    }
+    if(nome === "jb_minha_chegada_hoje"){
+      const u = eu(); if(!u) return { data:null, error:null };
+      const d = DB.jb_dia_trabalhado.find(x => x.user_id === u.user_id && x.data === hojeSP());
+      return { data: (d && d.chegada) || null, error:null };
     }
     if(nome === "jb_cheguei"){
       const u = eu(); if(!u || u.papel === "gestor") return { data:null, error:null };
