@@ -81,7 +81,7 @@ test("gestor tem o registro de perda na Home; equipe não", async () => {
   assert.equal(await a.visivel("btnPerda"), true, "a Jessica registra perda direto da Home");
   await a.page.click("#btnPerda"); await a.espera(400);
   assert.equal(await a.tela(), "scPerda");
-  assert.match(await a.texto("#peData"), /de setembro/);
+  assert.match(await a.texto("#peData"), /\d+ de [a-zç]+/);   // o mês muda, o formato não
   assert.ok(!/depois de fechar/.test(await a.texto("#peData")), "perda do dia, não da sobra da noite");
   await a.page.click("#btnPeVoltar"); await a.espera(300);
   assert.equal(await a.tela(), "scHome");

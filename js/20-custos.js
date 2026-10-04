@@ -649,7 +649,7 @@ async function listarPrecos(){
   }
   const [m, g] = await Promise.all([
     sb.from("jb_margem")
-      .select("ficha_id,produto,rascunho,preco,custo_total,custo_fixo_un,cmv")
+      .select("ficha_id,produto,rascunho,preco,custo_total,custo_fixo_un,cmv,encomenda")
       .eq("canal_id", CANAL.id),
     /* O giro vem da mesma contagem que alimenta o card Últimos dias. Serve para dois
        usos: mostrar o peso de cada produto na linha, e deixar claro que o custo fixo
@@ -735,7 +735,10 @@ function formCanal(canal){
 
 function montarPlacar(){
   const box = $("precoPlacar");
-  const contas = LINHAS.filter(l => !l.rascunho).map(contaLinha);
+  /* Bolo por encomenda fica fora do placar: não tem giro medido e um bolo de R$ 300
+     ao lado de doces de R$ 18 distorceria a média e a margem do canal. */
+  const DOCES = LINHAS.filter(l => !l.encomenda);
+  const contas = DOCES.filter(l => !l.rascunho).map(contaLinha);
   const comPreco = contas.filter(c => c.preco != null);
   const ruins  = comPreco.filter(c => c.lucro < 0);
   const abaixo = comPreco.filter(c => c.lucro >= 0 && c.margem < c.alvo);
@@ -745,7 +748,7 @@ function montarPlacar(){
   /* Margem do canal ponderada pelo giro: o produto que sai 8 vezes por dia pesa mais
      na saúde da loja do que o que sai uma vez por semana. Sem giro medido, peso 1. */
   const peso = l => { const g = GIRO[l.ficha_id]; return g && g.por_mes > 0 ? Number(g.por_mes) : 1; };
-  const comGiro = LINHAS.filter(l => !l.rascunho && l.preco != null);
+  const comGiro = DOCES.filter(l => !l.rascunho && l.preco != null);
   const vendaTot = comGiro.reduce((s,l) => s + Number(l.preco) * peso(l), 0);
   const lucroTot = comGiro.reduce((s,l) => s + contaLinha(l).lucro * peso(l), 0);
   const margemCanal = vendaTot > 0 ? lucroTot / vendaTot : null;
@@ -1232,6 +1235,9 @@ function montarListaPrecos(){
     inp.className = "q"; inp.type = "tel"; inp.inputMode = "decimal";
     inp.setAttribute("aria-label","Preço de " + l.produto + " no " + CANAL.nome);
     inp.value = c.preco == null ? "" : moeda(c.preco);
+    /* Bolo por encomenda: o preço é o do cardápio do site (Encomendas, Cardápio de
+       bolos). Aqui só mostra, para não existir um segundo preço que o cliente não vê. */
+    if(l.encomenda){ inp.readOnly = true; rHoje.textContent = "no site"; }
     cHoje.append(rHoje, inp);
 
     const cAlvo = document.createElement("div"); cAlvo.className = "campo alvo";
@@ -1263,7 +1269,8 @@ function montarListaPrecos(){
       mini.innerHTML = textoMiniPreco(l, c2);
       inp.value = c2.preco == null ? "" : moeda(c2.preco);
       vAlvo.textContent = c2.saudavel == null ? "não fecha" : "R$ " + moeda(c2.saudavel);
-      usar.classList.toggle("hide", c2.saudavel == null || c2.saudavel === c2.preco);
+      usar.classList.toggle("hide", !!l.encomenda || c2.saudavel == null || c2.saudavel === c2.preco);
+      if(l.encomenda && !l.rascunho) mini.innerHTML += " · bolo por encomenda, o preço muda no cardápio de bolos";
       caixa.innerHTML = "";
       if(CONTA_ABERTA[l.ficha_id]) caixa.appendChild(montarConta(l, c2));
       verConta.textContent = CONTA_ABERTA[l.ficha_id] ? "fechar a conta" : "abrir a conta deste produto";
@@ -1272,7 +1279,7 @@ function montarListaPrecos(){
 
     let salvando = false;   // desativar o campo dispara blur de novo: não pode salvar duas vezes
     const gravar = async n => {
-      if(salvando) return;
+      if(salvando || l.encomenda) return;
       if(n === (l.preco == null ? null : Number(l.preco))) return;
       salvando = true; inp.disabled = true;
       let error;
