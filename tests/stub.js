@@ -124,7 +124,8 @@ function baseDB(agora){
       { ficha_id: 10, produto: "Brownie Brigadeiro", rascunho: false, canal_id: 1, preco: 18, custo_total: 12, custo_fixo_un: 5.43, cmv: 6, fatia_app: 0 },
       { ficha_id: 10, produto: "Brownie Brigadeiro", rascunho: false, canal_id: 2, preco: 22, custo_total: 12, custo_fixo_un: 5.43, cmv: 6, fatia_app: 0.334 },
       { ficha_id: 10, produto: "Brownie Brigadeiro", rascunho: false, canal_id: 3, preco: 24, custo_total: 12, custo_fixo_un: 5.43, cmv: 6, fatia_app: 0.528 },
-      { ficha_id: 11, produto: "Pudim", rascunho: true, canal_id: 1, preco: null, custo_total: 9, custo_fixo_un: 5.43, cmv: 4, fatia_app: 0 }
+      { ficha_id: 11, produto: "Pudim", rascunho: true, canal_id: 1, preco: null, custo_total: 9, custo_fixo_un: 5.43, cmv: 4, fatia_app: 0 },
+      { ficha_id: 27, produto: "Bolo chocolate com brigadeiro Naked PP", rascunho: false, canal_id: 1, preco: 170, custo_total: 44.42, custo_fixo_un: 5.43, cmv: 37.61, fatia_app: 0, encomenda: true }
     ],
     jb_promo_teto: [
       { produto: "Bolo Gelado Supreme", canal: "99Food", canal_ordem: 30, preco: 26.98, cmv: 5.07, custo_fixo_un: 4.94,

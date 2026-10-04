@@ -91,6 +91,33 @@ test("salvar ficha vai pelo RPC em transação; sair com alteração pendente pe
   semErros(a); await a.fechar();
 });
 
+test("preço: bolo por encomenda mostra o preço do site, não deixa editar e fica fora do placar", async () => {
+  const a = await abrir("uJes");
+  await a.page.click("#btnCustos"); await a.espera(500);
+  await a.page.click("#abaPreco"); await a.espera(600);
+  const bolo = await a.page.evaluate(() => {
+    const row = [...document.querySelectorAll("#listaCustos .pm")].find(r => /Naked PP/.test(r.textContent));
+    const inp = row.querySelector("input.q");
+    return { valor: inp.value, ro: inp.readOnly, rot: row.querySelector(".campo .rot").textContent,
+             usar: row.querySelector(".usar") ? !row.querySelector(".usar").classList.contains("hide") : false,
+             mini: row.querySelector(".mini:not(img)").textContent };
+  });
+  assert.equal(bolo.valor, "170,00"); assert.equal(bolo.ro, true); assert.equal(bolo.rot, "no site");
+  assert.equal(bolo.usar, false, "sem botão de adotar preço");
+  assert.match(bolo.mini, /bolo por encomenda/);
+  // mesmo forçando um valor, nada é gravado
+  await a.page.evaluate(() => {
+    const row = [...document.querySelectorAll("#listaCustos .pm")].find(r => /Naked PP/.test(r.textContent));
+    const inp = row.querySelector("input.q"); inp.readOnly = false; inp.value = "99,90"; inp.dispatchEvent(new Event("blur"));
+  });
+  await a.espera(300);
+  assert.deepEqual((await a.log("upsert")).filter(u => u[1] === "jb_preco"), []);
+  // o placar fala só dos doces: a média por venda não carrega o lucro do bolo
+  const placar = await a.texto("#precoPlacar");
+  assert.doesNotMatch(placar, /R\$ 1\d\d,/);
+  semErros(a); await a.fechar();
+});
+
 test("preço: salvar um preço atualiza só a linha, sem redesenhar a lista; taxa efetiva grava a data", async () => {
   const a = await abrir("uJes");
   await a.page.click("#btnCustos"); await a.espera(500);
