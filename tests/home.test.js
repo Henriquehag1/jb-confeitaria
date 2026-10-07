@@ -206,3 +206,15 @@ test("equipe não vê a promoção do dia", async () => {
   assert.equal(await a.visivel("btnPromo"), false);
   semErros(a); await a.fechar();
 });
+
+test("todo script do app carrega com a versão atual no endereço (senão o celular fica com arquivo velho)", async () => {
+  const fs = require("node:fs"), path = require("node:path");
+  const raiz = path.join(__dirname, "..");
+  const html = fs.readFileSync(path.join(raiz, "index.html"), "utf8");
+  const versao = /const VERSAO = "([^"]+)"/.exec(fs.readFileSync(path.join(raiz, "js/00-base.js"), "utf8"))[1];
+  const tags = [...html.matchAll(/<script src="(js\/[^"?]+)(?:\?v=([^"]*))?"/g)];
+  assert.ok(tags.length >= 10, "achou os scripts do app");
+  tags.forEach(([, arquivo, v]) => assert.equal(v, versao, arquivo + " precisa de ?v=" + versao));
+  const noDisco = fs.readdirSync(path.join(raiz, "js")).filter(f => f.endsWith(".js")).sort();
+  assert.deepEqual(tags.map(t => t[1].replace("js/", "")).sort(), noDisco, "todo arquivo de js/ está no index.html");
+});
