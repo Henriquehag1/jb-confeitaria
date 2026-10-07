@@ -465,3 +465,51 @@ test("quando o nome na contagem é diferente do nome da ficha, a conta diz qual 
   assert.match(await a.texto("#listaCustos .pm .conta .giro"), /Na contagem este produto se chama .Brownie Classico./);
   semErros(a); await a.fechar();
 });
+
+test("recado no plano: a Jessica escreve ou toca no atalho da panela, e a Eliana lê no plano e na receita", async () => {
+  const a = await abrir("uJes", { db(db){
+    db.jb_producao_item.push({ id: 9, data: db.jb_producao_item[0].data, tipo: "subreceita", ref_id: 21, qtd: 2, feito: false, feito_em: null, obs: null, para: "producao", criado_em: "2026-10-07T10:00:00Z" });
+  } });
+  await a.page.click("#btnProducao"); await a.espera(600);
+  const chips = await a.page.evaluate(() => [...document.querySelectorAll("#prodLista .prod")].map(r =>
+    r.querySelector(".n").firstChild.textContent + ":" + r.querySelectorAll(".chip-rec").length));
+  assert.ok(chips.includes("Creme de Ninho:2") && chips.includes("Massa Brownie:0") && chips.includes("Brownie Brigadeiro:0"), "atalho só em panela: " + chips);
+  const naLinha = (re, fn) => a.page.evaluate(([src, f]) => {
+    const r = [...document.querySelectorAll("#prodLista .prod")].find(x => new RegExp(src).test(x.textContent));
+    return new Function("r", f)(r);
+  }, [re, fn]);
+
+  await naLinha("Creme de Ninho", "[...r.querySelectorAll('.chip-rec')].find(c => c.textContent === 'mais firme').click()");
+  await a.espera(400);
+  assert.equal((await a.db("jb_producao_item")).find(p => p.id === 9).obs, "mais firme");
+  assert.equal(await naLinha("Creme de Ninho", "return r.querySelector('.chip-rec[aria-pressed=\"true\"]').textContent"), "mais firme");
+  assert.match(await a.texto("#prodMsg"), /Creme de Ninho: recado salvo/);
+  // tocar de novo no mesmo atalho apaga
+  await naLinha("Creme de Ninho", "[...r.querySelectorAll('.chip-rec')].find(c => c.textContent === 'mais firme').click()");
+  await a.espera(400);
+  assert.equal((await a.db("jb_producao_item")).find(p => p.id === 9).obs, null);
+
+  // texto livre, cortado em 80 caracteres e sem espaço sobrando
+  await naLinha("Massa Brownie", "const i = r.querySelector('input.rec'); i.removeAttribute('maxlength'); i.value = '  ' + 'x'.repeat(100) + '  '; i.onblur();");
+  await a.espera(400);
+  assert.equal((await a.db("jb_producao_item")).find(p => p.id === 2).obs, "x".repeat(80));
+  await naLinha("Massa Brownie", "const i = r.querySelector('input.rec'); i.value = 'assar em 2 formas'; i.onblur();");
+  await a.espera(400);
+  assert.equal((await a.db("jb_producao_item")).find(p => p.id === 2).obs, "assar em 2 formas");
+  semErros(a); await a.fechar();
+
+  const e = await abrir("uEli", { db(db){
+    db.jb_producao_item.find(p => p.id === 2).obs = "assar em 2 formas";
+  } });
+  await e.page.click("#btnProducao"); await e.espera(600);
+  const v = await e.page.evaluate(() => {
+    const r = [...document.querySelectorAll("#prodLista .prod")].find(x => /Massa Brownie/.test(x.textContent));
+    return { rec: r.querySelector(".recado").textContent, ed: r.querySelectorAll("input.rec, .chip-rec").length,
+             outros: document.querySelectorAll("#prodLista .recado").length };
+  });
+  assert.deepEqual(v, { rec: "Recado: assar em 2 formas", ed: 0, outros: 1 }, "ela lê, não edita; item sem recado não mostra nada");
+  await e.page.evaluate(() => [...document.querySelectorAll("#prodLista .prod .n")].find(x => /Massa Brownie/.test(x.textContent)).click());
+  await e.espera(500);
+  assert.equal(await e.texto("#recCorpo .recado"), "Recado: assar em 2 formas");
+  semErros(e); await e.fechar();
+});

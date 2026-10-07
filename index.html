@@ -785,6 +785,23 @@ button.fotobt:disabled{color:var(--tinta-3);}
   flex:0 0 auto;border:none;background:none;color:var(--tinta-3);
   font-size:.8rem;text-decoration:underline;padding:8px 2px;
 }
+.recado{
+  order:12;flex:1 0 100%;margin:0;padding:8px 11px;border-radius:10px;
+  background:var(--ambar-veu, #fbf1dc);color:var(--tinta);font-size:.92rem;font-weight:600;line-height:1.3;
+  overflow-wrap:anywhere;
+}
+#recCorpo .recado{margin:0 0 12px;font-size:1rem;}
+.prod .recado-ed{order:11;flex:1 0 100%;display:flex;flex-wrap:wrap;gap:7px;align-items:center;}
+.prod .recado-ed input.rec{
+  flex:1 0 100%;min-width:0;height:36px;border-radius:11px;border:1px solid var(--linha-2);
+  background:var(--areia);color:var(--tinta);font-family:inherit;font-size:.88rem;padding:0 11px;
+}
+.prod .recado-ed input.rec:focus{outline:2px solid var(--coral);outline-offset:1px;border-color:var(--coral);}
+.prod .chip-rec{
+  flex:0 0 auto;height:36px;border-radius:999px;border:1px solid var(--linha-2);background:var(--creme);
+  color:var(--tinta-2);font-family:inherit;font-size:.82rem;padding:0 12px;
+}
+.prod .chip-rec[aria-pressed="true"]{background:var(--coral);border-color:var(--coral);color:#fff;font-weight:600;}
 .foot button.desfazer{background:var(--creme);color:var(--tinta-2);border:1px solid var(--linha-2);box-shadow:none;}
 
 /* ---------- receita escalada ---------- */
@@ -1480,17 +1497,17 @@ button.fotobt:disabled{color:var(--tinta-3);}
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.116.0/dist/umd/supabase.min.js"></script>
-<script src="js/00-base.js?v=2026-10-07c"></script>
-<script src="js/10-entrada.js?v=2026-10-07c"></script>
-<script src="js/20-custos.js?v=2026-10-07c"></script>
-<script src="js/25-promo.js?v=2026-10-07c"></script>
-<script src="js/30-mes.js?v=2026-10-07c"></script>
-<script src="js/40-producao.js?v=2026-10-07c"></script>
-<script src="js/50-contagem.js?v=2026-10-07c"></script>
-<script src="js/60-afazeres.js?v=2026-10-07c"></script>
-<script src="js/70-dias.js?v=2026-10-07c"></script>
-<script src="js/80-estoque.js?v=2026-10-07c"></script>
-<script src="js/85-encomendas.js?v=2026-10-07c"></script>
-<script src="js/90-ligacoes.js?v=2026-10-07c"></script>
+<script src="js/00-base.js?v=2026-10-07d"></script>
+<script src="js/10-entrada.js?v=2026-10-07d"></script>
+<script src="js/20-custos.js?v=2026-10-07d"></script>
+<script src="js/25-promo.js?v=2026-10-07d"></script>
+<script src="js/30-mes.js?v=2026-10-07d"></script>
+<script src="js/40-producao.js?v=2026-10-07d"></script>
+<script src="js/50-contagem.js?v=2026-10-07d"></script>
+<script src="js/60-afazeres.js?v=2026-10-07d"></script>
+<script src="js/70-dias.js?v=2026-10-07d"></script>
+<script src="js/80-estoque.js?v=2026-10-07d"></script>
+<script src="js/85-encomendas.js?v=2026-10-07d"></script>
+<script src="js/90-ligacoes.js?v=2026-10-07d"></script>
 </body>
 </html>

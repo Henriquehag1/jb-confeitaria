@@ -203,14 +203,57 @@ function montarProdLista(){
         aviso("prodMsg", it.nome + " saiu do dia.","ok");
         carregarDia();
       };
-      row.append(inp, un, seletorPara(it), tirar);
+      row.append(inp, un, seletorPara(it), tirar, recadoPara(it));
     } else {
       const qt = document.createElement("span"); qt.className = "qt";
       qt.textContent = emLotes ? loteTx(lotesDe(it), it.unidade_producao) : qtdBonita(it.qtd, it.unidade);
       row.appendChild(qt);
+      if(it.obs){
+        const r = document.createElement("p"); r.className = "recado";
+        r.textContent = "Recado: " + it.obs;
+        row.appendChild(r);
+      }
     }
     box.appendChild(row);
   });
+}
+
+/* Recado curto do gestor para quem vai fazer: o ponto do brigadeiro, um detalhe do dia.
+   Panela ganha dois atalhos porque a mesma receita sai mais firme (menos creme de leite)
+   ou mais cremosa, conforme o uso. O custo segue pela receita cadastrada. */
+const RECADO_MAX = 80;
+const RECADOS_PANELA = ["mais firme", "mais cremoso"];
+function recadoPara(it){
+  const box = document.createElement("div"); box.className = "recado-ed";
+  const inp = document.createElement("input");
+  inp.type = "text"; inp.className = "rec"; inp.maxLength = RECADO_MAX;
+  inp.placeholder = "Recado para quem vai fazer (opcional)";
+  inp.setAttribute("aria-label", "Recado para quem vai fazer " + it.nome);
+  inp.value = it.obs || "";
+  const salvar = async () => {
+    const v = inp.value.trim().slice(0, RECADO_MAX) || null;
+    if(v === (it.obs || null)){ inp.value = v || ""; return; }
+    const { error } = await sb.from("jb_producao_item").update({ obs: v }).eq("id", it.id);
+    if(error){ inp.value = it.obs || ""; aviso("prodMsg","Não consegui salvar o recado.","err"); return; }
+    it.obs = v; inp.value = v || "";
+    marcar();
+    aviso("prodMsg", v ? it.nome + ": recado salvo." : it.nome + ": recado apagado.", "ok");
+  };
+  inp.onblur = salvar;
+  inp.addEventListener("keydown", e => { if(e.key === "Enter") inp.blur(); });
+  box.appendChild(inp);
+  const chips = [];
+  const marcar = () => chips.forEach(c => c.setAttribute("aria-pressed", String((it.obs || "") === c.textContent)));
+  if(it.unidade_producao === "panela"){
+    RECADOS_PANELA.forEach(tx => {
+      const c = document.createElement("button");
+      c.type = "button"; c.className = "chip-rec"; c.textContent = tx;
+      c.onclick = () => { inp.value = (it.obs === tx) ? "" : tx; salvar(); };
+      chips.push(c); box.appendChild(c);
+    });
+    marcar();
+  }
+  return box;
 }
 
 /* Para quem é este item. Massa e recheio nasce para a produção; produto pronto,
@@ -324,6 +367,12 @@ function montarReceita(){
     alvo.appendChild(ap);
   }
   box.appendChild(alvo);
+
+  if(REC.item && REC.item.obs){
+    const r = document.createElement("p"); r.className = "recado";
+    r.textContent = "Recado: " + REC.item.obs;
+    box.appendChild(r);
+  }
 
   const bIng = document.createElement("div"); bIng.className = "recbloco";
   const h1 = document.createElement("h3"); h1.textContent = "Separe";
