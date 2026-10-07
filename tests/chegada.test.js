@@ -81,7 +81,7 @@ test("gestor: resumo de atrasos, marca no calendário e correção da hora", asy
   assert.match(cls.label, /chegou 18:52, 12 min de atraso/);
 
   // Eliana 25/09 sem hora: anotar 09:05
-  await a.page.click(bloco("Eliana") + " summary"); await a.espera(150);
+  await a.page.click(bloco("Eliana") + " .chegadas summary"); await a.espera(150);
   const linha25 = bloco("Eliana") + ' .ch-ln:has(.dia:text-matches("25/09"))';
   assert.match(await a.texto(linha25), /sem hora de chegada/);
   await a.page.click(linha25 + " .ch-ed");
@@ -95,7 +95,7 @@ test("gestor: resumo de atrasos, marca no calendário e correção da hora", asy
   assert.match(await a.texto(bloco("Eliana") + " .res-atraso"), /2 atrasos no mês, 25 min no total/);
 
   // corrigir a Yasmin para 18:40 zera o atraso dela
-  await a.page.click(bloco("Yasmin") + " summary"); await a.espera(150);
+  await a.page.click(bloco("Yasmin") + " .chegadas summary"); await a.espera(150);
   const linha30 = bloco("Yasmin") + ' .ch-ln:has(.dia:text-matches("30/09"))';
   await a.page.click(linha30 + " .ch-ed");
   await a.page.fill(linha30 + " input[type=time]", "18:40");
@@ -154,5 +154,63 @@ test("Yasmin não lê atraso nem chegadas de outros dias; vê só a chegada de h
   assert.doesNotMatch(await a.page.locator("body").innerText(), /atras|14:30/i);
   const leitura = (await a.log("select")).filter(l => l[1] === "jb_dia_trabalhado" && /chegada/.test(String(l[2])));
   assert.equal(leitura.length, 0, "o app da equipe não pede a coluna chegada");
+  semErros(a); await a.fechar();
+});
+
+test("gestor marca dias como pagos (pagamento adiantado), desfaz, e dia pago não se apaga com um toque", async () => {
+  const a = await abrir("uJes", {
+    agora: "2026-10-07T15:00:00Z",
+    db(db){
+      db.jb_dia_trabalhado = [
+        { id: 86, user_id: "uEli", data: "2026-10-01", turno: "dia", status: "confirmado", origem: "gestor" },
+        { id: 90, user_id: "uEli", data: "2026-10-02", turno: "dia", status: "confirmado", origem: "auto" },
+        { id: 91, user_id: "uYas", data: "2026-10-02", turno: "noite", status: "confirmado", origem: "auto" }
+      ];
+      db.jb_pessoal_mes = [
+        { user_id: "uEli", nome: "Eliana", mes: "2026-10-01", dias_combinados: 10, dias_veio: 2, dias_pendentes: 0, custo: 280 },
+        { user_id: "uYas", nome: "Yasmin", mes: "2026-10-01", dias_combinados: 31, dias_veio: 1, dias_pendentes: 0, custo: 3764.29 }
+      ];
+    }
+  });
+  await a.page.click("#btnDias"); await a.espera(500);
+  const eli = '.pessoa:has(h3:text-is("Eliana"))';
+  const tx = sel => a.page.locator(sel).first().innerText();
+  assert.match(await tx(eli + " .res-pagto"), /Nenhum dia marcado como pago · falta pagar 2 dias \(R\$ 280,00\)/);
+
+  await a.page.click(eli + " .pagto summary"); await a.espera(150);
+  assert.equal(await a.page.locator(eli + " .pg-ok").isDisabled(), true, "sem dia escolhido o botão não age");
+  const cks = a.page.locator(eli + " .pg-ln input[type=checkbox]");
+  assert.equal(await cks.count(), 2);
+  await cks.nth(0).check(); await cks.nth(1).check();
+  assert.match(await tx(eli + " .pg-ok"), /Marcar 2 dias como pagos \(R\$ 280,00\)/);
+  await a.page.click(eli + " .pg-ok"); await a.espera(400);
+
+  const dias = (await a.db("jb_dia_trabalhado")).filter(d => d.user_id === "uEli");
+  assert.ok(dias.every(d => d.pago_em && d.pago_por === "uJes"), "os dois dias ficaram pagos, com quem marcou");
+  assert.equal((await a.db("jb_dia_trabalhado")).find(d => d.id === 91).pago_em, undefined, "o dia da Yasmin não foi tocado");
+  assert.match(await tx(eli + " .res-pagto"), /Já pago: 2 dias \(R\$ 280,00\) · tudo o que veio está pago/);
+  assert.match(await a.page.locator(eli + ' .cal button:text-is("1")').getAttribute("class"), /pago/);
+  assert.match(await a.page.locator(eli + ' .cal button:text-is("2")').getAttribute("aria-label"), /pago/);
+
+  // tocar no dia pago não apaga
+  await a.page.click(eli + ' .cal button:text-is("1")'); await a.espera(300);
+  assert.equal((await a.db("jb_dia_trabalhado")).some(d => d.id === 86), true);
+  assert.match(await tx("#diasMsg"), /já está marcado como pago/);
+
+  // desfazer um dia
+  await a.page.locator(eli + " .pg-ln.pago .ch-ed").first().click(); await a.espera(400);
+  assert.equal((await a.db("jb_dia_trabalhado")).find(d => d.id === 86).pago_em, null);
+  assert.match(await tx(eli + " .res-pagto"), /Já pago: 1 dia \(R\$ 140,00\) · falta pagar 1 dia \(R\$ 140,00\)/);
+  semErros(a); await a.fechar();
+});
+
+test("equipe não lê quais dias foram pagos", async () => {
+  const a = await abrir("uEli", {
+    agora: "2026-10-07T15:00:00Z",
+    db(db){ db.jb_dia_trabalhado = [{ id: 86, user_id: "uEli", data: "2026-10-01", turno: "dia", status: "confirmado", origem: "gestor", pago_em: "2026-10-07T12:00:00Z", pago_por: "uJes" }]; }
+  });
+  const linhas = await a.page.evaluate(async () => (await sb.from("jb_dia_pago").select("*")).data);
+  assert.deepEqual(linhas, []);
+  assert.doesNotMatch(await a.page.locator("body").innerText(), /pago/i);
   semErros(a); await a.fechar();
 });

@@ -433,6 +433,7 @@ ${agora ? "window.__AGORA=" + JSON.stringify(agora) + ";" : ""}
     if(t === "jb_dia_vendas")  return gestor() ? viewDiaVendas() : [];
     if(t === "jb_saidas") return viewSaidas();
     if(t === "jb_atraso_dia") return gestor() ? viewAtrasoDia() : [];   // atraso é só do gestor (como no banco)
+    if(t === "jb_dia_pago") return gestor() ? (DB.jb_dia_trabalhado||[]).filter(r => r.pago_em).map(r => ({ id:r.id, user_id:r.user_id, data:r.data, pago_em:r.pago_em, pago_por:r.pago_por })) : [];
     if(t === "jb_escala" && !gestor()) return (DB[t]||[]).filter(r => r.user_id === window.__UID);
     if(t === "jb_contagem_item") return itensVisiveis();
     if(t === "jb_receita_ficha") return viewReceitaFicha();
@@ -488,9 +489,9 @@ ${agora ? "window.__AGORA=" + JSON.stringify(agora) + ";" : ""}
       },
       update(v){
         window.__LOG.push(["update", t, v]);
-        const u = { eqs: [] };
-        const exec = async () => { let rows = DB[t] || []; u.eqs.forEach(([c,val]) => { rows = rows.filter(r => String(r[c]) === String(val)); }); rows.forEach(r => Object.assign(r, v)); return { data:rows, error:null }; };
-        const ch = { eq(c, val){ u.eqs.push([c, val]); return ch; }, then(res, rej){ return exec().then(res, rej); }, select(){ return { single: exec, maybeSingle: exec }; } };
+        const u = { eqs: [], ins: [] };
+        const exec = async () => { let rows = DB[t] || []; u.eqs.forEach(([c,val]) => { rows = rows.filter(r => String(r[c]) === String(val)); }); u.ins.forEach(([c,vals]) => { rows = rows.filter(r => vals.map(String).includes(String(r[c]))); }); rows.forEach(r => Object.assign(r, v)); return { data:rows, error:null }; };
+        const ch = { eq(c, val){ u.eqs.push([c, val]); return ch; }, in(c, vals){ u.ins.push([c, vals]); return ch; }, then(res, rej){ return exec().then(res, rej); }, select(){ return { single: exec, maybeSingle: exec }; } };
         return ch;
       },
       upsert(v, opts){

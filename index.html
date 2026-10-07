@@ -922,6 +922,22 @@ button.fotobt:disabled{color:var(--tinta-3);}
 .cal button{position:relative;}
 .cal button.atraso::after{content:"";position:absolute;left:50%;bottom:4px;width:5px;height:5px;margin-left:-2.5px;border-radius:50%;background:var(--ambar);}
 .cal button.veio.atraso::after{background:var(--creme);}
+.cal button.pago::before{content:"✓";position:absolute;top:1px;right:3px;font-size:.58rem;line-height:1;font-weight:700;}
+.legenda i.pg{background:var(--coral-acao);position:relative;}
+.legenda i.pg::after{content:"✓";position:absolute;top:-1px;right:1px;font-size:.5rem;color:var(--creme);font-weight:700;}
+.pagto{margin-top:13px;border-top:1px solid var(--linha);padding-top:11px;}
+.pagto:empty{display:none;}
+.res-pagto{font-size:.83rem;color:var(--tinta-2);font-weight:300;line-height:1.45;}
+.res-pagto b{color:var(--tinta);font-weight:600;}
+.pagto details{margin-top:8px;}
+.pagto summary{font-size:.8rem;color:var(--coral-forte);cursor:pointer;padding:4px 0;font-weight:500;}
+.pg-ln{display:flex;align-items:center;gap:10px;min-height:44px;padding:4px 0;border-bottom:1px solid var(--linha);font-size:.83rem;}
+.pg-ln input{width:20px;height:20px;accent-color:var(--coral-acao);flex:none;}
+.pg-ln .dia{font-weight:500;min-width:92px;}
+.pg-ln .info{flex:1;color:var(--tinta-3);font-weight:300;}
+.pg-ln.pago .dia{color:var(--tinta-3);}
+.pg-ok{margin-top:11px;width:100%;min-height:46px;border-radius:10px;border:0;background:var(--coral-acao);color:var(--creme);font:inherit;font-weight:600;font-size:.86rem;}
+.pg-ok:disabled{background:var(--linha);color:var(--tinta-3);}
 .chegadas{margin-top:13px;border-top:1px solid var(--linha);padding-top:11px;}
 .res-atraso{font-size:.83rem;color:var(--tinta-3);font-weight:300;line-height:1.45;}
 .res-atraso b{color:var(--ambar);font-weight:600;font-variant-numeric:tabular-nums;}
@@ -1327,9 +1343,10 @@ button.fotobt:disabled{color:var(--tinta-3);}
       <span><i class="pend"></i>o app marcou, falta você confirmar</span>
       <span><i class="comb"></i>dia combinado</span>
       <span><i class="atr"></i>chegou atrasada</span>
+      <span><i class="pg"></i>dia pago</span>
     </div>
     <div id="diasCorpo"></div>
-    <p class="tip">Toque num dia para marcar que a pessoa veio. Toque de novo para apagar. A hora de chegada vem do botão Cheguei no celular delas; se estiver errada ou faltando, corrija em Ver chegadas dia a dia. O atraso é só registro, não muda o valor a pagar. Só você e a Jessica conseguem mexer aqui.</p>
+    <p class="tip">Toque num dia para marcar que a pessoa veio. Toque de novo para apagar. A hora de chegada vem do botão Cheguei no celular delas; se estiver errada ou faltando, corrija em Ver chegadas dia a dia. O atraso é só registro, não muda o valor a pagar. Em Marcar dias como pagos você escolhe os dias que já acertou com a pessoa, inclusive pagamento adiantado. Só você e a Jessica conseguem mexer e ver isso.</p>
   </section>
 
   <!-- ================= ESTOQUE (só gestor) ================= -->
