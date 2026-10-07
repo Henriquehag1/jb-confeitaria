@@ -250,6 +250,60 @@ test("gestor escolhe para quem é cada item e a troca é salva", async () => {
   semErros(a); await a.fechar();
 });
 
+test("plano em massas e panelas: a Jessica pede em receitas inteiras e o banco guarda em kg", async () => {
+  const a = await abrir("uJes");
+  await a.page.click("#btnProducao"); await a.espera(700);
+  const linha = () => a.page.evaluate(() => {
+    const row = [...document.querySelectorAll("#prodLista .prod")].find(r => /Massa Brownie/.test(r.textContent));
+    return { q: row.querySelector("input.q").value, un: row.querySelector(".un").textContent, sub: row.querySelector(".n small").textContent };
+  });
+  // 3 kg no banco, receita de 2,5 kg: 1,2 massa
+  assert.deepEqual(await linha(), { q: "1,2", un: "massas", sub: "cerca de 3 kg no total" });
+  await a.page.evaluate(() => {
+    const row = [...document.querySelectorAll("#prodLista .prod")].find(r => /Massa Brownie/.test(r.textContent));
+    const inp = row.querySelector("input.q"); inp.value = "3"; inp.dispatchEvent(new Event("blur"));
+  });
+  await a.espera(400);
+  assert.equal((await a.db("jb_producao_item")).find(p => p.id === 2).qtd, 7.5, "3 massas de 2,5 kg são 7,5 kg");
+  assert.deepEqual(await linha(), { q: "3", un: "massas", sub: "cerca de 7,5 kg no total" });
+  assert.match(await a.texto("#prodMsg"), /Massa Brownie: 3 massas, cerca de 7,5 kg/);
+
+  // massa nova entra como uma receita inteira, não como 1 kg
+  await a.page.evaluate(async () => { await addReceitaAoDia("subreceita:21"); });
+  await a.espera(500);
+  assert.equal((await a.db("jb_producao_item")).find(p => p.ref_id === 21).qtd, 1);
+  const creme = await a.page.evaluate(() => {
+    const row = [...document.querySelectorAll("#prodLista .prod")].find(r => /Creme de Ninho/.test(r.textContent));
+    return row.querySelector("input.q").value + " " + row.querySelector(".un").textContent;
+  });
+  assert.equal(creme, "1 panela");
+  // produto pronto continua em unidades
+  const prod = await a.page.evaluate(() => {
+    const row = [...document.querySelectorAll("#prodLista .prod")].find(r => /Brownie Brigadeiro/.test(r.textContent));
+    return row.querySelector("input.q").value + " " + row.querySelector(".un").textContent;
+  });
+  assert.equal(prod, "48 un");
+  semErros(a); await a.fechar();
+});
+
+test("a Eliana lê o plano em massas e a receita abre multiplicada", async () => {
+  const a = await abrir("uEli", { db(db){ db.jb_producao_item.find(p => p.id === 2).qtd = 7.5; } });
+  await a.page.click("#btnProducao"); await a.espera(600);
+  const row = await a.page.evaluate(() => {
+    const r = [...document.querySelectorAll("#prodLista .prod")].find(x => /Massa Brownie/.test(x.textContent));
+    return { qt: r.querySelector(".qt").textContent, sub: r.querySelector(".n small").textContent };
+  });
+  assert.deepEqual(row, { qt: "3 massas", sub: "cerca de 7,5 kg no total" });
+  await a.page.evaluate(() => [...document.querySelectorAll("#prodLista .prod .n")].find(e => /Massa Brownie/.test(e.textContent)).click());
+  await a.espera(500);
+  assert.equal(await a.tela(), "scReceita");
+  assert.match(await a.texto("#recCorpo .rendebox"), /3 massas/);
+  assert.match(await a.texto("#recCorpo .rendebox .aprox"), /cerca de 7,5 kg no total/);
+  assert.match(await a.texto("#recSub"), /uma massa rende 2,5 kg, as quantidades abaixo já estão ajustadas/);
+  assert.match(await a.texto("#recCorpo .recing"), /2,4 kg/, "800 g vezes 3");
+  semErros(a); await a.fechar();
+});
+
 test("massa nova nasce para a produção e produto novo para todos", async () => {
   const a = await abrir("uJes");
   await a.page.click("#btnProducao"); await a.espera(700);

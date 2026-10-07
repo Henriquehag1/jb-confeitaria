@@ -183,7 +183,14 @@ test("gestor marca dias como pagos (pagamento adiantado), desfaz, e dia pago nã
   assert.equal(await cks.count(), 2);
   await cks.nth(0).check(); await cks.nth(1).check();
   assert.match(await tx(eli + " .pg-ok"), /Marcar 2 dias como pagos \(R\$ 280,00\)/);
+  // o pagamento foi ontem: a data nasce hoje e aceita voltar
+  const quando = a.page.locator(eli + " .pg-quando input");
+  assert.equal(await quando.inputValue(), "2026-10-07");
+  assert.equal(await quando.getAttribute("max"), "2026-10-07", "não aceita data futura");
+  await quando.fill("2026-10-06");
   await a.page.click(eli + " .pg-ok"); await a.espera(400);
+  assert.ok((await a.db("jb_dia_trabalhado")).filter(d => d.user_id === "uEli").every(d => d.pago_em === "2026-10-06T12:00:00-03:00"), "gravou o dia escolhido");
+  assert.match(await tx(eli + " .pg-ln.pago .info"), /pago em .*06\/10/);
 
   const dias = (await a.db("jb_dia_trabalhado")).filter(d => d.user_id === "uEli");
   assert.ok(dias.every(d => d.pago_em && d.pago_por === "uJes"), "os dois dias ficaram pagos, com quem marcou");
@@ -197,8 +204,15 @@ test("gestor marca dias como pagos (pagamento adiantado), desfaz, e dia pago nã
   assert.equal((await a.db("jb_dia_trabalhado")).some(d => d.id === 86), true);
   assert.match(await tx("#diasMsg"), /já está marcado como pago/);
 
+  // corrigir a data de um dia já pago
+  await a.page.locator(eli + ' .pg-ln.pago button:text-is("mudar data")').first().click();
+  await a.page.fill(eli + " .pg-ln.pago .ch-form input[type=date]", "2026-10-05");
+  await a.page.click(eli + " .pg-ln.pago .ch-form button"); await a.espera(400);
+  assert.equal((await a.db("jb_dia_trabalhado")).find(d => d.id === 86).pago_em, "2026-10-05T12:00:00-03:00");
+  assert.equal((await a.db("jb_dia_trabalhado")).find(d => d.id === 90).pago_em, "2026-10-06T12:00:00-03:00", "o outro dia ficou como estava");
+
   // desfazer um dia
-  await a.page.locator(eli + " .pg-ln.pago .ch-ed").first().click(); await a.espera(400);
+  await a.page.locator(eli + ' .pg-ln.pago button:text-is("desfazer")').first().click(); await a.espera(400);
   assert.equal((await a.db("jb_dia_trabalhado")).find(d => d.id === 86).pago_em, null);
   assert.match(await tx(eli + " .res-pagto"), /Já pago: 1 dia \(R\$ 140,00\) · falta pagar 1 dia \(R\$ 140,00\)/);
   semErros(a); await a.fechar();
