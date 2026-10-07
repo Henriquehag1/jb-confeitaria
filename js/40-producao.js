@@ -50,7 +50,7 @@ async function abrirProducao(){
   if(gestor && !RECEITAS){
     const [ff, ss] = await Promise.all([
       sb.from("jb_receita_ficha").select("ficha_id,nome,preparo_conferido").order("nome"),
-      sb.from("jb_receita_sub").select("subreceita_id,nome,preparo_conferido").order("nome")
+      sb.from("jb_receita_sub").select("subreceita_id,nome,preparo_conferido,rendimento_kg").order("nome")
     ]);
     RECEITAS = { fichas: ff.data || [], subs: ss.data || [] };
     montarSeletorProd();
@@ -101,6 +101,26 @@ function montarDiasProducao(){
   });
 }
 
+/* Massa e recheio são pedidos do jeito que a cozinha fala: "3 massas", "2 panelas".
+   O banco continua guardando em kg (qtd), para o estoque, o custo e os relatórios;
+   a conversão é o rendimento de uma receita inteira. Produto pronto segue em unidades. */
+function lotesDe(it){
+  const r = Number(it.rendimento);
+  if(it.tipo !== "subreceita" || !(r > 0)) return null;
+  return Number(it.qtd) / r;
+}
+function numLote(n){
+  return Number(n).toLocaleString("pt-BR",{minimumFractionDigits:0, maximumFractionDigits:2});
+}
+function nomeLote(n, un){
+  const u = un || "receita";
+  return Number(n) > 1 ? u + "s" : u;
+}
+function loteTx(n, un){
+  if(Math.abs(Number(n) - 0.5) < 0.001) return "meia " + (un || "receita");
+  return numLote(n) + " " + nomeLote(n, un);
+}
+
 function montarProdLista(){
   const box = $("prodLista");
   const gestor = EU.papel === "gestor";
@@ -131,8 +151,11 @@ function montarProdLista(){
     const s = document.createElement("small");
     s.textContent = it.feito ? "Feito às " + horaDe(it.feito_em)
       : travado ? (gestor ? "passo a passo ainda não conferido por você" : "passo a passo ainda não conferido pela Jessica")
-      : (it.tipo === "subreceita" ? "massa ou recheio" : "produto pronto");
+      : (it.tipo === "subreceita"
+          ? (lotesDe(it) !== null ? "cerca de " + qtdBonita(it.qtd, "kg") + " no total" : "massa ou recheio")
+          : "produto pronto");
     n.appendChild(s);
+    const emLotes = lotesDe(it) !== null;
     n.onclick = () => abrirReceita(it);
 
     row.appendChild(n);
@@ -140,12 +163,16 @@ function montarProdLista(){
     if(gestor){
       const inp = document.createElement("input");
       inp.className = "q"; inp.type = "tel"; inp.inputMode = "decimal";
-      inp.value = String(it.qtd).replace(".",",");
-      inp.setAttribute("aria-label","Quantidade de " + it.nome);
+      const mostra = () => emLotes ? numLote(lotesDe(it)) : String(it.qtd).replace(".",",");
+      inp.value = mostra();
+      inp.setAttribute("aria-label", emLotes
+        ? "Quantas " + nomeLote(2, it.unidade_producao) + " de " + it.nome
+        : "Quantidade de " + it.nome);
       inp.onblur = async () => {
-        const v = numBR(inp.value);
+        const digitado = numBR(inp.value);
+        const v = (digitado !== null && emLotes) ? Math.round(digitado * Number(it.rendimento) * 1000) / 1000 : digitado;
         if(v === null || v <= 0){
-          if(!confirm("Tirar " + it.nome + " do dia?")){ inp.value = String(it.qtd).replace(".",","); return; }
+          if(!confirm("Tirar " + it.nome + " do dia?")){ inp.value = mostra(); return; }
           const { error } = await sb.from("jb_producao_item").delete().eq("id", it.id);
           if(error){ aviso("prodMsg","Não consegui tirar esse item.","err"); return; }
           carregarDia(); return;
@@ -154,10 +181,17 @@ function montarProdLista(){
         const { error } = await sb.from("jb_producao_item").update({ qtd: v }).eq("id", it.id);
         if(error){ aviso("prodMsg","Não consegui salvar a quantidade.","err"); return; }
         it.qtd = v;
-        aviso("prodMsg", it.nome + ": " + qtdBonita(v, it.unidade) + ".","ok");
+        if(emLotes){
+          un.textContent = nomeLote(lotesDe(it), it.unidade_producao);
+          if(!it.feito && !travado) s.textContent = "cerca de " + qtdBonita(v, "kg") + " no total";
+          aviso("prodMsg", it.nome + ": " + loteTx(lotesDe(it), it.unidade_producao) + ", cerca de " + qtdBonita(v, "kg") + ".","ok");
+        } else {
+          aviso("prodMsg", it.nome + ": " + qtdBonita(v, it.unidade) + ".","ok");
+        }
       };
       inp.addEventListener("keydown", e => { if(e.key === "Enter") inp.blur(); });
-      const un = document.createElement("span"); un.className = "un"; un.textContent = it.unidade;
+      const un = document.createElement("span"); un.className = "un";
+      un.textContent = emLotes ? nomeLote(lotesDe(it), it.unidade_producao) : it.unidade;
       const tirar = document.createElement("button");
       tirar.type = "button"; tirar.className = "tirar";
       tirar.textContent = "tirar";
@@ -172,7 +206,7 @@ function montarProdLista(){
       row.append(inp, un, seletorPara(it), tirar);
     } else {
       const qt = document.createElement("span"); qt.className = "qt";
-      qt.textContent = qtdBonita(it.qtd, it.unidade);
+      qt.textContent = emLotes ? loteTx(lotesDe(it), it.unidade_producao) : qtdBonita(it.qtd, it.unidade);
       row.appendChild(qt);
     }
     box.appendChild(row);
@@ -206,8 +240,11 @@ function seletorPara(it){
 async function addReceitaAoDia(valor){
   if(!valor) return;
   const [tipo, id] = valor.split(":");
+  /* massa e recheio entram como uma receita inteira (uma massa, uma panela), não como 1 kg */
+  const sub = tipo === "subreceita" ? ((RECEITAS && RECEITAS.subs) || []).find(x => String(x.subreceita_id) === id) : null;
+  const qtd = sub && Number(sub.rendimento_kg) > 0 ? Number(sub.rendimento_kg) : 1;
   const { error } = await sb.from("jb_producao_item")
-    .insert({ data: PROD_DIA, tipo, ref_id: Number(id), qtd: 1, para: PARA_PADRAO(tipo) });
+    .insert({ data: PROD_DIA, tipo, ref_id: Number(id), qtd, para: PARA_PADRAO(tipo) });
   $("addProd").value = "";
   if(error){
     aviso("prodMsg", String(error.message || "").includes("duplicate")
@@ -250,17 +287,23 @@ async function abrirReceita(item, escala, voltaPara){
 
   /* Receita não conferida abre mesmo assim, com a faixa de aviso: bloquear a Eliana
      em 100% das receitas era pior do que avisar. */
-  REC = { item: item.id ? item : null, tipo, refId, cab, itens, rendimento, unidade, qtdAlvo,
+  /* só fala em massas e panelas quando veio do plano do dia; aberta de dentro de outra
+     receita, a quantidade é o que aquela receita pede, em kg */
+  const emLotes = !!item.tipo && tipo === "subreceita" && rendimento > 0;
+  REC = { item: item.id ? item : null, tipo, refId, cab, itens, rendimento, unidade, qtdAlvo, emLotes,
           origemItem: item, voltaPara: voltaPara || null };
   montarReceita();
   show("scReceita");
 }
 
 function montarReceita(){
-  const { cab, itens, rendimento, unidade, qtdAlvo } = REC;
+  const { cab, itens, rendimento, unidade, qtdAlvo, emLotes } = REC;
   const fator = qtdAlvo / rendimento;
+  const un = cab.unidade_producao || "receita";
 
-  $("recSub").textContent = "a receita original rende " + qtdBonita(rendimento, unidade)
+  $("recSub").textContent = (emLotes
+      ? "uma " + un + " rende " + qtdBonita(rendimento, unidade)
+      : "a receita original rende " + qtdBonita(rendimento, unidade))
     + (fator !== 1 ? ", as quantidades abaixo já estão ajustadas" : "");
 
   const box = $("recCorpo");
@@ -273,8 +316,13 @@ function montarReceita(){
   alvo.className = "rendebox";
   const k = document.createElement("span"); k.className = "k"; k.textContent = "Fazer hoje";
   const v = document.createElement("span"); v.className = "v";
-  v.textContent = qtdBonita(qtdAlvo, unidade);
+  v.textContent = emLotes ? loteTx(fator, un) : qtdBonita(qtdAlvo, unidade);
   alvo.append(k, v);
+  if(emLotes){
+    const ap = document.createElement("span"); ap.className = "aprox";
+    ap.textContent = "cerca de " + qtdBonita(qtdAlvo, unidade) + " no total";
+    alvo.appendChild(ap);
+  }
   box.appendChild(alvo);
 
   const bIng = document.createElement("div"); bIng.className = "recbloco";

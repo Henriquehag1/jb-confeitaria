@@ -285,10 +285,17 @@ async function resolverLembrete(id){
 
 /* Marca ou desmarca dias como pagos. Só registro do que já foi acertado com a pessoa:
    serve para pagamento adiantado e para não pagar o mesmo dia duas vezes. */
-async function marcarPagos(uid, ids, pago){
+/* dia do pagamento ao meio-dia de São Paulo: é uma data, não um instante */
+function pagoISO(dia){ return dia + "T12:00:00-03:00"; }
+function diaDoPagamento(ts){ return new Date(ts).toLocaleDateString("en-CA",{timeZone:TZ}); }
+
+/* quando = dia do pagamento (AAAA-MM-DD) para marcar ou corrigir a data; null desfaz */
+async function marcarPagos(uid, ids, quando){
   if(!ids.length) return;
+  const pago = !!quando;
+  if(pago && quando > hojeSP()){ aviso("diasMsg","A data do pagamento não pode ser no futuro.","warn"); return; }
   const { error } = await sb.from("jb_dia_trabalhado")
-    .update(pago ? { pago_em: new Date().toISOString(), pago_por: EU.user_id }
+    .update(pago ? { pago_em: pagoISO(quando), pago_por: EU.user_id }
                  : { pago_em: null, pago_por: null })
     .in("id", ids);
   if(error){ aviso("diasMsg","Não consegui salvar o pagamento agora.","err"); return; }
@@ -297,7 +304,7 @@ async function marcarPagos(uid, ids, pago){
   PAGOS = data || [];
   PAG_ABERTO[uid] = true;
   montarCalendarioDias();
-  toast(pago ? (ids.length === 1 ? "Dia marcado como pago." : ids.length + " dias marcados como pagos.")
+  toast(pago ? (ids.length === 1 ? "Dia pago em " + dataCurta(quando) + "." : ids.length + " dias pagos em " + dataCurta(quando) + ".")
              : "Pagamento desfeito.");
 }
 
@@ -351,12 +358,31 @@ function blocoPagamento(uid, ac){
     if(pg){
       const info = document.createElement("span");
       info.className = "info";
-      info.textContent = "pago em " + dataCurta(new Date(pg.pago_em).toLocaleDateString("en-CA",{timeZone:TZ}));
+      info.textContent = "pago em " + dataCurta(diaDoPagamento(pg.pago_em));
+      /* a data do pagamento pode ser corrigida: nem sempre se registra no dia em que pagou */
+      const mud = document.createElement("button");
+      mud.type = "button"; mud.className = "ch-ed"; mud.textContent = "mudar data";
+      mud.setAttribute("aria-label", "Mudar a data do pagamento de " + dataCurta(d.data));
+      mud.onclick = ev => {
+        ev.preventDefault();
+        if(ln.querySelector("form")) return;
+        const f = document.createElement("form");
+        f.className = "ch-form";
+        const inp = document.createElement("input");
+        inp.type = "date"; inp.value = diaDoPagamento(pg.pago_em); inp.max = hojeSP(); inp.required = true;
+        inp.setAttribute("aria-label", "Dia em que pagou");
+        const ok = document.createElement("button");
+        ok.type = "submit"; ok.textContent = "Salvar";
+        f.append(inp, ok);
+        f.onsubmit = travarForm(ok, async () => { if(inp.value) await marcarPagos(uid, [d.id], inp.value); });
+        ln.appendChild(f);
+        inp.focus();
+      };
       const des = document.createElement("button");
       des.type = "button"; des.className = "ch-ed"; des.textContent = "desfazer";
       des.setAttribute("aria-label", "Desfazer o pagamento de " + dataCurta(d.data));
-      des.onclick = travar(des, () => marcarPagos(uid, [d.id], false));
-      ln.append(dia, info, des);
+      des.onclick = travar(des, () => marcarPagos(uid, [d.id], null));
+      ln.append(dia, info, mud, des);
     } else {
       const ck = document.createElement("input");
       ck.type = "checkbox";
@@ -371,8 +397,16 @@ function blocoPagamento(uid, ac){
   });
   if(abertos.length){
     rotulo();
-    btn.onclick = travar(btn, () => marcarPagos(uid, [...escolhidos], true));
-    det.appendChild(btn);
+    /* dia em que o dinheiro saiu: nasce hoje e pode voltar no tempo */
+    const qd = document.createElement("label");
+    qd.className = "pg-quando";
+    const qt = document.createElement("span"); qt.textContent = "Pago em";
+    const qi = document.createElement("input");
+    qi.type = "date"; qi.value = hojeSP(); qi.max = hojeSP();
+    qi.setAttribute("aria-label", "Dia em que pagou");
+    qd.append(qt, qi);
+    btn.onclick = travar(btn, () => marcarPagos(uid, [...escolhidos], qi.value || hojeSP()));
+    det.append(qd, btn);
   }
   wrap.appendChild(det);
   return wrap;

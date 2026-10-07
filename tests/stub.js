@@ -41,8 +41,8 @@ function baseDB(agora){
       { ficha_id: 10, ordem: 3, ingrediente: "Massa Brownie", unidade: "kg", qtd: 1 }
     ],
     jb_subreceita: [
-      { id: 20, nome: "Massa Brownie", rendimento_kg: 2.5, custo_kg: 30, ativo: true, modo_preparo: "Bata", preparo_conferido: true },
-      { id: 21, nome: "Creme de Ninho", rendimento_kg: 1.0, custo_kg: 40, ativo: true, modo_preparo: "Bata", preparo_conferido: true }
+      { id: 20, nome: "Massa Brownie", rendimento_kg: 2.5, custo_kg: 30, ativo: true, modo_preparo: "Bata", preparo_conferido: true, unidade_producao: "massa" },
+      { id: 21, nome: "Creme de Ninho", rendimento_kg: 1.0, custo_kg: 40, ativo: true, modo_preparo: "Bata", preparo_conferido: true, unidade_producao: "panela" }
     ],
     jb_subreceita_item: [
       { subreceita_id: 20, ordem: 1, ingrediente: "Chocolate 50%", unidade: "g", qtd: 800 }
@@ -231,7 +231,7 @@ ${agora ? "window.__AGORA=" + JSON.stringify(agora) + ";" : ""}
   }
   function viewReceitaFicha(){ return DB.jb_ficha.filter(f => f.ativo).map(f => ({ ficha_id:f.id, nome:f.nome, rendimento_un:f.rendimento_un, tempo_mo_min:f.tempo_mo_min, modo_preparo:f.modo_preparo, preparo_conferido:f.preparo_conferido, rascunho:f.rascunho, foto_url:f.foto_url })); }
   function viewReceitaFichaItem(){ return DB.jb_ficha_item.map(i => { const s = DB.jb_subreceita.find(x => x.nome === i.ingrediente && x.ativo); return { ...i, e_subreceita: !!s, subreceita_id: s ? s.id : null }; }); }
-  function viewReceitaSub(){ return DB.jb_subreceita.filter(s => s.ativo).map(s => ({ subreceita_id:s.id, nome:s.nome, rendimento_kg:s.rendimento_kg, modo_preparo:s.modo_preparo, preparo_conferido:s.preparo_conferido })); }
+  function viewReceitaSub(){ return DB.jb_subreceita.filter(s => s.ativo).map(s => ({ subreceita_id:s.id, nome:s.nome, rendimento_kg:s.rendimento_kg, modo_preparo:s.modo_preparo, preparo_conferido:s.preparo_conferido, unidade_producao:s.unidade_producao || "receita" })); }
   function viewReceitaSubItem(){ return DB.jb_subreceita_item.map(i => ({ ...i, e_subreceita:false, subreceita_id_link:null })); }
   function viewProducaoDia(){
     /* igual à view do banco: gestor vê tudo, os outros só o que é deles ou de todos */
@@ -242,7 +242,8 @@ ${agora ? "window.__AGORA=" + JSON.stringify(agora) + ";" : ""}
       const s = p.tipo === "subreceita" ? DB.jb_subreceita.find(x => x.id === p.ref_id) : null;
       const r = f || s || {};
       return { ...p, nome: r.nome, rendimento: f ? f.rendimento_un : (s ? s.rendimento_kg : null), unidade: f ? "un" : "kg",
-               preparo_conferido: !!r.preparo_conferido, modo_preparo: r.modo_preparo || null, foto_url: f ? f.foto_url : null };
+               preparo_conferido: !!r.preparo_conferido, modo_preparo: r.modo_preparo || null, foto_url: f ? f.foto_url : null,
+               unidade_producao: s ? (s.unidade_producao || "receita") : null };
     });
   }
   function viewFichaCusto(){ return DB.jb_ficha.map(f => ({ id:f.id, nome:f.nome, produto_id:f.produto_id, rendimento_un:f.rendimento_un, tempo_mo_min:f.tempo_mo_min, custo_unit: 6, itens: DB.jb_ficha_item.filter(i => i.ficha_id === f.id).length, itens_sem_preco:0, itens_sem_quantidade:0, rascunho:f.rascunho, cmv_ingrediente_un:5, cmv_embalagem_un:1 })); }
