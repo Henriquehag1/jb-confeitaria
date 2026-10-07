@@ -11,6 +11,8 @@ let DIAS     = [];       // linhas de jb_dia_trabalhado do mês
 let DIAS_RES = [];       // resumo por pessoa vindo de jb_pessoal_mes
 let ATRASOS  = [];       // linhas de jb_atraso_dia do mês: hora de chegada, entrada da escala, minutos
 let LEMBRETES = [];      // jb_ocorrencia do mês ainda abertas: o que o gestor não pode esquecer (ex.: atraso sem data)
+let PAGOS    = [];       // dias do mês já marcados como pagos (jb_dia_pago, só gestor lê)
+const PAG_ABERTO = {};   // por pessoa: a lista de pagamento fica aberta depois de salvar
 
 const DOW = ["dom","seg","ter","qua","qui","sex","sáb"];
 
@@ -175,14 +177,15 @@ async function abrirDias(){
   if(!DIAS_MES) DIAS_MES = primeiroDia(hojeSP());
   const ini = DIAS_MES, fim = ultimoDia(DIAS_MES);
 
-  const [ac, dt, rs, at, oc] = await Promise.all([
+  const [ac, dt, rs, at, oc, pg] = await Promise.all([
     sb.from("jb_acordo").select("id,user_id,inicio,fim,regime,valor,dias_semana,turno,obs,a_confirmar")
       .lte("inicio", fim).or("fim.is.null,fim.gte." + ini),
     sb.from("jb_dia_trabalhado").select("id,user_id,data,turno,status").gte("data", ini).lte("data", fim),
     sb.from("jb_pessoal_mes").select("*").eq("mes", ini),
     sb.from("jb_atraso_dia").select("id,user_id,data,chegada,chegada_origem,hora_chegada,entrada_prevista,atraso_min")
       .gte("data", ini).lte("data", fim),
-    sb.from("jb_ocorrencia").select("id,user_id,mes,texto,resolvida").eq("mes", ini).eq("resolvida", false)
+    sb.from("jb_ocorrencia").select("id,user_id,mes,texto,resolvida").eq("mes", ini).eq("resolvida", false),
+    sb.from("jb_dia_pago").select("id,user_id,data,pago_em").gte("data", ini).lte("data", fim)
   ]);
   if(ac.error || dt.error){
     aviso("diasMsg","Não consegui carregar os dias agora. Toque em atualizar.","err");
@@ -193,6 +196,7 @@ async function abrirDias(){
   DIAS_RES = rs.data || [];
   ATRASOS  = (at && !at.error && at.data) || [];
   LEMBRETES = (oc && !oc.error && oc.data) || [];
+  PAGOS = (pg && !pg.error && pg.data) || [];
   montarCalendarioDias();
   show("scDias");
 }
@@ -228,6 +232,11 @@ async function alternarDia(userId, iso){
     erro = error;
     if(!error) atual.status = "confirmado";
   } else {
+    /* Dia pago não some com um toque: apagar levaria junto o registro do pagamento. */
+    if(PAGOS.some(p => p.id === atual.id)){
+      aviso("diasMsg","Esse dia já está marcado como pago. Para apagar, desfaça o pagamento primeiro.","warn");
+      return;
+    }
     const { error } = await sb.from("jb_dia_trabalhado").delete().eq("id", atual.id);
     erro = error;
     if(!error) DIAS = DIAS.filter(d => d.id !== atual.id);
@@ -272,6 +281,101 @@ async function resolverLembrete(id){
   LEMBRETES = LEMBRETES.filter(l => l.id !== id);
   toast("Lembrete resolvido");
   montarCalendarioDias();
+}
+
+/* Marca ou desmarca dias como pagos. Só registro do que já foi acertado com a pessoa:
+   serve para pagamento adiantado e para não pagar o mesmo dia duas vezes. */
+async function marcarPagos(uid, ids, pago){
+  if(!ids.length) return;
+  const { error } = await sb.from("jb_dia_trabalhado")
+    .update(pago ? { pago_em: new Date().toISOString(), pago_por: EU.user_id }
+                 : { pago_em: null, pago_por: null })
+    .in("id", ids);
+  if(error){ aviso("diasMsg","Não consegui salvar o pagamento agora.","err"); return; }
+  const { data } = await sb.from("jb_dia_pago").select("id,user_id,data,pago_em")
+    .gte("data", DIAS_MES).lte("data", ultimoDia(DIAS_MES));
+  PAGOS = data || [];
+  PAG_ABERTO[uid] = true;
+  montarCalendarioDias();
+  toast(pago ? (ids.length === 1 ? "Dia marcado como pago." : ids.length + " dias marcados como pagos.")
+             : "Pagamento desfeito.");
+}
+
+/* Bloco de pagamento de uma pessoa: quanto já foi pago, quanto falta e a lista para marcar. */
+function blocoPagamento(uid, ac){
+  const wrap = document.createElement("div");
+  wrap.className = "pagto";
+  const vieram = DIAS.filter(d => d.user_id === uid && d.status === "confirmado")
+                     .sort((a,b) => a.data < b.data ? -1 : 1);
+  if(!vieram.length) return wrap;
+  const pagos = vieram.filter(d => PAGOS.some(p => p.id === d.id));
+  const abertos = vieram.filter(d => !pagos.includes(d));
+  const diaria = !!(ac && ac.regime === "diaria" && ac.valor != null);
+  const valor = n => " (R$ " + moeda(n * Number(ac.valor)) + ")";
+  const dias = n => n + (n === 1 ? " dia" : " dias");
+
+  const res = document.createElement("div");
+  res.className = "res-pagto";
+  const b = document.createElement("b");
+  b.textContent = pagos.length ? "Já pago: " + dias(pagos.length) + (diaria ? valor(pagos.length) : "") : "Nenhum dia marcado como pago";
+  res.appendChild(b);
+  res.appendChild(document.createTextNode(abertos.length
+    ? " · falta pagar " + dias(abertos.length) + (diaria ? valor(abertos.length) : "")
+    : (pagos.length ? " · tudo o que veio está pago" : "")));
+  wrap.appendChild(res);
+
+  const det = document.createElement("details");
+  det.open = !!PAG_ABERTO[uid];
+  det.ontoggle = () => { PAG_ABERTO[uid] = det.open; };
+  const sm = document.createElement("summary");
+  sm.textContent = "Marcar dias como pagos";
+  det.appendChild(sm);
+
+  const escolhidos = new Set();
+  const btn = document.createElement("button");
+  btn.type = "button"; btn.className = "pg-ok"; btn.disabled = true;
+  const rotulo = () => {
+    btn.disabled = !escolhidos.size;
+    btn.textContent = escolhidos.size
+      ? "Marcar " + dias(escolhidos.size) + " como " + (escolhidos.size === 1 ? "pago" : "pagos") + (diaria ? valor(escolhidos.size) : "")
+      : "Escolha os dias pagos";
+  };
+
+  vieram.forEach(d => {
+    const pg = PAGOS.find(p => p.id === d.id);
+    const ln = document.createElement("label");
+    ln.className = "pg-ln" + (pg ? " pago" : "");
+    const dia = document.createElement("span");
+    dia.className = "dia";
+    dia.textContent = dataCurta(d.data);
+    if(pg){
+      const info = document.createElement("span");
+      info.className = "info";
+      info.textContent = "pago em " + dataCurta(new Date(pg.pago_em).toLocaleDateString("en-CA",{timeZone:TZ}));
+      const des = document.createElement("button");
+      des.type = "button"; des.className = "ch-ed"; des.textContent = "desfazer";
+      des.setAttribute("aria-label", "Desfazer o pagamento de " + dataCurta(d.data));
+      des.onclick = travar(des, () => marcarPagos(uid, [d.id], false));
+      ln.append(dia, info, des);
+    } else {
+      const ck = document.createElement("input");
+      ck.type = "checkbox";
+      ck.setAttribute("aria-label", "Pagar " + dataCurta(d.data));
+      ck.onchange = () => { if(ck.checked) escolhidos.add(d.id); else escolhidos.delete(d.id); rotulo(); };
+      const info = document.createElement("span");
+      info.className = "info";
+      info.textContent = diaria ? "R$ " + moeda(Number(ac.valor)) : "a pagar";
+      ln.append(ck, dia, info);
+    }
+    det.appendChild(ln);
+  });
+  if(abertos.length){
+    rotulo();
+    btn.onclick = travar(btn, () => marcarPagos(uid, [...escolhidos], true));
+    det.appendChild(btn);
+  }
+  wrap.appendChild(det);
+  return wrap;
 }
 
 function minutosTx(n){
@@ -453,7 +557,7 @@ function montarCalendarioDias(){
       sub.appendChild(document.createElement("br"));
       const s3 = document.createElement("span");
       s3.textContent = (ac && ac.regime === "diaria")
-        ? "A pagar pelos dias que veio: R$ " + moeda(res.custo)
+        ? "Total pelos dias que veio: R$ " + moeda(res.custo)
         : "A pagar pelo combinado do mês: R$ " + moeda(res.custo);
       sub.appendChild(s3);
     }
@@ -494,17 +598,21 @@ function montarCalendarioDias(){
       if(iso > hoje) cls += " futuro";
       const atr = reg ? ATRASOS.find(x => x.id === reg.id) : null;
       if(atr && atr.atraso_min > 0) cls += " atraso";
+      const pago = !!(reg && PAGOS.some(p => p.id === reg.id));
+      if(pago) cls += " pago";
       b.className = cls;
       b.setAttribute("aria-label", DOW[diaDaSemana(iso)] + " " + diaCurto(iso) + ", " +
         (reg && reg.status === "confirmado" ? "veio"
          : reg ? "esperando confirmação"
          : combinado ? "dia combinado, não marcado" : "não marcado") +
         (atr && atr.chegada ? ", chegou " + atr.hora_chegada +
-          (atr.atraso_min > 0 ? ", " + minutosTx(atr.atraso_min) + " de atraso" : "") : ""));
+          (atr.atraso_min > 0 ? ", " + minutosTx(atr.atraso_min) + " de atraso" : "") : "") +
+        (pago ? ", pago" : ""));
       b.onclick = travar(b, () => alternarDia(uid, iso));
       cal.appendChild(b);
     }
     bloco.appendChild(cal);
+    bloco.appendChild(blocoPagamento(uid, ac));
     bloco.appendChild(blocoChegadas(uid));
     box.appendChild(bloco);
   });
