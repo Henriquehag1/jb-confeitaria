@@ -221,3 +221,34 @@ test("chegou antes da escala nova de domingo: Ver chegadas mostra e põe no banc
   assert.match(await a.texto("#eqBanco-uYas summary"), /saldo de 45 min/);
   semErros(a); await a.fechar();
 });
+
+test("banco negativo: atrasos aparecem devendo, com etiqueta em Ver chegadas e aviso no pagamento", async () => {
+  const banco = [
+    { id: 1, user_id: "uYas", data: "2026-10-04", minutos: 45, motivo: "Chegou 45 min antes", origem: "chegada", falta_id: null, dia_id: 30, cancelado: false },
+    { id: 2, user_id: "uYas", data: "2026-10-02", minutos: -25, motivo: "Atraso: entrada 18:40, chegou 19:05", origem: "atraso", falta_id: null, dia_id: 31, cancelado: false },
+    { id: 3, user_id: "uYas", data: "2026-09-30", minutos: -120, motivo: "Atraso de 2h sem data", origem: "manual", falta_id: null, dia_id: null, cancelado: false }
+  ];
+  const a = await abrirDiasDe("uHen", db => {
+    db.jb_banco_horas = banco.map(b => ({ ...b }));
+    db.jb_dia_trabalhado = [{ id: 31, user_id: "uYas", data: "2026-10-02", turno: "noite", status: "confirmado", origem: "auto", chegada: "2026-10-02T22:05:00Z", chegada_origem: "app" }];
+  });
+  const sm = await a.texto("#eqBanco-uYas summary");
+  assert.match(sm, /Banco de horas: devendo 1h40/);
+  assert.match(sm, /ainda não descontado nem compensado/);
+  assert.equal(await a.page.getAttribute("#eqBanco-uYas summary", "class"), "neg");
+  await a.page.click("#eqBanco-uYas summary"); await a.espera(100);
+  assert.match(await a.texto('#eqBanco-uYas [data-banco="2"] .ch-ed'), /abonar/);
+  await a.page.locator(bloco("Yasmin") + " .chegadas summary").click(); await a.espera(100);
+  assert.match(await a.texto(bloco("Yasmin") + " .chegadas .ch-ln"), /−25 min no banco/);
+  semErros(a); await a.fechar();
+
+  const c = await abrir("uHen", { agora: AGORA, db: db => {
+    db.jb_banco_horas = banco.map(b => ({ ...b }));
+    db.jb_conta.push({ id: 41, tipo: "equipe", descricao: "Yasmin, 2 semanas (01/10 a 14/10)", competencia: "2026-10-01", vencimento: "2026-10-15", valor: 1700,
+      codigo_barras: null, documento: null, boleto_path: null, comprovante_path: null, pago_em: null, valor_pago: null, pago_por: null, nf_conta_fixa_id: null,
+      obs: null, arquivada: false, equipe_user_id: "uYas", periodo_ini: "2026-10-01", periodo_fim: "2026-10-14" });
+    return db; } });
+  await c.page.click("#btnContas"); await c.espera(500);
+  assert.match(await c.texto('#contasLista .enc.conta[data-id="41"] .conta-banco'), /Banco de horas: devendo 1h40/);
+  semErros(c); await c.fechar();
+});

@@ -18,6 +18,7 @@ let CONTA_NOVA = false;     // formulário de conta nova aberto
 
 const CONTA_TIPO = { imposto: "Imposto", fixa: "Conta fixa", fornecedor: "Fornecedor", equipe: "Equipe" };
 let CONTA_FALTAS = [];      // faltas com desconto (jb_falta): abatem da conta da pessoa que cobre aquele período
+let CONTA_BANCO = {};      // por pessoa: saldo do banco de horas em minutos
 let CONTA_DIARIAS = [];     // por pessoa que ganha por dia: { uid, nome, valor, dias: [iso...] } ainda não pagos
 const CONTA_BALDE = "contas";
 const PDFJS_URL = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.mjs";
@@ -217,13 +218,16 @@ async function carregarContas(){
 /* Equipe em Contas a pagar: faltas que abatem da quinzena e dias de diária ainda não pagos. */
 async function carregarEquipeContas(){
   const desde = diaMais(-120);
-  const [fa, ac, dt, pg, us] = await Promise.all([
+  const [fa, ac, dt, pg, us, bh] = await Promise.all([
     sb.from("jb_falta").select("id,user_id,data,horas,desconta,valor_desconto").eq("cancelada", false).eq("desconta", true).gte("data", desde),
     sb.from("jb_acordo").select("user_id,regime,valor,inicio,fim").eq("regime", "diaria"),
     sb.from("jb_dia_trabalhado").select("id,user_id,data,status").eq("status", "confirmado").gte("data", desde),
     sb.from("jb_dia_pago").select("id").gte("data", desde),
-    sb.from("jb_usuario").select("user_id,nome")
+    sb.from("jb_usuario").select("user_id,nome"),
+    sb.from("jb_banco_horas").select("user_id,minutos").eq("cancelado", false)
   ]);
+  CONTA_BANCO = {};
+  ((bh && !bh.error && bh.data) || []).forEach(b => { CONTA_BANCO[b.user_id] = (CONTA_BANCO[b.user_id] || 0) + Number(b.minutos); });
   CONTA_FALTAS = (fa && !fa.error && fa.data) || [];
   CONTA_DIARIAS = [];
   if(ac && !ac.error && dt && !dt.error && pg && !pg.error){
@@ -400,6 +404,12 @@ function cartaoConta(c){
     const p = document.createElement("p"); p.className = "conta-falta";
     p.textContent = "R$ " + moeda(Number(c.valor)) + " menos " + faltas.map(f => "falta de " + dataCurta(f.data) + " (" + eqHorasTx(Number(f.horas)) + ", R$ " + moeda(Number(f.valor_desconto)) + ")").join(" e ")
       + " = R$ " + moeda(contaAPagar(c));
+    det.appendChild(p);
+  }
+  const banco = !c.pago_em && c.equipe_user_id ? (CONTA_BANCO[c.equipe_user_id] || 0) : 0;
+  if(banco < 0){
+    const p = document.createElement("p"); p.className = "conta-banco";
+    p.textContent = "Banco de horas: devendo " + eqMinTx(banco) + ". Não sai sozinho deste pagamento; veja em Quem veio no ateliê.";
     det.appendChild(p);
   }
   if(c.obs){ const p = document.createElement("p"); p.className = "conta-obs"; p.textContent = c.obs; det.appendChild(p); }
