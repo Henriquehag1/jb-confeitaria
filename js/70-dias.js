@@ -502,6 +502,8 @@ function blocoChegadas(uid){
     ln.appendChild(min);
     const acd = acordoDoDia(uid, d.data);
     if(antes >= 5 && acd && acd.regime === "semanal") ln.appendChild(botaoChegouAntes(uid, d, antes));
+    const noBanco = a.atraso_min > 0 ? etiquetaAtrasoNoBanco(d) : null;
+    if(noBanco) ln.appendChild(noBanco);
 
     const ed = document.createElement("button");
     ed.type = "button";

@@ -73,7 +73,7 @@ async function carregarEquipe(ini, fim){
     sb.from("jb_falta").select("*").eq("cancelada", false).gte("data", ini).lte("data", fim).order("data"),
     sb.from("jb_freela").select("*").eq("cancelada", false).gte("data", ini).lte("data", fim).order("data"),
     sb.from("jb_escala").select("user_id,dia_semana,entrada,saida,inicio,fim"),
-    sb.from("jb_banco_horas").select("id,user_id,data,minutos,motivo,origem,falta_id").eq("cancelado", false).order("data")
+    sb.from("jb_banco_horas").select("id,user_id,data,minutos,motivo,origem,falta_id,dia_id").eq("cancelado", false).order("data")
   ]);
   BANCO = (bh && !bh.error && bh.data) || [];
   FALTAS  = (fa && !fa.error && fa.data) || [];
@@ -336,11 +336,12 @@ async function cancelarFalta(f){
 }
 
 /* primeiro toque arma, segundo toque cancela: nada some com um toque sem querer */
-function botaoCancelar(chave, rotulo, fn){
+function botaoCancelar(chave, rotulo, fn, verbo){
   const b = document.createElement("button");
   b.type = "button"; b.className = "ch-ed";
   const armado = EQ_CANCELA === chave;
-  b.textContent = armado ? "toque de novo para cancelar" : "cancelar";
+  const v = verbo || "cancelar";
+  b.textContent = armado ? "toque de novo para " + v : v;
   b.setAttribute("aria-label", rotulo);
   b.onclick = armado ? travar(b, fn) : () => { EQ_CANCELA = chave; montarCalendarioDias(); };
   return b;
@@ -488,6 +489,12 @@ function blocoBanco(uid){
   det.ontoggle = () => { BANCO_ABERTO[uid] = det.open; };
   const sm = document.createElement("summary");
   sm.textContent = "Banco de horas: " + (saldo > 0 ? "saldo de " + eqMinTx(saldo) : saldo < 0 ? "devendo " + eqMinTx(saldo) : "sem saldo");
+  sm.className = saldo < 0 ? "neg" : saldo > 0 ? "pos" : "";
+  if(saldo < 0){
+    const n = document.createElement("small");
+    n.textContent = " · ainda não descontado nem compensado";
+    sm.appendChild(n);
+  }
   det.appendChild(sm);
 
   meus.forEach(b => {
@@ -495,8 +502,9 @@ function blocoBanco(uid){
     const dia = document.createElement("span"); dia.className = "dia"; dia.textContent = dataCurta(b.data);
     const info = document.createElement("span"); info.className = "info";
     info.textContent = (b.minutos > 0 ? "+" : "−") + eqMinTx(b.minutos) + (b.motivo ? " · " + b.motivo : "");
+    info.classList.add(b.minutos < 0 ? "neg" : "pos");
     ln.append(dia, info);
-    if(b.origem !== "falta") ln.appendChild(botaoCancelar("banco:" + b.id, "Cancelar o lançamento de " + dataCurta(b.data), () => cancelarBanco(b)));
+    if(b.origem !== "falta") ln.appendChild(botaoCancelar("banco:" + b.id, (b.minutos < 0 ? "Abonar o atraso de " : "Cancelar o lançamento de ") + dataCurta(b.data), () => cancelarBanco(b), b.minutos < 0 ? "abonar" : "cancelar"));
     det.appendChild(ln);
   });
 
@@ -555,6 +563,15 @@ async function cancelarBanco(b){
   EQ_CANCELA = null;
   toast("Lançamento cancelado.");
   await recarregarEquipe();
+}
+
+/* em Ver chegadas: o atraso que já virou minutos negativos no banco */
+function etiquetaAtrasoNoBanco(d){
+  const b = BANCO.find(x => x.dia_id === d.id && x.origem === "atraso");
+  if(!b) return null;
+  const el = document.createElement("span"); el.className = "ch-banco neg";
+  el.textContent = "−" + eqMinTx(b.minutos) + " no banco";
+  return el;
 }
 
 /* em Ver chegadas: quem chegou antes da escala pode levar os minutos para o banco */
