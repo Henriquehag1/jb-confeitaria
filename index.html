@@ -696,6 +696,8 @@ button{font-family:inherit;font-size:inherit;cursor:pointer;}
 .conta-det{border-top:1px solid var(--linha);padding:10px 14px 13px;background:#fff;}
 .conta-info{margin:0 0 6px;font-size:.78rem;color:var(--tinta-2);}
 .conta-obs{margin:0 0 9px;font-size:.78rem;color:var(--tinta-3);line-height:1.4;}
+.conta-falta{margin:0 0 9px;font-size:.8rem;color:var(--ambar);line-height:1.4;font-weight:500;}
+.conta-diarias .enc.conta.fim{opacity:.85;}
 .conta-nova-bt{display:block;width:100%;min-height:46px;margin:4px 0 6px;border-radius:12px;border:1.5px dashed var(--linha-2);background:var(--creme);color:var(--tinta);font-family:inherit;font-size:.88rem;font-weight:500;}
 .conta-painel{margin-top:12px;padding:12px;border:1px solid var(--linha-2);border-radius:12px;background:var(--areia);}
 .conta-p-tit{margin:0 0 8px;font-size:.82rem;color:var(--tinta-2);}
@@ -941,17 +943,17 @@ button.fotobt:disabled{color:var(--tinta-3);}
 .pessoa h3{font-family:var(--display);font-size:1.14rem;font-weight:600;margin:0;}
 .pessoa .sub{font-size:.83rem;color:var(--tinta-3);font-weight:300;margin-top:3px;line-height:1.45;}
 .pessoa .sub b{color:var(--coral-forte);font-weight:600;font-variant-numeric:tabular-nums;}
-.cal{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;margin-top:13px;}
+.cal{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:5px;margin-top:13px;}
 .cal .dow{font-size:.6rem;letter-spacing:.08em;text-transform:uppercase;color:var(--tinta-3);text-align:center;padding-bottom:1px;}
 .cal .vazio{aspect-ratio:1;}
 .cal button{
-  aspect-ratio:1;width:100%;padding:0;border-radius:10px;border:1px solid var(--linha);
+  aspect-ratio:1;width:100%;min-width:0;padding:0;border-radius:10px;border:1px solid var(--linha);
   background:#fff;color:var(--tinta-3);font-size:.8rem;font-variant-numeric:tabular-nums;
   display:flex;align-items:center;justify-content:center;
 }
 .cal button.combinado{border-style:dashed;border-color:var(--linha-2);color:var(--tinta-2);}
 .cal button.veio{background:var(--coral-acao);border-color:var(--coral-acao);color:var(--creme);font-weight:600;border-style:solid;}
-.cal button.pend{background:var(--ambar-veu);border-color:var(--ambar-linha);color:var(--ambar);font-weight:600;border-style:solid;}
+.cal button.pend{margin:0;background:var(--ambar-veu);border-color:var(--ambar-linha);color:var(--ambar);font-weight:600;border-style:solid;}
 .cal button.futuro{opacity:.4;}
 .cal button:active{transform:translateY(1px);}
 .legenda{display:flex;flex-wrap:wrap;gap:12px;margin:2px 2px 18px;font-size:.78rem;color:var(--tinta-3);font-weight:300;}
@@ -966,6 +968,29 @@ button.fotobt:disabled{color:var(--tinta-3);}
 .cal button.veio.atraso::after{background:var(--creme);}
 .cal button.pago::before{content:"✓";position:absolute;top:1px;right:3px;font-size:.58rem;line-height:1;font-weight:700;}
 .legenda i.pg{background:var(--coral-acao);position:relative;}
+.cal button.falta{background:#fff;border:1.5px solid var(--coral-fundo);color:var(--coral-fundo);text-decoration:line-through;font-weight:600;}
+.legenda i.flt{background:#fff;border:1.5px solid var(--coral-fundo);}
+.eq-sug,.eq-faltas{margin-top:14px;padding-top:12px;border-top:1px solid var(--linha);}
+.eq-sug{background:var(--ambar-veu);border:1px solid var(--ambar-linha);border-radius:12px;padding:10px 12px;}
+.eq-tit{margin:0 0 8px;font-size:.84rem;color:var(--tinta-2);}
+.eq-sug .eq-tit{color:var(--ambar);font-weight:500;}
+.eq-ln{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;padding:7px 0;border-bottom:1px dashed var(--linha);font-size:.84rem;}
+.eq-ln:last-child{border-bottom:none;}
+.eq-ln .dia{font-weight:600;min-width:72px;}
+.eq-ln .info{flex:1 1 160px;color:var(--tinta-2);}
+.eq-ln button{min-height:36px;padding:0 14px;border-radius:10px;border:1px solid var(--coral-acao);background:var(--coral-acao);color:var(--creme);font:inherit;font-weight:500;}
+.eq-ln button.sec{background:#fff;color:var(--coral-forte);border-color:var(--linha-2);}
+.eq-ln button.ch-ed{background:none;border:none;color:var(--coral-forte);text-decoration:underline;padding:0 4px;min-height:32px;font-weight:400;}
+.eq-abre{margin-top:8px;min-height:40px;padding:0 16px;border-radius:12px;border:1px dashed var(--coral);background:var(--coral-veu);color:var(--coral-forte);font:inherit;font-weight:500;}
+.eq-form{margin-top:10px;padding:12px;border:1px solid var(--linha);border-radius:14px;background:var(--creme);display:flex;flex-direction:column;gap:10px;}
+.eq-form label{display:flex;flex-direction:column;gap:4px;font-size:.78rem;color:var(--tinta-2);min-width:0;}
+.eq-form input[type=text],.eq-form input[type=date],.eq-form input[type=time],.eq-form select{min-height:42px;border:1px solid var(--linha-2);border-radius:10px;padding:0 10px;font:inherit;font-size:16px;background:#fff;color:var(--tinta);width:100%;box-sizing:border-box;}
+.eq-linha{display:grid;grid-template-columns:repeat(auto-fit,minmax(96px,1fr));gap:8px;}
+.eq-conta{margin:0;font-size:.86rem;font-weight:600;color:var(--tinta);}
+.eq-opcoes{display:flex;flex-direction:column;gap:6px;}
+.eq-opcoes label,.eq-ck{flex-direction:row !important;align-items:center;gap:8px !important;font-size:.86rem !important;color:var(--tinta) !important;}
+.eq-opcoes input,.eq-ck input{width:20px;height:20px;accent-color:var(--coral-acao);flex:none;}
+.eq-nota{margin:0;font-size:.76rem;color:var(--tinta-3);}
 .legenda i.pg::after{content:"✓";position:absolute;top:-1px;right:1px;font-size:.5rem;color:var(--creme);font-weight:700;}
 .pagto{margin-top:13px;border-top:1px solid var(--linha);padding-top:11px;}
 .pagto:empty{display:none;}
@@ -1395,9 +1420,10 @@ button.fotobt:disabled{color:var(--tinta-3);}
       <span><i class="comb"></i>dia combinado</span>
       <span><i class="atr"></i>chegou atrasada</span>
       <span><i class="pg"></i>dia pago</span>
+      <span><i class="flt"></i>faltou</span>
     </div>
     <div id="diasCorpo"></div>
-    <p class="tip">Toque num dia para marcar que a pessoa veio. Toque de novo para apagar. A hora de chegada vem do botão Cheguei no celular delas; se estiver errada ou faltando, corrija em Ver chegadas dia a dia. O atraso é só registro, não muda o valor a pagar. Em Marcar dias como pagos você escolhe os dias que já acertou com a pessoa, inclusive pagamento adiantado. Só você e a Jessica conseguem mexer e ver isso.</p>
+    <p class="tip">Toque num dia para marcar que a pessoa veio. Toque de novo para apagar. Quem ganha por dia soma sozinho em Contas a pagar a cada dia marcado. Quem ganha por semana tem Registrar falta: o app sugere as horas da escala e pergunta se desconta; o desconto sai da quinzena que cobre aquele dia. Freela que cobriu alguém vai em Registrar falta (Veio uma freela no lugar) ou em Freelas, com o valor combinado, e entra em Contas a pagar. A hora de chegada vem do botão Cheguei no celular delas; se estiver errada ou faltando, corrija em Ver chegadas dia a dia. O atraso é só registro, não muda o valor a pagar. Em Marcar dias como pagos você escolhe os dias que já acertou com a pessoa, inclusive pagamento adiantado. Só você e a Jessica conseguem mexer e ver isso.</p>
   </section>
 
   <!-- ================= ESTOQUE (só gestor) ================= -->
@@ -1532,18 +1558,19 @@ button.fotobt:disabled{color:var(--tinta-3);}
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.116.0/dist/umd/supabase.min.js"></script>
-<script src="js/00-base.js?v=2026-10-08a"></script>
-<script src="js/10-entrada.js?v=2026-10-08a"></script>
-<script src="js/20-custos.js?v=2026-10-08a"></script>
-<script src="js/25-promo.js?v=2026-10-08a"></script>
-<script src="js/30-mes.js?v=2026-10-08a"></script>
-<script src="js/40-producao.js?v=2026-10-08a"></script>
-<script src="js/50-contagem.js?v=2026-10-08a"></script>
-<script src="js/60-afazeres.js?v=2026-10-08a"></script>
-<script src="js/70-dias.js?v=2026-10-08a"></script>
-<script src="js/80-estoque.js?v=2026-10-08a"></script>
-<script src="js/85-encomendas.js?v=2026-10-08a"></script>
-<script src="js/88-contas.js?v=2026-10-08a"></script>
-<script src="js/90-ligacoes.js?v=2026-10-08a"></script>
+<script src="js/00-base.js?v=2026-10-08b"></script>
+<script src="js/10-entrada.js?v=2026-10-08b"></script>
+<script src="js/20-custos.js?v=2026-10-08b"></script>
+<script src="js/25-promo.js?v=2026-10-08b"></script>
+<script src="js/30-mes.js?v=2026-10-08b"></script>
+<script src="js/40-producao.js?v=2026-10-08b"></script>
+<script src="js/50-contagem.js?v=2026-10-08b"></script>
+<script src="js/60-afazeres.js?v=2026-10-08b"></script>
+<script src="js/70-dias.js?v=2026-10-08b"></script>
+<script src="js/72-equipe.js?v=2026-10-08b"></script>
+<script src="js/80-estoque.js?v=2026-10-08b"></script>
+<script src="js/85-encomendas.js?v=2026-10-08b"></script>
+<script src="js/88-contas.js?v=2026-10-08b"></script>
+<script src="js/90-ligacoes.js?v=2026-10-08b"></script>
 </body>
 </html>
