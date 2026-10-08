@@ -227,7 +227,7 @@ async function carregarHome(){
 
   aviso("homeMsg","", "");
   /* Lembrete ativo para a equipe: perto de fechar a loja, com a geladeira pronta
-     e o turno em aberto. 22h de segunda a sábado, 21h no domingo. */
+     e o turno em aberto. 22h todos os dias (a loja fecha 22:45, domingo também desde 04/10). */
   if(!gestor && ab && !fe && (horaSPnum() >= horaDoLembrete() || turnoDeOntem)){
     aviso("homeMsg", turnoDeOntem
       ? "O turno de ontem ainda não foi fechado. Conte o que sobrou e salve."
@@ -385,13 +385,8 @@ function horaSPnum(){
   return Number(new Intl.DateTimeFormat("en-US",{timeZone:TZ,hour:"numeric",hourCycle:"h23"}).format(agora()));
 }
 
-/* 0 é domingo. Meio-dia evita a virada de fuso na conversão da data. */
-function diaDaSemanaSP(iso){
-  return new Date((iso || hojeSP()) + "T12:00:00").getDay();
-}
-
-/* A loja fecha 22:45 de segunda a sábado e 21:45 no domingo. O lembrete de fechar
-   o turno acompanha isso, em vez de chegar sempre no mesmo horário. */
+/* A loja fecha 22:45 todos os dias (domingo era 21:45 até 03/10/2026).
+   O lembrete de fechar o turno chega às 22h. */
 function horaDoLembrete(){
-  return diaDaSemanaSP() === 0 ? 21 : 22;
+  return 22;
 }

@@ -495,8 +495,13 @@ function blocoChegadas(uid){
 
     const min = document.createElement("span");
     min.className = "min";
-    min.textContent = a.atraso_min > 0 ? "+" + minutosTx(a.atraso_min) : (a.chegada && a.entrada_prevista ? "no horário" : "");
+    const antes = a.chegada && a.entrada_prevista ? (eqMin(a.entrada_prevista) - eqMin(a.hora_chegada)) : 0;
+    min.textContent = a.atraso_min > 0 ? "+" + minutosTx(a.atraso_min)
+                    : antes >= 5 ? minutosTx(antes) + " antes"
+                    : (a.chegada && a.entrada_prevista ? "no horário" : "");
     ln.appendChild(min);
+    const acd = acordoDoDia(uid, d.data);
+    if(antes >= 5 && acd && acd.regime === "semanal") ln.appendChild(botaoChegouAntes(uid, d, antes));
 
     const ed = document.createElement("button");
     ed.type = "button";
