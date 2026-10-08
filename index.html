@@ -991,6 +991,9 @@ button.fotobt:disabled{color:var(--tinta-3);}
 .eq-opcoes label,.eq-ck{flex-direction:row !important;align-items:center;gap:8px !important;font-size:.86rem !important;color:var(--tinta) !important;}
 .eq-opcoes input,.eq-ck input{width:20px;height:20px;accent-color:var(--coral-acao);flex:none;}
 .eq-nota{margin:0;font-size:.76rem;color:var(--tinta-3);}
+.eq-banco{margin-top:12px;}
+.eq-banco summary{cursor:pointer;font-size:.86rem;font-weight:600;color:var(--tinta);padding:6px 0;}
+.ch-banco{font-size:.76rem;color:var(--verde);font-weight:500;}
 .legenda i.pg::after{content:"✓";position:absolute;top:-1px;right:1px;font-size:.5rem;color:var(--creme);font-weight:700;}
 .pagto{margin-top:13px;border-top:1px solid var(--linha);padding-top:11px;}
 .pagto:empty{display:none;}
@@ -1423,7 +1426,7 @@ button.fotobt:disabled{color:var(--tinta-3);}
       <span><i class="flt"></i>faltou</span>
     </div>
     <div id="diasCorpo"></div>
-    <p class="tip">Toque num dia para marcar que a pessoa veio. Toque de novo para apagar. Quem ganha por dia soma sozinho em Contas a pagar a cada dia marcado. Quem ganha por semana tem Registrar falta: o app sugere as horas da escala e pergunta se desconta; o desconto sai da quinzena que cobre aquele dia. Freela que cobriu alguém vai em Registrar falta (Veio uma freela no lugar) ou em Freelas, com o valor combinado, e entra em Contas a pagar. A hora de chegada vem do botão Cheguei no celular delas; se estiver errada ou faltando, corrija em Ver chegadas dia a dia. O atraso é só registro, não muda o valor a pagar. Em Marcar dias como pagos você escolhe os dias que já acertou com a pessoa, inclusive pagamento adiantado. Só você e a Jessica conseguem mexer e ver isso.</p>
+    <p class="tip">Toque num dia para marcar que a pessoa veio. Toque de novo para apagar. Quem ganha por dia soma sozinho em Contas a pagar a cada dia marcado. Quem ganha por semana tem Registrar falta: o app sugere as horas da escala e pergunta se usa o banco de horas, se desconta ou se abona; o desconto sai da quinzena que cobre aquele dia. Chegou antes da escala? Em Ver chegadas dia a dia aparece pôr no banco. Freela que cobriu alguém vai em Registrar falta (Veio uma freela no lugar) ou em Freelas, com o valor combinado, e entra em Contas a pagar. A hora de chegada vem do botão Cheguei no celular delas; se estiver errada ou faltando, corrija em Ver chegadas dia a dia. O atraso é só registro, não muda o valor a pagar. Em Marcar dias como pagos você escolhe os dias que já acertou com a pessoa, inclusive pagamento adiantado. Só você e a Jessica conseguem mexer e ver isso.</p>
   </section>
 
   <!-- ================= ESTOQUE (só gestor) ================= -->
@@ -1558,19 +1561,19 @@ button.fotobt:disabled{color:var(--tinta-3);}
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.116.0/dist/umd/supabase.min.js"></script>
-<script src="js/00-base.js?v=2026-10-08b"></script>
-<script src="js/10-entrada.js?v=2026-10-08b"></script>
-<script src="js/20-custos.js?v=2026-10-08b"></script>
-<script src="js/25-promo.js?v=2026-10-08b"></script>
-<script src="js/30-mes.js?v=2026-10-08b"></script>
-<script src="js/40-producao.js?v=2026-10-08b"></script>
-<script src="js/50-contagem.js?v=2026-10-08b"></script>
-<script src="js/60-afazeres.js?v=2026-10-08b"></script>
-<script src="js/70-dias.js?v=2026-10-08b"></script>
-<script src="js/72-equipe.js?v=2026-10-08b"></script>
-<script src="js/80-estoque.js?v=2026-10-08b"></script>
-<script src="js/85-encomendas.js?v=2026-10-08b"></script>
-<script src="js/88-contas.js?v=2026-10-08b"></script>
-<script src="js/90-ligacoes.js?v=2026-10-08b"></script>
+<script src="js/00-base.js?v=2026-10-08c"></script>
+<script src="js/10-entrada.js?v=2026-10-08c"></script>
+<script src="js/20-custos.js?v=2026-10-08c"></script>
+<script src="js/25-promo.js?v=2026-10-08c"></script>
+<script src="js/30-mes.js?v=2026-10-08c"></script>
+<script src="js/40-producao.js?v=2026-10-08c"></script>
+<script src="js/50-contagem.js?v=2026-10-08c"></script>
+<script src="js/60-afazeres.js?v=2026-10-08c"></script>
+<script src="js/70-dias.js?v=2026-10-08c"></script>
+<script src="js/72-equipe.js?v=2026-10-08c"></script>
+<script src="js/80-estoque.js?v=2026-10-08c"></script>
+<script src="js/85-encomendas.js?v=2026-10-08c"></script>
+<script src="js/88-contas.js?v=2026-10-08c"></script>
+<script src="js/90-ligacoes.js?v=2026-10-08c"></script>
 </body>
 </html>

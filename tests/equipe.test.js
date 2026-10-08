@@ -44,7 +44,7 @@ test("falta da Yasmin hoje com freela no lugar: desconta 6h30 e a freela vira co
   assert.equal(await a.tela(), "scDias");
   assert.equal(await a.page.locator(bloco("Eliana") + " .eq-abre").count(), 0, "diarista não tem Registrar falta");
 
-  await a.page.locator(bloco("Yasmin") + " .eq-abre").click(); await a.espera(200);
+  await a.page.locator(bloco("Yasmin") + " .eq-faltas > .eq-abre").click(); await a.espera(200);
   assert.equal(await a.page.inputValue("#eqFaltaDia"), "2026-10-08");
   assert.equal(await a.page.inputValue("#eqFaltaEnt"), "16:30");
   assert.equal(await a.page.inputValue("#eqFaltaSai"), "23:00");
@@ -82,7 +82,7 @@ test("falta da Yasmin hoje com freela no lugar: desconta 6h30 e a freela vira co
 
 test("falta sem desconto quando o gestor escolhe não descontar", async () => {
   const a = await abrirDiasDe("uJes");
-  await a.page.locator(bloco("Yasmin") + " .eq-abre").click(); await a.espera(150);
+  await a.page.locator(bloco("Yasmin") + " .eq-faltas > .eq-abre").click(); await a.espera(150);
   await a.page.fill("#eqFaltaDia", "2026-10-06"); await a.espera(100);   // terça: 16:30 às 23:00
   await a.page.check("#eqDescNao");
   await a.page.fill("#eqFaltaMotivo", "consulta médica combinada");
@@ -173,4 +173,51 @@ test("Yasmin e Eliana não veem faltas nem freelas", async () => {
     assert.equal(await a.visivel("btnDias"), false);
     semErros(a); await a.fechar();
   }
+});
+
+test("banco de horas: compensa a falta antes de descontar e devolve o saldo se a falta for cancelada", async () => {
+  const a = await abrirDiasDe("uHen", db => {
+    db.jb_banco_horas = [{ id: 1, user_id: "uYas", data: "2026-10-04", minutos: 45, motivo: "Chegou 45 min antes", origem: "chegada", falta_id: null, cancelado: false }];
+  });
+  const r = await a.page.evaluate(() => ({ c1: eqCompensa(390, 45, 850 / (40 + 10 / 60)), c2: eqCompensa(60, 90, 21), c3: eqCompensa(60, 0, 21), t: eqMinTx(45), t2: eqMinTx(-75) }));
+  assert.deepEqual([r.c1.usa, r.c1.resto, r.c1.desconto], [45, 345, 121.68]);
+  assert.deepEqual([r.c2.usa, r.c2.resto, r.c2.desconto], [60, 0, null]);
+  assert.deepEqual([r.c3.usa, r.c3.resto, r.c3.desconto], [0, 60, 21]);
+  assert.equal(r.t, "45 min"); assert.equal(r.t2, "1h15");
+
+  assert.match(await a.texto("#eqBanco-uYas summary"), /Banco de horas: saldo de 45 min/);
+  await a.page.locator(bloco("Yasmin") + " .eq-faltas > .eq-abre").click(); await a.espera(200);
+  assert.equal(await a.page.isChecked("#eqDescBanco"), true, "com saldo, o padrão é usar o banco");
+  assert.match(await a.texto("#eqFormFalta"), /Usar o banco de horas \(saldo 45 min\): usa 45 min e desconta R\$ 121,68 pelo resto/);
+  await a.page.click("#eqFaltaSalvar"); await a.espera(500);
+
+  const fa = await a.db("jb_falta");
+  assert.equal(fa[0].banco_min, 45); assert.equal(fa[0].desconta, true); assert.equal(fa[0].valor_desconto, 121.68);
+  const bh = await a.db("jb_banco_horas");
+  assert.equal(bh.length, 2);
+  assert.equal(bh[1].minutos, -45); assert.equal(bh[1].falta_id, fa[0].id); assert.equal(bh[1].origem, "falta");
+  assert.match(await a.texto("#eqBanco-uYas summary"), /sem saldo/);
+  assert.match(await a.texto(bloco("Yasmin") + " .eq-faltas"), /usou 45 min do banco · desconta R\$ 121,68/);
+
+  const c = `${bloco("Yasmin")} [data-falta="${fa[0].id}"] .ch-ed`;
+  await a.page.click(c); await a.espera(150); await a.page.click(c); await a.espera(500);
+  assert.equal((await a.db("jb_banco_horas"))[1].cancelado, true);
+  assert.match(await a.texto("#eqBanco-uYas summary"), /saldo de 45 min/);
+  semErros(a); await a.fechar();
+});
+
+test("chegou antes da escala nova de domingo: Ver chegadas mostra e põe no banco", async () => {
+  const a = await abrirDiasDe("uJes", db => {
+    db.jb_dia_trabalhado = [{ id: 30, user_id: "uYas", data: "2026-10-04", turno: "noite", status: "confirmado", origem: "auto", chegada: "2026-10-04T17:15:00Z", chegada_origem: "app" }];
+  });
+  await a.page.locator(bloco("Yasmin") + " .chegadas summary").click(); await a.espera(150);
+  const ln = bloco("Yasmin") + " .chegadas .ch-ln";
+  assert.match(await a.texto(ln), /chegou 14:15 · entrada 15:00/);
+  assert.match(await a.texto(ln + " .min"), /45 min antes/);
+  await a.page.locator(ln + " button", { hasText: "pôr no banco" }).click(); await a.espera(500);
+  const bh = await a.db("jb_banco_horas");
+  assert.equal(bh.length, 1);
+  assert.equal(bh[0].minutos, 45); assert.equal(bh[0].origem, "chegada"); assert.equal(bh[0].data, "2026-10-04");
+  assert.match(await a.texto("#eqBanco-uYas summary"), /saldo de 45 min/);
+  semErros(a); await a.fechar();
 });
