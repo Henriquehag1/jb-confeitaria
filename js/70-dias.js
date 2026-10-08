@@ -197,6 +197,7 @@ async function abrirDias(){
   ATRASOS  = (at && !at.error && at.data) || [];
   LEMBRETES = (oc && !oc.error && oc.data) || [];
   PAGOS = (pg && !pg.error && pg.data) || [];
+  await carregarEquipe(ini, fim);
   montarCalendarioDias();
   show("scDias");
 }
@@ -537,7 +538,7 @@ function montarCalendarioDias(){
     b.type = "button";
     b.textContent = iso === atual ? "Este mês" : mesCurto(iso);
     b.setAttribute("aria-pressed", String(iso === DIAS_MES));
-    b.onclick = () => { DIAS_MES = iso; abrirDias(); };
+    b.onclick = () => { DIAS_MES = iso; EQ_FORM = null; EQ_CANCELA = null; abrirDias(); };
     chips.appendChild(b);
   });
 
@@ -634,6 +635,8 @@ function montarCalendarioDias(){
       if(atr && atr.atraso_min > 0) cls += " atraso";
       const pago = !!(reg && PAGOS.some(p => p.id === reg.id));
       if(pago) cls += " pago";
+      const faltou = FALTAS.some(f => f.user_id === uid && f.data === iso);
+      if(faltou) cls += " falta";
       b.className = cls;
       b.setAttribute("aria-label", DOW[diaDaSemana(iso)] + " " + diaCurto(iso) + ", " +
         (reg && reg.status === "confirmado" ? "veio"
@@ -641,13 +644,16 @@ function montarCalendarioDias(){
          : combinado ? "dia combinado, não marcado" : "não marcado") +
         (atr && atr.chegada ? ", chegou " + atr.hora_chegada +
           (atr.atraso_min > 0 ? ", " + minutosTx(atr.atraso_min) + " de atraso" : "") : "") +
-        (pago ? ", pago" : ""));
+        (pago ? ", pago" : "") + (faltou ? ", faltou" : ""));
       b.onclick = travar(b, () => alternarDia(uid, iso));
       cal.appendChild(b);
     }
     bloco.appendChild(cal);
+    bloco.appendChild(blocoSugeridos(uid));
+    if(ac && ac.regime === "semanal") bloco.appendChild(blocoFaltas(uid, ac));
     bloco.appendChild(blocoPagamento(uid, ac));
     bloco.appendChild(blocoChegadas(uid));
     box.appendChild(bloco);
   });
+  box.appendChild(blocoFreelas());
 }

@@ -16,7 +16,9 @@ let CONTAS = null;          // lista carregada
 let CONTA_PAINEL = null;    // { id, modo: "pagar" | "editar", leitura }
 let CONTA_NOVA = false;     // formulário de conta nova aberto
 
-const CONTA_TIPO = { imposto: "Imposto", fixa: "Conta fixa", fornecedor: "Fornecedor" };
+const CONTA_TIPO = { imposto: "Imposto", fixa: "Conta fixa", fornecedor: "Fornecedor", equipe: "Equipe" };
+let CONTA_FALTAS = [];      // faltas com desconto (jb_falta): abatem da conta da pessoa que cobre aquele período
+let CONTA_DIARIAS = [];     // por pessoa que ganha por dia: { uid, nome, valor, dias: [iso...] } ainda não pagos
 const CONTA_BALDE = "contas";
 const PDFJS_URL = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.mjs";
 const PDFJS_WORKER = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.mjs";
@@ -209,6 +211,43 @@ async function carregarContas(){
     return;
   }
   CONTAS = r.data || [];
+  await carregarEquipeContas();
+}
+
+/* Equipe em Contas a pagar: faltas que abatem da quinzena e dias de diária ainda não pagos. */
+async function carregarEquipeContas(){
+  const desde = diaMais(-120);
+  const [fa, ac, dt, pg, us] = await Promise.all([
+    sb.from("jb_falta").select("id,user_id,data,horas,desconta,valor_desconto").eq("cancelada", false).eq("desconta", true).gte("data", desde),
+    sb.from("jb_acordo").select("user_id,regime,valor,inicio,fim").eq("regime", "diaria"),
+    sb.from("jb_dia_trabalhado").select("id,user_id,data,status").eq("status", "confirmado").gte("data", desde),
+    sb.from("jb_dia_pago").select("id").gte("data", desde),
+    sb.from("jb_usuario").select("user_id,nome")
+  ]);
+  CONTA_FALTAS = (fa && !fa.error && fa.data) || [];
+  CONTA_DIARIAS = [];
+  if(ac && !ac.error && dt && !dt.error && pg && !pg.error){
+    const pagos = new Set((pg.data || []).map(x => x.id));
+    const nomes = {}; ((us && us.data) || []).forEach(u => { nomes[u.user_id] = u.nome; });
+    const hoje = hojeSP();
+    (ac.data || []).filter(a => a.valor != null && (!a.fim || a.fim >= hoje)).forEach(a => {
+      const dias = (dt.data || []).filter(d => d.user_id === a.user_id && !pagos.has(d.id) && d.data >= a.inicio && (!a.fim || d.data <= a.fim))
+                                  .map(d => d.data).sort();
+      CONTA_DIARIAS.push({ uid: a.user_id, nome: nomes[a.user_id] || "Diarista", valor: Number(a.valor), dias });
+    });
+  }
+}
+/* faltas descontadas que caem no período desta conta */
+function contaFaltasDe(c){
+  if(!c.equipe_user_id || !c.periodo_ini || !c.periodo_fim) return [];
+  return CONTA_FALTAS.filter(f => f.user_id === c.equipe_user_id && f.data >= c.periodo_ini && f.data <= c.periodo_fim)
+                     .sort((a, b) => a.data < b.data ? -1 : 1);
+}
+/* quanto pagar de fato: o valor menos as faltas descontadas do período */
+function contaAPagar(c){
+  if(c.valor == null) return null;
+  const d = contaFaltasDe(c).reduce((s, f) => s + Number(f.valor_desconto || 0), 0);
+  return Math.max(0, Math.round((Number(c.valor) - d) * 100) / 100);
 }
 
 /* ============================================================
@@ -224,13 +263,14 @@ function montarContas(){
   const semana = abertas.filter(c => { const n = contaDias(c.vencimento); return n >= 0 && n <= 7; });
   const depois = abertas.filter(c => contaDias(c.vencimento) > 7);
   const pagas = CONTAS.filter(c => c.pago_em).sort((a, b) => a.pago_em < b.pago_em ? 1 : -1);
-  const soma = l => l.reduce((s, c) => s + Number(c.valor || 0), 0);
+  const soma = l => l.reduce((s, c) => s + Number(contaAPagar(c) || 0), 0);
+  const diarias = CONTA_DIARIAS.reduce((s, p) => s + p.dias.length * p.valor, 0);
 
   const cab = document.createElement("div"); cab.className = "enc-cab conta-cab";
   [
     [atrasadas.length, atrasadas.length === 1 ? "atrasada" : "atrasadas"],
     ["R$ " + moeda(soma(semana)), "em 7 dias"],
-    ["R$ " + moeda(soma(abertas)), "em aberto"]
+    ["R$ " + moeda(soma(abertas) + diarias), "em aberto"]
   ].forEach(([n, t]) => {
     const d = document.createElement("div");
     const b = document.createElement("b"); b.textContent = n;
@@ -245,6 +285,7 @@ function montarContas(){
   nova.onclick = () => { CONTA_NOVA = !CONTA_NOVA; CONTA_PAINEL = null; montarContas(); };
   box.appendChild(nova);
   if(CONTA_NOVA) box.appendChild(formConta(null));
+  if(CONTA_DIARIAS.length) box.appendChild(blocoDiarias());
 
   const secao = (titulo, lista, cls) => {
     if(!lista.length) return;
@@ -285,7 +326,7 @@ function cartaoConta(c){
   meio.append(b, s);
   const dir = document.createElement("div"); dir.className = "enc-dir";
   const v = document.createElement("b");
-  v.textContent = contaReais(c.pago_em && c.valor_pago != null ? c.valor_pago : c.valor);
+  v.textContent = contaReais(c.pago_em && c.valor_pago != null ? c.valor_pago : contaAPagar(c));
   const chip = document.createElement("span"); chip.className = "enc-chip" + (c.pago_em ? " ok" : "");
   chip.textContent = c.pago_em ? "paga" : CONTA_TIPO[c.tipo];
   dir.append(v, chip);
@@ -301,6 +342,13 @@ function cartaoConta(c){
     info.push("Pago em " + dataCurta(c.pago_em) + (origem ? ", " + origem : ""));
   }
   if(info.length){ const p = document.createElement("p"); p.className = "conta-info"; p.textContent = info.join(" · "); det.appendChild(p); }
+  const faltas = c.pago_em ? [] : contaFaltasDe(c);
+  if(faltas.length){
+    const p = document.createElement("p"); p.className = "conta-falta";
+    p.textContent = "R$ " + moeda(Number(c.valor)) + " menos " + faltas.map(f => "falta de " + dataCurta(f.data) + " (" + eqHorasTx(Number(f.horas)) + ", R$ " + moeda(Number(f.valor_desconto)) + ")").join(" e ")
+      + " = R$ " + moeda(contaAPagar(c));
+    det.appendChild(p);
+  }
   if(c.obs){ const p = document.createElement("p"); p.className = "conta-obs"; p.textContent = c.obs; det.appendChild(p); }
 
   const ac = document.createElement("div"); ac.className = "enc-acoes";
@@ -381,7 +429,7 @@ function painelPagar(c){
 
   if(st.file){
     const l = st.leitura || {};
-    const conf = contaConferir(c, l);
+    const conf = contaConferir({ ...c, valor: contaAPagar(c) }, l);
     const msg = document.createElement("p"); msg.className = "conta-leitura"; msg.id = "contaLeitura";
     const partes = [];
     if(l.pagoEm) partes.push("pago em " + dataCurta(l.pagoEm));
@@ -389,7 +437,7 @@ function painelPagar(c){
     if(conf.codigoBate) partes.push("código igual ao do boleto ✓");
     let tipo = "ok";
     if(conf.codigoDiverge){ partes.push("o código é de OUTRO boleto"); tipo = "alerta"; }
-    else if(c.valor != null && l.valor != null && !conf.valorBate){ partes.push("valor diferente do previsto (R$ " + moeda(c.valor) + ")"); tipo = "alerta"; }
+    else if(c.valor != null && l.valor != null && !conf.valorBate){ partes.push("valor diferente do previsto (R$ " + moeda(contaAPagar(c)) + ")"); tipo = "alerta"; }
     msg.textContent = partes.length ? "Li no comprovante: " + partes.join(", ") + "."
                                     : "Não consegui ler esse arquivo. Confira a data e o valor abaixo.";
     msg.classList.add(tipo);
@@ -404,7 +452,7 @@ function painelPagar(c){
   ld.appendChild(id_);
   const lv = document.createElement("label"); lv.textContent = "Valor pago";
   const iv = document.createElement("input"); iv.type = "text"; iv.inputMode = "decimal"; iv.id = "contaValorPago";
-  const vp = st.valor != null ? st.valor : c.valor;
+  const vp = st.valor != null ? st.valor : contaAPagar(c);
   iv.value = vp != null ? String(Number(vp).toFixed(2)).replace(".", ",") : "";
   iv.onchange = () => { st.valor = numBR(iv.value); };
   lv.appendChild(iv);
@@ -623,6 +671,39 @@ async function arquivarConta(c){
   CONTA_PAINEL = null;
   aviso("contasMsg", c.descricao + " saiu da lista.", "ok");
   montarContas();
+}
+
+/* Quem ganha por dia: soma sozinha os dias confirmados em Quem veio no ateliê que ainda não foram pagos. */
+function blocoDiarias(){
+  const wrap = document.createElement("div"); wrap.className = "conta-diarias"; wrap.id = "contaDiarias";
+  const h = document.createElement("h3"); h.className = "conta-sec"; h.textContent = "Equipe por dia";
+  wrap.appendChild(h);
+  CONTA_DIARIAS.forEach(p => {
+    const el = document.createElement("div"); el.className = "enc conta" + (p.dias.length ? "" : " fim"); el.dataset.diaria = p.uid;
+    const topo = document.createElement("div"); topo.className = "enc-topo";
+    const meio = document.createElement("div"); meio.className = "enc-meio";
+    const b = document.createElement("b"); b.textContent = p.nome + ", diária de R$ " + moeda(p.valor);
+    const s = document.createElement("span"); s.className = "conta-quando";
+    s.textContent = p.dias.length
+      ? (p.dias.length === 1 ? "1 dia em aberto: " : p.dias.length + " dias em aberto: ") + p.dias.map(dataCurta).join(", ")
+      : "Nada em aberto. Cada dia marcado como veio soma aqui.";
+    meio.append(b, s);
+    const dir = document.createElement("div"); dir.className = "enc-dir";
+    const v = document.createElement("b"); v.textContent = "R$ " + moeda(p.dias.length * p.valor);
+    const chip = document.createElement("span"); chip.className = "enc-chip" + (p.dias.length ? "" : " ok"); chip.textContent = p.dias.length ? "a pagar" : "em dia";
+    dir.append(v, chip);
+    topo.append(meio, dir);
+    el.appendChild(topo);
+    if(p.dias.length){
+      const det = document.createElement("div"); det.className = "conta-det";
+      const ac = document.createElement("div"); ac.className = "enc-acoes";
+      const x = document.createElement("button"); x.type = "button"; x.textContent = "Marcar como pagos";
+      x.onclick = () => { DIAS_MES = primeiroDia(p.dias[0]); PAG_ABERTO[p.uid] = true; abrirDias(); };
+      ac.appendChild(x); det.appendChild(ac); el.appendChild(det);
+    }
+    wrap.appendChild(el);
+  });
+  return wrap;
 }
 
 /* Resumo para a Home do gestor: o que vence logo. */
