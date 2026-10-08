@@ -129,6 +129,7 @@ async function carregarHome(){
     $("btnEstoque").classList.add("hide");
     $("btnEncomendas").classList.add("hide");
     $("btnContas").classList.add("hide");
+    $("btnSaude").classList.add("hide");
     aviso("homeMsg","","");
     ajustarGrupos();
     show("scHome");
@@ -210,7 +211,13 @@ async function carregarHome(){
   $("btnEstoque").classList.toggle("hide", EU.papel !== "gestor");
   $("btnEncomendas").classList.toggle("hide", EU.papel !== "gestor");
   $("btnContas").classList.toggle("hide", EU.papel !== "gestor");
+  $("btnSaude").classList.toggle("hide", EU.papel !== "gestor");
   if(gestor){
+    const sd = await resumoSaudeHome().catch(() => null);
+    $("saudePonto").className = "sd-ponto" + (sd ? " tom-" + sd.veredito.tom : "");
+    $("saudeSub").textContent = sd
+      ? sd.veredito.rot + " · " + mesLongo(sd.mes).split(" ")[0] + (sd.lucro >= 0 ? ": sobraram R$ " : ": faltaram R$ ") + moeda(Math.abs(sd.lucro)) + " depois de tudo"
+      : "Se dá lucro, quanto, e se cabe contratar";
     const rc = await resumoContasHome();
     const sub = $("contasSub");
     if(rc && (rc.atrasadas || rc.logo)){

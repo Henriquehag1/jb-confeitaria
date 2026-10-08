@@ -547,6 +547,7 @@ let CANAIS = [];
 let VALE = null;     // a operadora de vale-refeição e a fatia que ela fica, medida no extrato
 let CANAL = null;      // canal selecionado
 let CFG = {};          // jb_config
+let IMPOSTO = null;    // jb_imposto_estimado: alíquota do Simples calculada pela venda de 12 meses
 let LINHAS = [];       // uma linha por produto no canal selecionado
 let ajustesAbertos = false;
 let CANAL_ATUALIZADO = false;
@@ -639,6 +640,7 @@ async function listarPrecos(){
     ]);
     CANAIS = c.data || [];
     (cfg.data || []).forEach(r => CFG[r.chave] = Number(r.valor));
+    await carregarImposto();
     VALE = (vale.data || [])[0] || null;
     CANAL = CANAIS[0] || null;
   }
@@ -922,10 +924,11 @@ function montarPlacar(){
     const grid = document.createElement("div");
     grid.className = "taxas";
     grid.style.flexWrap = "wrap";
+    const auto = !!(IMPOSTO && IMPOSTO.modo === "auto" && IMPOSTO.aliquota_efetiva != null);
     const campos = [
       ["custo_hora","Custo da hora (R$)",1],
       ["perdas_pct","Perdas (%)",100],
-      ["imposto_pct","Imposto sobre a venda (%)",100],
+      ...(auto ? [] : [["imposto_pct","Imposto sobre a venda (%)",100]]),
       ["margem_alvo","Margem que você quer (%)",100]
     ];
     campos.forEach(([chave,rot,mult]) => {
@@ -952,6 +955,7 @@ function montarPlacar(){
       grid.appendChild(lb);
     });
     box.appendChild(grid);
+    box.appendChild(blocoImposto());
     const casa = document.createElement("div");
     casa.className = "casa"; casa.id = "custosCasa";
     casa.innerHTML = "<p class='tip'>Carregando o custo fixo...</p>";
@@ -1776,4 +1780,49 @@ async function salvarFicha(){
     window.scrollTo(0,0);
   }
   btn.disabled = false; btn.textContent = rotulo;
+}
+
+/* ---------- imposto: automático pela tabela do Simples ----------
+   A alíquota efetiva sai da venda bruta estimada dos últimos 12 meses (RBT12) e da faixa
+   do anexo escolhido. Substitui o número fixo do jb_config em toda conta de preço. */
+async function carregarImposto(){
+  const r = await sb.from("jb_imposto_estimado").select("*").maybeSingle();
+  IMPOSTO = (r && !r.error && r.data) || null;
+  if(IMPOSTO && IMPOSTO.aliquota_usada != null) CFG.imposto_pct = Number(IMPOSTO.aliquota_usada);
+}
+
+function blocoImposto(){
+  const b = document.createElement("div"); b.className = "imp-bloco"; b.id = "impBloco";
+  if(!IMPOSTO){ b.innerHTML = "<p class='tip'>Imposto fixo em " + pct(Number(CFG.imposto_pct || 0)) + ".</p>"; return b; }
+  const auto = IMPOSTO.modo === "auto" && IMPOSTO.aliquota_efetiva != null;
+  const t = document.createElement("p"); t.className = "imp-tit";
+  t.textContent = "Imposto sobre a venda: " + pct(Number(CFG.imposto_pct || 0)) + (auto ? " · automático" : " · fixo");
+  b.appendChild(t);
+  const x = document.createElement("p"); x.className = "imp-tx"; x.id = "impTexto";
+  x.textContent = auto
+    ? "Simples Nacional, Anexo " + IMPOSTO.anexo + ", faixa " + IMPOSTO.faixa + ". Venda estimada dos últimos 12 meses: R$ " + moeda(Number(IMPOSTO.rbt12))
+      + (IMPOSTO.meses_com_dado < 12 ? " (média de " + IMPOSTO.meses_com_dado + " meses × 12)" : "")
+      + ". Muda sozinho quando o faturamento muda."
+    : "Número digitado à mão, não acompanha o faturamento.";
+  b.appendChild(x);
+  if(IMPOSTO.pago_sobre_bruto != null){
+    const p = document.createElement("p"); p.className = "imp-alerta";
+    p.textContent = "Nos últimos 3 meses o DAS pago foi " + pct(Number(IMPOSTO.pago_sobre_bruto)) + " da venda. A diferença para a tabela é o que falta declarar: pergunta para o contador.";
+    b.appendChild(p);
+  }
+  const ac = document.createElement("div"); ac.className = "imp-acoes";
+  const bt = (txt, on, fn, id) => { const k = document.createElement("button"); k.type = "button"; k.textContent = txt; k.id = id; k.setAttribute("aria-pressed", String(on)); k.onclick = fn; ac.appendChild(k); };
+  bt("Anexo I", IMPOSTO.anexo === "I", () => mudarRegraImposto({ anexo: "I" }), "impAnexoI");
+  bt("Anexo II", IMPOSTO.anexo === "II", () => mudarRegraImposto({ anexo: "II" }), "impAnexoII");
+  bt(auto ? "Usar número fixo" : "Voltar ao automático", false, () => mudarRegraImposto({ modo: auto ? "fixo" : "auto" }), "impModo");
+  b.appendChild(ac);
+  return b;
+}
+
+async function mudarRegraImposto(campos){
+  const { error } = await sb.from("jb_imposto_regra").update({ ...campos, atualizado_em: new Date().toISOString(), atualizado_por: EU.user_id }).eq("id", 1);
+  if(error){ aviso("custosMsg", "Não consegui mudar o imposto agora.", "err"); return; }
+  await carregarImposto();
+  aviso("custosMsg", "Imposto agora em " + pct(Number(CFG.imposto_pct || 0)) + ". Todos os produtos já recalcularam.", "ok");
+  listarPrecos();
 }
