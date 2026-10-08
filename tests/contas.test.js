@@ -63,16 +63,30 @@ test("a lista separa atrasadas, próximos 7 dias, mais para frente e pagas; arqu
       if(el.matches("h3.conta-sec")){ atual = el.textContent; secoes[atual] = []; }
       else if(el.matches(".enc.conta") && atual) secoes[atual].push(el.querySelector(".enc-meio b").textContent);
     });
-    const pagas = [...document.querySelectorAll("#contasLista details .enc.conta .enc-meio b")].map(b => b.textContent);
-    return { secoes, pagas, cab: [...document.querySelectorAll(".enc-cab b")].map(b => b.textContent),
-             quando: document.querySelector("#contasLista .enc.conta.atrasada .conta-quando").textContent };
+    return { secoes, cab: [...document.querySelectorAll(".enc-cab b")].map(b => b.textContent),
+             quando: document.querySelector("#contasLista .enc.conta.est-atrasada .conta-quando").textContent,
+             chip: document.querySelector("#contasLista .enc.conta.est-atrasada .enc-chip").textContent,
+             abas: [...document.querySelectorAll(".conta-abas button")].map(b => b.textContent + ":" + b.getAttribute("aria-selected")) };
   });
   assert.deepEqual(est.secoes, {
     "Atrasadas": ["DAS do Simples, setembro/2026"],
     "Nos próximos 7 dias": ["Contabilidade"],
     "Mais para frente": ["Multa por atraso da declaração"]
   });
-  assert.deepEqual(est.pagas, ["Aluguel do ateliê (metade)"]);
+  assert.deepEqual(est.abas, ["A pagar3:true", "Pagas1:false", "Todas4:false"]);
+  assert.equal(est.chip, "ATRASADA");
+
+  // aba Pagas: verde, com o que foi pago
+  await a.page.click('.conta-abas button[data-aba="pagas"]'); await a.espera(200);
+  const pg = await a.page.evaluate(() => [...document.querySelectorAll("#contasLista .enc.conta")].map(c => [c.className, c.querySelector(".enc-meio b").textContent, c.querySelector(".enc-chip").textContent]));
+  assert.deepEqual(pg.map(x => x[1]), ["Aluguel do ateliê (metade)"]);
+  assert.match(pg[0][0], /est-paga/); assert.equal(pg[0][2], "✓ PAGA");
+  assert.match(await a.texto(".conta-resumo-pagas"), /1 conta paga nos últimos 90 dias, R\$ 1\.916,11/);
+
+  // aba Todas: tudo por data de vencimento
+  await a.page.click('.conta-abas button[data-aba="todas"]'); await a.espera(200);
+  const venc = await a.page.evaluate(() => [...document.querySelectorAll("#contasLista .enc.conta[data-id]")].map(c => c.querySelector(".enc-meio b").textContent));
+  assert.deepEqual(venc, ["Aluguel do ateliê (metade)", "DAS do Simples, setembro/2026", "Contabilidade", "Multa por atraso da declaração"]);
   assert.deepEqual(est.cab, ["1", "R$ 200,00", "R$ 1.465,00"]);
   assert.match(est.quando, /^venceu há 2 dias/);
   assert.ok(!(await a.page.evaluate(() => document.body.textContent.includes("Boleto antigo arquivado"))));
@@ -167,10 +181,11 @@ test("código de barras com número trocado não é salvo", async () => {
 test("ver boleto abre link assinado de 5 minutos; tirar da lista arquiva", async () => {
   const a = await abrirContas();
   const id = await cartao(a, "DAS do Simples, setembro");
-  await clicarNo(a, id, "Ver boleto"); await a.espera(300);
+  await a.page.click('#contasLista .enc.conta[data-id="' + id + '"] .conta-arq'); await a.espera(300);
   const s = await a.log("signed");
   assert.deepEqual(s[0].slice(1), ["contas", "1/boleto-1.pdf", 300]);
   assert.match(await a.page.evaluate(() => window.__ABRIU), /object\/sign\/contas\/1\/boleto-1\.pdf/);
+  assert.equal(await a.texto('#contasLista .enc.conta[data-id="' + id + '"] .conta-arq'), "📄 Abrir boleto");
   const idM = await cartao(a, "Multa por atraso");
   await clicarNo(a, idM, "Editar"); await a.espera(200);
   await a.page.click("#contaArquivar"); await a.espera(300);

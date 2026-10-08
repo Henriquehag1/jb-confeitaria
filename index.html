@@ -690,12 +690,48 @@ button{font-family:inherit;font-size:inherit;cursor:pointer;}
 .enc.conta .enc-topo{cursor:default;}
 .conta-cab b{font-size:1rem;white-space:nowrap;}
 .enc.conta.atrasada{border-color:var(--coral-fundo);}
-.enc.conta.atrasada .conta-quando{color:var(--coral-fundo);font-weight:500;}
+.enc.conta.est-atrasada .conta-quando{color:var(--coral-fundo);font-weight:500;}
 .conta-sec{font-size:.68rem;letter-spacing:.22em;text-transform:uppercase;color:var(--tinta-3);font-weight:600;margin:18px 2px 8px;}
 .conta-sec.alerta{color:var(--coral-fundo);}
 .conta-det{border-top:1px solid var(--linha);padding:10px 14px 13px;background:#fff;}
 .conta-info{margin:0 0 6px;font-size:.78rem;color:var(--tinta-2);}
 .conta-obs{margin:0 0 9px;font-size:.78rem;color:var(--tinta-3);line-height:1.4;}
+/* Contas a pagar: abas, cores por situação e data em destaque */
+.conta-cab div.alerta{background:#FBE3DF;border-color:#E9A79C;}
+.conta-cab div.alerta b{color:var(--coral-fundo);}
+.conta-abas{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:12px 0 10px;padding:4px;background:var(--areia);border:1px solid var(--linha);border-radius:14px;}
+.conta-abas button{display:flex;align-items:center;justify-content:center;gap:6px;min-height:44px;border:0;border-radius:10px;background:none;font-family:inherit;font-size:.88rem;font-weight:500;color:var(--tinta-2);cursor:pointer;}
+.conta-abas button b{font-size:.72rem;font-weight:700;min-width:22px;padding:1px 7px;border-radius:999px;background:#fff;color:var(--tinta-2);}
+.conta-abas button[aria-selected="true"]{background:#fff;color:var(--tinta);box-shadow:0 1px 3px rgba(78,47,42,.12);}
+.conta-abas button.aba-apagar[aria-selected="true"] b{background:var(--coral-acao);color:#fff;}
+.conta-abas button.aba-pagas[aria-selected="true"] b{background:var(--verde);color:#fff;}
+.conta-abas button.aba-todas[aria-selected="true"] b{background:var(--tinta);color:#fff;}
+.enc.conta{border-left:5px solid var(--linha-2);}
+.enc.conta .enc-topo{cursor:default;align-items:center;}
+.conta-data{flex:0 0 52px;height:54px;border-radius:12px;display:flex;flex-direction:column;align-items:center;justify-content:center;background:var(--areia);color:var(--tinta);line-height:1;}
+.conta-data b{font-size:1.35rem;font-weight:700;font-variant-numeric:tabular-nums;}
+.conta-data span{font-size:.62rem;letter-spacing:.12em;font-weight:600;margin-top:3px;}
+.conta-tipo{display:block;margin-top:3px;font-size:.66rem;color:var(--tinta-3);}
+.enc.conta .enc-chip{font-weight:700;letter-spacing:.08em;}
+.enc.conta.est-atrasada{border-color:#E9A79C;border-left-color:var(--coral-fundo);background:#FFF5F3;}
+.est-atrasada .conta-data{background:var(--coral-fundo);color:#fff;}
+.conta-chip-atrasada{background:var(--coral-fundo) !important;color:#fff !important;}
+.enc.conta.est-logo{border-left-color:#E0A23C;}
+.est-logo .conta-data{background:var(--ambar-veu);color:var(--ambar);}
+.conta-chip-logo{background:var(--ambar-veu) !important;color:var(--ambar) !important;}
+.enc.conta.est-depois{border-left-color:var(--linha-2);}
+.conta-chip-depois{background:var(--areia) !important;color:var(--tinta-2) !important;}
+.enc.conta.est-paga{border-color:var(--verde-linha);border-left-color:var(--verde);background:var(--verde-veu);opacity:1;}
+.est-paga .conta-data{background:var(--verde);color:#fff;}
+.est-paga .enc-dir b{color:var(--verde);}
+.conta-chip-paga{background:var(--verde) !important;color:#fff !important;}
+.est-paga .conta-det{background:rgba(255,255,255,.55);}
+.conta-arqs{display:flex;gap:8px;padding:0 14px 12px 78px;flex-wrap:wrap;}
+.conta-arq{min-height:38px;padding:0 14px;border-radius:10px;border:1.5px solid var(--coral-acao);background:#fff;color:var(--coral-forte);font-family:inherit;font-weight:600;font-size:.84rem;cursor:pointer;}
+.conta-arq.ok{border-color:var(--verde);color:var(--verde);}
+.conta-sec.logo{color:var(--ambar);}
+.conta-resumo-pagas{margin:4px 2px 10px;font-size:.86rem;font-weight:600;color:var(--verde);}
+.conta-diaria .enc-topo{padding-left:14px;}
 .conta-falta{margin:0 0 9px;font-size:.8rem;color:var(--ambar);line-height:1.4;font-weight:500;}
 .conta-diarias .enc.conta.fim{opacity:.85;}
 .conta-nova-bt{display:block;width:100%;min-height:46px;margin:4px 0 6px;border-radius:12px;border:1.5px dashed var(--linha-2);background:var(--creme);color:var(--tinta);font-family:inherit;font-size:.88rem;font-weight:500;}
@@ -1561,19 +1597,19 @@ button.fotobt:disabled{color:var(--tinta-3);}
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.116.0/dist/umd/supabase.min.js"></script>
-<script src="js/00-base.js?v=2026-10-08c"></script>
-<script src="js/10-entrada.js?v=2026-10-08c"></script>
-<script src="js/20-custos.js?v=2026-10-08c"></script>
-<script src="js/25-promo.js?v=2026-10-08c"></script>
-<script src="js/30-mes.js?v=2026-10-08c"></script>
-<script src="js/40-producao.js?v=2026-10-08c"></script>
-<script src="js/50-contagem.js?v=2026-10-08c"></script>
-<script src="js/60-afazeres.js?v=2026-10-08c"></script>
-<script src="js/70-dias.js?v=2026-10-08c"></script>
-<script src="js/72-equipe.js?v=2026-10-08c"></script>
-<script src="js/80-estoque.js?v=2026-10-08c"></script>
-<script src="js/85-encomendas.js?v=2026-10-08c"></script>
-<script src="js/88-contas.js?v=2026-10-08c"></script>
-<script src="js/90-ligacoes.js?v=2026-10-08c"></script>
+<script src="js/00-base.js?v=2026-10-08d"></script>
+<script src="js/10-entrada.js?v=2026-10-08d"></script>
+<script src="js/20-custos.js?v=2026-10-08d"></script>
+<script src="js/25-promo.js?v=2026-10-08d"></script>
+<script src="js/30-mes.js?v=2026-10-08d"></script>
+<script src="js/40-producao.js?v=2026-10-08d"></script>
+<script src="js/50-contagem.js?v=2026-10-08d"></script>
+<script src="js/60-afazeres.js?v=2026-10-08d"></script>
+<script src="js/70-dias.js?v=2026-10-08d"></script>
+<script src="js/72-equipe.js?v=2026-10-08d"></script>
+<script src="js/80-estoque.js?v=2026-10-08d"></script>
+<script src="js/85-encomendas.js?v=2026-10-08d"></script>
+<script src="js/88-contas.js?v=2026-10-08d"></script>
+<script src="js/90-ligacoes.js?v=2026-10-08d"></script>
 </body>
 </html>

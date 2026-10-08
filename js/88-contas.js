@@ -202,7 +202,7 @@ async function abrirContas(){
 }
 
 async function carregarContas(){
-  const desde = diaMais(-45);
+  const desde = diaMais(-90);
   const r = await sb.from("jb_conta").select("*").eq("arquivada", false)
     .or("pago_em.is.null,pago_em.gte." + desde).order("vencimento");
   if(r.error){
@@ -253,31 +253,60 @@ function contaAPagar(c){
 /* ============================================================
    LISTA
    ============================================================ */
+let CONTA_ABA = "apagar";   // "apagar" | "pagas" | "todas"
+const CONTA_MES_CURTO = ["JAN","FEV","MAR","ABR","MAI","JUN","JUL","AGO","SET","OUT","NOV","DEZ"];
+/* situação da conta para cor e etiqueta */
+function contaEstado(c){
+  if(c.pago_em) return "paga";
+  const n = contaDias(c.vencimento);
+  if(n < 0) return "atrasada";
+  if(n <= 7) return "logo";
+  return "depois";
+}
+const porVenc = (a, b) => a.vencimento < b.vencimento ? -1 : a.vencimento > b.vencimento ? 1 : a.id - b.id;
+
 function montarContas(){
   const box = $("contasLista");
   box.innerHTML = "";
   if(!CONTAS) return;
 
-  const abertas = CONTAS.filter(c => !c.pago_em);
+  const abertas = CONTAS.filter(c => !c.pago_em).sort(porVenc);
   const atrasadas = abertas.filter(c => contaDias(c.vencimento) < 0);
   const semana = abertas.filter(c => { const n = contaDias(c.vencimento); return n >= 0 && n <= 7; });
   const depois = abertas.filter(c => contaDias(c.vencimento) > 7);
-  const pagas = CONTAS.filter(c => c.pago_em).sort((a, b) => a.pago_em < b.pago_em ? 1 : -1);
+  const pagas = CONTAS.filter(c => c.pago_em).sort((a, b) => -porVenc(a, b));
   const soma = l => l.reduce((s, c) => s + Number(contaAPagar(c) || 0), 0);
   const diarias = CONTA_DIARIAS.reduce((s, p) => s + p.dias.length * p.valor, 0);
+  const pago = pagas.reduce((s, c) => s + Number(c.valor_pago != null ? c.valor_pago : c.valor || 0), 0);
 
   const cab = document.createElement("div"); cab.className = "enc-cab conta-cab";
   [
-    [atrasadas.length, atrasadas.length === 1 ? "atrasada" : "atrasadas"],
-    ["R$ " + moeda(soma(semana)), "em 7 dias"],
-    ["R$ " + moeda(soma(abertas) + diarias), "em aberto"]
-  ].forEach(([n, t]) => {
-    const d = document.createElement("div");
+    [atrasadas.length, atrasadas.length === 1 ? "atrasada" : "atrasadas", atrasadas.length ? "alerta" : ""],
+    ["R$ " + moeda(soma(semana)), "em 7 dias", ""],
+    ["R$ " + moeda(soma(abertas) + diarias), "em aberto", ""]
+  ].forEach(([n, t, cls]) => {
+    const d = document.createElement("div"); if(cls) d.className = cls;
     const b = document.createElement("b"); b.textContent = n;
     const s = document.createElement("span"); s.textContent = t;
     d.append(b, s); cab.appendChild(d);
   });
   box.appendChild(cab);
+
+  /* abas: a pagar, pagas, todas */
+  const abas = document.createElement("div"); abas.className = "conta-abas"; abas.setAttribute("role", "tablist");
+  [["apagar", "A pagar", abertas.length + (CONTA_DIARIAS.some(p => p.dias.length) ? 1 : 0)],
+   ["pagas", "Pagas", pagas.length],
+   ["todas", "Todas", abertas.length + pagas.length]].forEach(([k, t, n]) => {
+    const b = document.createElement("button"); b.type = "button"; b.dataset.aba = k; b.setAttribute("role", "tab");
+    b.setAttribute("aria-selected", String(CONTA_ABA === k));
+    b.className = "aba-" + k;
+    const tt = document.createElement("span"); tt.textContent = t;
+    const nn = document.createElement("b"); nn.textContent = n;
+    b.append(tt, nn);
+    b.onclick = () => { CONTA_ABA = k; CONTA_PAINEL = null; montarContas(); };
+    abas.appendChild(b);
+  });
+  box.appendChild(abas);
 
   const nova = document.createElement("button");
   nova.type = "button"; nova.className = "conta-nova-bt"; nova.id = "contaNovaBt";
@@ -285,7 +314,6 @@ function montarContas(){
   nova.onclick = () => { CONTA_NOVA = !CONTA_NOVA; CONTA_PAINEL = null; montarContas(); };
   box.appendChild(nova);
   if(CONTA_NOVA) box.appendChild(formConta(null));
-  if(CONTA_DIARIAS.length) box.appendChild(blocoDiarias());
 
   const secao = (titulo, lista, cls) => {
     if(!lista.length) return;
@@ -293,33 +321,43 @@ function montarContas(){
     box.appendChild(h);
     lista.forEach(c => box.appendChild(cartaoConta(c)));
   };
-  secao("Atrasadas", atrasadas, "alerta");
-  secao("Nos próximos 7 dias", semana);
-  secao("Mais para frente", depois);
 
-  if(!abertas.length){
-    const p = document.createElement("p"); p.className = "tip";
-    p.textContent = "Nenhuma conta em aberto. As contas fixas chegam sozinhas do Nosso Financeiro; impostos e boletos de fornecedor você lança aqui.";
-    box.appendChild(p);
-  }
-
-  if(pagas.length){
-    const det = document.createElement("details"); det.className = "enc-fim";
-    const sm = document.createElement("summary");
-    sm.textContent = "Pagas nos últimos 45 dias (" + pagas.length + ", R$ " + moeda(pagas.reduce((s, c) => s + Number(c.valor_pago != null ? c.valor_pago : c.valor || 0), 0)) + ")";
-    det.appendChild(sm);
-    pagas.forEach(c => det.appendChild(cartaoConta(c)));
-    box.appendChild(det);
+  if(CONTA_ABA === "apagar"){
+    if(CONTA_DIARIAS.length) box.appendChild(blocoDiarias());
+    secao("Atrasadas", atrasadas, "alerta");
+    secao("Nos próximos 7 dias", semana, "logo");
+    secao("Mais para frente", depois);
+    if(!abertas.length){
+      const p = document.createElement("p"); p.className = "tip conta-vazio";
+      p.textContent = "Nenhuma conta em aberto. As contas fixas chegam sozinhas do Nosso Financeiro; impostos e boletos de fornecedor você lança aqui.";
+      box.appendChild(p);
+    }
+  } else if(CONTA_ABA === "pagas"){
+    const r = document.createElement("p"); r.className = "conta-resumo-pagas";
+    r.textContent = pagas.length ? pagas.length + (pagas.length === 1 ? " conta paga" : " contas pagas") + " nos últimos 90 dias, R$ " + moeda(pago) : "Nenhuma conta paga nos últimos 90 dias.";
+    box.appendChild(r);
+    pagas.forEach(c => box.appendChild(cartaoConta(c)));
+  } else {
+    if(CONTA_DIARIAS.length) box.appendChild(blocoDiarias());
+    const h = document.createElement("h3"); h.className = "conta-sec"; h.textContent = "Por data de vencimento";
+    box.appendChild(h);
+    CONTAS.slice().sort(porVenc).forEach(c => box.appendChild(cartaoConta(c)));
   }
 }
 
 function cartaoConta(c){
   const el = document.createElement("div");
-  const n = c.pago_em ? null : contaDias(c.vencimento);
-  el.className = "enc conta" + (c.pago_em ? " fim" : (n < 0 ? " atrasada" : (n <= 2 ? " nova" : "")));
+  const est = contaEstado(c);
+  el.className = "enc conta est-" + est;
   el.dataset.id = c.id;
 
   const topo = document.createElement("div"); topo.className = "enc-topo";
+  /* data de vencimento grande à esquerda, na cor da situação */
+  const [, mm, dd] = c.vencimento.split("-");
+  const data = document.createElement("div"); data.className = "conta-data";
+  const d1 = document.createElement("b"); d1.textContent = dd;
+  const d2 = document.createElement("span"); d2.textContent = CONTA_MES_CURTO[Number(mm) - 1];
+  data.append(d1, d2);
   const meio = document.createElement("div"); meio.className = "enc-meio";
   const b = document.createElement("b"); b.textContent = c.descricao;
   const s = document.createElement("span"); s.className = "conta-quando"; s.textContent = contaQuando(c);
@@ -327,11 +365,26 @@ function cartaoConta(c){
   const dir = document.createElement("div"); dir.className = "enc-dir";
   const v = document.createElement("b");
   v.textContent = contaReais(c.pago_em && c.valor_pago != null ? c.valor_pago : contaAPagar(c));
-  const chip = document.createElement("span"); chip.className = "enc-chip" + (c.pago_em ? " ok" : "");
-  chip.textContent = c.pago_em ? "paga" : CONTA_TIPO[c.tipo];
-  dir.append(v, chip);
-  topo.append(meio, dir);
+  const chip = document.createElement("span"); chip.className = "enc-chip conta-chip-" + est;
+  chip.textContent = { paga: "✓ PAGA", atrasada: "ATRASADA", logo: "A PAGAR", depois: "A PAGAR" }[est];
+  const tipo = document.createElement("small"); tipo.className = "conta-tipo"; tipo.textContent = CONTA_TIPO[c.tipo] || "";
+  dir.append(v, chip, tipo);
+  topo.append(data, meio, dir);
   el.appendChild(topo);
+
+  /* boleto e comprovante num toque, sem abrir nada antes */
+  if(c.boleto_path || c.comprovante_path){
+    const arq = document.createElement("div"); arq.className = "conta-arqs";
+    if(c.boleto_path){
+      const x = document.createElement("button"); x.type = "button"; x.className = "conta-arq"; x.textContent = "📄 Abrir boleto";
+      x.onclick = () => abrirArquivo(c.boleto_path); arq.appendChild(x);
+    }
+    if(c.comprovante_path){
+      const x = document.createElement("button"); x.type = "button"; x.className = "conta-arq ok"; x.textContent = "🧾 Comprovante";
+      x.onclick = () => abrirArquivo(c.comprovante_path); arq.appendChild(x);
+    }
+    el.appendChild(arq);
+  }
 
   const det = document.createElement("div"); det.className = "conta-det";
   const info = [];
@@ -356,9 +409,7 @@ function cartaoConta(c){
   if(!c.pago_em){
     bt("Paguei", () => { CONTA_PAINEL = { id: c.id, modo: "pagar" }; CONTA_NOVA = false; montarContas(); });
   }
-  if(c.codigo_barras) bt("Copiar código", () => copiarCodigo(c), "sec");
-  if(c.boleto_path) bt("Ver boleto", () => abrirArquivo(c.boleto_path), "sec");
-  if(c.comprovante_path) bt("Ver comprovante", () => abrirArquivo(c.comprovante_path), "sec");
+  if(c.codigo_barras && !c.pago_em) bt("Copiar código", () => copiarCodigo(c), "sec");
   bt("Editar", () => { CONTA_PAINEL = { id: c.id, modo: "editar" }; CONTA_NOVA = false; montarContas(); }, "sec");
   det.appendChild(ac);
 
@@ -368,7 +419,6 @@ function cartaoConta(c){
   el.appendChild(det);
   return el;
 }
-
 async function copiarCodigo(c){
   try {
     await navigator.clipboard.writeText(c.codigo_barras);
@@ -679,7 +729,7 @@ function blocoDiarias(){
   const h = document.createElement("h3"); h.className = "conta-sec"; h.textContent = "Equipe por dia";
   wrap.appendChild(h);
   CONTA_DIARIAS.forEach(p => {
-    const el = document.createElement("div"); el.className = "enc conta" + (p.dias.length ? "" : " fim"); el.dataset.diaria = p.uid;
+    const el = document.createElement("div"); el.className = "enc conta conta-diaria " + (p.dias.length ? "est-logo" : "est-paga"); el.dataset.diaria = p.uid;
     const topo = document.createElement("div"); topo.className = "enc-topo";
     const meio = document.createElement("div"); meio.className = "enc-meio";
     const b = document.createElement("b"); b.textContent = p.nome + ", diária de R$ " + moeda(p.valor);
