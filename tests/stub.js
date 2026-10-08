@@ -148,6 +148,23 @@ function baseDB(agora){
       { id: 3, data: hoje, tipo: "ficha", ref_id: 11, qtd: 5, feito: false, feito_em: null, obs: null, para: "equipe", criado_em: hoje + "T10:06:00Z" }
     ],
     jb_perda: [],
+    jb_conta: [
+      { id: 1, tipo: "imposto", descricao: "DAS do Simples, setembro/2026", competencia: "2026-09-01", vencimento: diaMais(hoje, -2), valor: 1240.00,
+        codigo_barras: "858000000127400003282622930720262754978640606311", documento: "07.20.26275.9786406-0", boleto_path: "1/boleto-1.pdf",
+        comprovante_path: null, pago_em: null, valor_pago: null, pago_por: null, nf_conta_fixa_id: null, obs: null, arquivada: false },
+      { id: 2, tipo: "fixa", descricao: "Contabilidade", competencia: hoje.slice(0, 7) + "-01", vencimento: diaMais(hoje, 2), valor: 200.00,
+        codigo_barras: null, documento: null, boleto_path: null, comprovante_path: null, pago_em: null, valor_pago: null, pago_por: null,
+        nf_conta_fixa_id: 27, obs: null, arquivada: false },
+      { id: 3, tipo: "fixa", descricao: "Aluguel do ateliê (metade)", competencia: hoje.slice(0, 7) + "-01", vencimento: diaMais(hoje, -4), valor: 1916.11,
+        codigo_barras: null, documento: null, boleto_path: null, comprovante_path: null, pago_em: diaMais(hoje, -6), valor_pago: 1916.11, pago_por: "financeiro",
+        nf_conta_fixa_id: 9, obs: null, arquivada: false },
+      { id: 4, tipo: "imposto", descricao: "Multa por atraso da declaração", competencia: "2026-07-01", vencimento: diaMais(hoje, 20), valor: 25.00,
+        codigo_barras: null, documento: null, boleto_path: null, comprovante_path: null, pago_em: null, valor_pago: null, pago_por: null,
+        nf_conta_fixa_id: null, obs: "DARF código 4406.", arquivada: false },
+      { id: 5, tipo: "fornecedor", descricao: "Boleto antigo arquivado", competencia: null, vencimento: diaMais(hoje, 1), valor: 10.00,
+        codigo_barras: null, documento: null, boleto_path: null, comprovante_path: null, pago_em: null, valor_pago: null, pago_por: null,
+        nf_conta_fixa_id: null, obs: null, arquivada: true }
+    ],
     jb_tarefa: [],
     jb_acordo: [
       { id: 1, user_id: "uEli", inicio: "2026-01-01", fim: null, regime: "diaria", valor: 140, dias_semana: [4, 5], turno: "dia", obs: null, a_confirmar: false },
@@ -449,7 +466,7 @@ ${agora ? "window.__AGORA=" + JSON.stringify(agora) + ";" : ""}
                       "jb_custo_fixo_total","jb_volume_calculado","jb_giro_produto","jb_insumo","jb_preco","jb_margem","jb_promo_teto","jb_canal","jb_config","jb_vale_taxa","jb_meio_pagamento",
                       "jb_mes","jb_faturamento","jb_ficha","jb_ficha_item","jb_subreceita","jb_subreceita_item","jb_uso_ingrediente",
                       "jb_insumo_ultimo_pago","jb_ficha_alertas","jb_compra","jb_compra_item","jb_estoque_contagem","jb_estoque_item","jb_estoque_sugestao",
-                      "jb_kpi_mes","jb_kpi_destino","jb_dia_vendas","jb_encomenda","jb_bolo_opcao","jb_ocorrencia"];
+                      "jb_kpi_mes","jb_kpi_destino","jb_dia_vendas","jb_encomenda","jb_bolo_opcao","jb_ocorrencia","jb_conta"];
     if(soGestor.includes(t) && !gestor()) return [];
     if(t === "jb_dia_trabalhado" && !gestor()) return (DB[t]||[]).filter(r => r.user_id === window.__UID);
     if(t === "jb_adendo" && !gestor()) return (DB[t]||[]).filter(r => r.registrado_por === window.__UID);
@@ -607,6 +624,11 @@ ${agora ? "window.__AGORA=" + JSON.stringify(agora) + ";" : ""}
           if(window.__FALHA && window.__FALHA.upload) return { data:null, error:{ message:"Failed to fetch" } };
           window.__LOG.push(["upload", balde, caminho, blob ? blob.size : 0, (opts||{}).contentType]);
           return { data:{ path: caminho }, error:null };
+        },
+        createSignedUrl: async (caminho, segundos) => {
+          if(!gestor()) return { data:null, error:{ message:"not found" } };
+          window.__LOG.push(["signed", balde, caminho, segundos]);
+          return { data:{ signedUrl: "https://stub.local/storage/v1/object/sign/" + balde + "/" + caminho + "?token=t" }, error:null };
         },
         getPublicUrl: (caminho) => ({
           data: { publicUrl: "https://stub.local/storage/v1/object/public/" + balde + "/" + caminho }

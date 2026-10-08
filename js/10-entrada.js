@@ -128,6 +128,7 @@ async function carregarHome(){
     $("btnAfazeres").classList.add("hide");
     $("btnEstoque").classList.add("hide");
     $("btnEncomendas").classList.add("hide");
+    $("btnContas").classList.add("hide");
     aviso("homeMsg","","");
     ajustarGrupos();
     show("scHome");
@@ -208,6 +209,21 @@ async function carregarHome(){
   $("btnAfazeres").classList.toggle("hide", EU.papel !== "gestor");
   $("btnEstoque").classList.toggle("hide", EU.papel !== "gestor");
   $("btnEncomendas").classList.toggle("hide", EU.papel !== "gestor");
+  $("btnContas").classList.toggle("hide", EU.papel !== "gestor");
+  if(gestor){
+    const rc = await resumoContasHome();
+    const sub = $("contasSub");
+    if(rc && (rc.atrasadas || rc.logo)){
+      const partes = [];
+      if(rc.atrasadas) partes.push(rc.atrasadas + (rc.atrasadas === 1 ? " atrasada" : " atrasadas"));
+      if(rc.logo) partes.push(rc.logo + (rc.logo === 1 ? " vence em até 3 dias" : " vencem em até 3 dias"));
+      sub.textContent = partes.join(", ");
+      $("btnContas").classList.remove("ghost");
+    } else {
+      sub.textContent = "Impostos, contas fixas e boletos, com comprovante";
+      $("btnContas").classList.add("ghost");
+    }
+  }
 
   aviso("homeMsg","", "");
   /* Lembrete ativo para a equipe: perto de fechar a loja, com a geladeira pronta

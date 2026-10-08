@@ -686,6 +686,30 @@ button{font-family:inherit;font-size:inherit;cursor:pointer;}
 .enc-precos label{font-size:.66rem;color:var(--tinta-3);letter-spacing:.08em;text-align:center;}
 .enc-precos input{display:block;width:100%;margin-top:2px;height:36px;border-radius:9px;border:1px solid var(--linha-2);background:var(--areia);text-align:center;font-family:inherit;font-size:.88rem;font-variant-numeric:tabular-nums;color:var(--tinta);}
 
+/* ---------- contas a pagar ---------- */
+.enc.conta .enc-topo{cursor:default;}
+.conta-cab b{font-size:1rem;white-space:nowrap;}
+.enc.conta.atrasada{border-color:var(--coral-fundo);}
+.enc.conta.atrasada .conta-quando{color:var(--coral-fundo);font-weight:500;}
+.conta-sec{font-size:.68rem;letter-spacing:.22em;text-transform:uppercase;color:var(--tinta-3);font-weight:600;margin:18px 2px 8px;}
+.conta-sec.alerta{color:var(--coral-fundo);}
+.conta-det{border-top:1px solid var(--linha);padding:10px 14px 13px;background:#fff;}
+.conta-info{margin:0 0 6px;font-size:.78rem;color:var(--tinta-2);}
+.conta-obs{margin:0 0 9px;font-size:.78rem;color:var(--tinta-3);line-height:1.4;}
+.conta-nova-bt{display:block;width:100%;min-height:46px;margin:4px 0 6px;border-radius:12px;border:1.5px dashed var(--linha-2);background:var(--creme);color:var(--tinta);font-family:inherit;font-size:.88rem;font-weight:500;}
+.conta-painel{margin-top:12px;padding:12px;border:1px solid var(--linha-2);border-radius:12px;background:var(--areia);}
+.conta-p-tit{margin:0 0 8px;font-size:.82rem;color:var(--tinta-2);}
+.conta-arquivo{display:block;position:relative;padding:12px;border-radius:10px;border:1.5px dashed var(--coral);background:var(--creme);text-align:center;font-size:.86rem;color:var(--coral-forte);font-weight:500;cursor:pointer;margin-bottom:8px;}
+.conta-arquivo input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;}
+.conta-leitura{margin:0 0 8px;padding:8px 10px;border-radius:9px;font-size:.8rem;line-height:1.35;}
+.conta-leitura.ok{background:var(--verde-veu);color:var(--verde);}
+.conta-leitura.alerta{background:var(--ambar-veu);color:var(--ambar);font-weight:500;}
+.conta-linha,.conta-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;}
+.conta-linha label,.conta-grid label{font-size:.68rem;color:var(--tinta-3);letter-spacing:.06em;}
+.conta-grid label.largo{grid-column:1 / -1;}
+.conta-linha input,.conta-grid input,.conta-grid select,.conta-grid textarea{display:block;width:100%;margin-top:3px;min-height:40px;border-radius:9px;border:1px solid var(--linha-2);background:var(--creme);font-family:inherit;font-size:.9rem;color:var(--tinta);padding:6px 9px;font-variant-numeric:tabular-nums;}
+.conta-grid textarea{resize:vertical;}
+
 /* de onde vem esse número */
 .temexp{position:relative;}
 button.porque{
@@ -1238,6 +1262,11 @@ button.fotobt:disabled{color:var(--tinta-3);}
       <span class="tx"><span class="t">Resultado do m&ecirc;s</span><span class="s">Quanto entrou, quanto saiu e o que sobrou</span></span>
       <span class="seta" aria-hidden="true">&#8250;</span>
     </button>
+    <button class="big ghost hide" id="btnContas">
+      <span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2.9h9.2l3.8 3.8v13.4a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V3.9a1 1 0 0 1 1-1Z"/><path d="M15 2.9v3.9h3.9"/><path d="M8.4 11.2h7.2"/><path d="M8.4 14.6h7.2"/><path d="M8.4 18h4.2"/></svg></span>
+      <span class="tx"><span class="t">Contas a pagar</span><span class="s" id="contasSub">Impostos, contas fixas e boletos, com comprovante</span></span>
+      <span class="seta" aria-hidden="true">&#8250;</span>
+    </button>
     <button class="big ghost hide" id="btnCustos">
       <span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2.8" width="14" height="18.4" rx="2.6"/><rect x="8" y="5.9" width="8" height="3.3" rx="1"/><path d="M8.7 13.2h.01"/><path d="M12 13.2h.01"/><path d="M15.3 13.2h.01"/><path d="M8.7 17.2h.01"/><path d="M12 17.2h.01"/><path d="M15.3 17.2h.01"/></svg></span>
       <span class="tx"><span class="t">Custos e pre&ccedil;os</span><span class="s">Receitas, insumos e quanto sobra em cada canal</span></span>
@@ -1395,6 +1424,12 @@ button.fotobt:disabled{color:var(--tinta-3);}
     <div id="encLista"></div>
   </section>
 
+  <!-- ================= CONTAS A PAGAR (só gestor) ================= -->
+  <section id="scContas" class="hide">
+    <div id="contasMsg"></div>
+    <div id="contasLista"></div>
+  </section>
+
   <!-- ================= CONTAGEM ================= -->
   <section id="scCount" class="hide">
     <div class="counthead">
@@ -1497,17 +1532,18 @@ button.fotobt:disabled{color:var(--tinta-3);}
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.116.0/dist/umd/supabase.min.js"></script>
-<script src="js/00-base.js?v=2026-10-07d"></script>
-<script src="js/10-entrada.js?v=2026-10-07d"></script>
-<script src="js/20-custos.js?v=2026-10-07d"></script>
-<script src="js/25-promo.js?v=2026-10-07d"></script>
-<script src="js/30-mes.js?v=2026-10-07d"></script>
-<script src="js/40-producao.js?v=2026-10-07d"></script>
-<script src="js/50-contagem.js?v=2026-10-07d"></script>
-<script src="js/60-afazeres.js?v=2026-10-07d"></script>
-<script src="js/70-dias.js?v=2026-10-07d"></script>
-<script src="js/80-estoque.js?v=2026-10-07d"></script>
-<script src="js/85-encomendas.js?v=2026-10-07d"></script>
-<script src="js/90-ligacoes.js?v=2026-10-07d"></script>
+<script src="js/00-base.js?v=2026-10-08a"></script>
+<script src="js/10-entrada.js?v=2026-10-08a"></script>
+<script src="js/20-custos.js?v=2026-10-08a"></script>
+<script src="js/25-promo.js?v=2026-10-08a"></script>
+<script src="js/30-mes.js?v=2026-10-08a"></script>
+<script src="js/40-producao.js?v=2026-10-08a"></script>
+<script src="js/50-contagem.js?v=2026-10-08a"></script>
+<script src="js/60-afazeres.js?v=2026-10-08a"></script>
+<script src="js/70-dias.js?v=2026-10-08a"></script>
+<script src="js/80-estoque.js?v=2026-10-08a"></script>
+<script src="js/85-encomendas.js?v=2026-10-08a"></script>
+<script src="js/88-contas.js?v=2026-10-08a"></script>
+<script src="js/90-ligacoes.js?v=2026-10-08a"></script>
 </body>
 </html>
