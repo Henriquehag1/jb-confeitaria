@@ -201,6 +201,11 @@ async function abrirDias(){
   PAGOS = (pg && !pg.error && pg.data) || [];
   await carregarEquipe(ini, fim);
   BOLSA_BASE = await carregarBolsaBase(ini).catch(() => null);
+  CONF = await carregarConferencia(ini).catch(() => null);
+  if(CONF && CONF.marcar.length && await aplicarConferencia(CONF)){
+    await carregarEquipe(ini, fim);
+    CONF = await carregarConferencia(ini).catch(() => null);
+  }
   montarCalendarioDias();
   show("scDias");
 }
@@ -556,6 +561,7 @@ function montarCalendarioDias(){
   box.innerHTML = "";
   fecharExplicacao();
   box.appendChild(blocoBolsa());
+  box.appendChild(blocoConferencia());
 
   const pessoas = [];
   ACORDOS.forEach(a => { if(!pessoas.includes(a.user_id)) pessoas.push(a.user_id); });
