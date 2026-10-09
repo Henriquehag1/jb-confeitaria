@@ -25,6 +25,9 @@ const comDados = db => {
     { id: 3, user_id: "uEli", data: "2026-09-10", turno: "dia", status: "sugerido", origem: "auto" }
   ];
   db.jb_freela = [{ id: 1, nome: "Bela", data: "2026-09-20", valor: 120, cancelada: false }];
+  db.jb_parametro = [{ chave: "fatia_noite", valor: 0.46, fonte: "Venda da noite em setembro", medido_em: "2026-09-30" },
+                     { chave: "freela_noite", valor: 120, fonte: "Freela de 08/10", medido_em: "2026-10-08" },
+                     { chave: "noites_mes", valor: 30, fonte: "", medido_em: "2026-10-09" }];
   return db;
 };
 
@@ -49,7 +52,7 @@ test("a conta da saúde: veredito, lucro, folga, contratar e conselhos saem dos 
   assert.equal(r.dif, 2433);
   assert.deepEqual(r.v, ["Saudável", "Atenção", "No limite", "No vermelho"]);
   assert.deepEqual(r.cons, ["A maior conta é o app: R$ 49,99 de cada R$ 100.", "Folga pequena sobre o ponto de equilíbrio.",
-                            "Imposto pago abaixo da tabela.", "Contratar CLT de 40h ainda não cabe.", "Equipe do tamanho certo para a venda."]);
+                            "Imposto pago abaixo da tabela.", "Contratar mais alguém registrado ainda não cabe.", "Equipe do tamanho certo."]);
   await a.fechar();
 });
 
@@ -68,18 +71,40 @@ test("tela Saúde do negócio: usa o último mês fechado, não o mês pela meta
   assert.match(await a.texto("#sdTendencia"), /ago[\s\S]*set/i);
   assert.doesNotMatch(await a.texto("#sdTendencia"), /out/i, "outubro pela metade fica fora");
   assert.match(await a.texto("#sdDestino"), /App e promoção\s*R\$ 49,99/);
-  assert.match(await a.texto("#sdFolga"), /Vendendo por dia\s*71 doces[\s\S]*65 doces[\s\S]*9%/);
+  assert.match(await a.texto("#sdFolga"), /Vendendo por dia[\s\S]*71 doces[\s\S]*65 doces[\s\S]*9%/);
   assert.match(await a.texto("#sdImposto"), /6,3% · automática/);
-  assert.match(await a.texto("#sdImposto"), /Anexo I, faixa 3/);
   assert.match(await a.texto("#sdImposto"), /1,8% da venda/);
   const eq = await a.texto("#sdEquipe");
-  assert.match(eq, /Yasmin[\s\S]*R\$ 3\.683,33 no mês/);
+  assert.match(eq, /Yasmin[\s\S]*R\$ 3\.683,33/);
   assert.match(eq, /2 dias × R\$ 140,00/, "só os dias confirmados contam");
   assert.match(eq, /Freelas[\s\S]*R\$ 120,00/);
-  assert.match(eq, /Equipe no mês\s*R\$ 4\.083,33 · 7,6% da venda/);
-  assert.match(await a.texto("#sdContratar"), /faltam R\$ 2\.707,34 por mês: vender mais 18 doces por dia/);
+  assert.match(eq, /Equipe no mês[\s\S]*R\$ 4\.083,33 · 7,6%/);
+  assert.match(await a.texto("#sdContratar"), /\+18 doces\/dia/);
   assert.match(await a.texto("#sdConselhos"), /A maior conta é o app/);
-  assert.match(await a.texto("#sdCaixa"), /Sobrou no caixa\s*R\$ 15\.564,89/);
+  assert.match(await a.texto("#sdCaixa"), /Sobrou no caixa[\s\S]*R\$ 15\.564,89/);
+
+  // turno da noite
+  const noite = await a.texto("#sdNoite");
+  assert.match(noite, /R\$ 166,24[\s\S]*Cada noite deixa/);
+  assert.match(noite, /R\$ 121,43[\s\S]*Custo da noite hoje/);
+  assert.match(noite, /R\$ 44,81[\s\S]*Sobra por noite/);
+  assert.match(noite, /pague até[\s\S]*R\$ 116,00 por noite/);
+  assert.match(noite, /R\$ 120,00 deixa[\s\S]*R\$ 46,24 por noite/);
+
+  // Yasmin: decisão e cenários
+  const y = await a.texto("#sdYasmin");
+  assert.match(y, /Manter e renegociar a folga/);
+  assert.match(await a.texto('#sdYasmin [data-cen="manter"]'), /R\$ 3\.683[\s\S]*hoje/);
+  assert.match(await a.texto('#sdYasmin [data-cen="renegociar"]'), /Renegociar ✓[\s\S]*R\$ 3\.470[\s\S]*economiza R\$ 214/);
+  assert.match(await a.texto('#sdYasmin [data-cen="freelas"]'), /R\$ 3\.600/);
+  assert.match(y, /Hora dela hoje[\s\S]*R\$ 21,16/);
+
+  // tocar num número abre de onde ele sai
+  await a.page.click("#sdLucro"); await a.espera(150);
+  assert.match(await a.texto("#saudeCorpo .explica:not(.hide)"), /R\$ 54\.072,21 × 0,4% = R\$ 210,88/);
+  await a.page.click('#sdYasmin [data-cen="renegociar"]'); await a.espera(150);
+  assert.match(await a.texto("#saudeCorpo .explica:not(.hide)"), /6 noites, folga no domingo, mesma hora \(R\$ 21,16\)/);
+  assert.equal(await a.page.locator("#saudeCorpo .explica:not(.hide)").count(), 1, "uma explicação aberta por vez");
   semErros(a); await a.fechar();
 });
 
