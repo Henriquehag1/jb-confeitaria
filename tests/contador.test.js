@@ -56,6 +56,7 @@ test("a conta do contador: prazo no dia útil, venda estimada pelo repasse, rela
   assert.match(r.msg, /• iFood: R\$ 4\.938,08 \(estimado\)/);
   assert.match(r.msg, /• 99Food: R\$ 26\.000,00\n/);
   assert.doesNotMatch(r.msg, /Keeta/, "canal sem venda fica fora da mensagem");
+  assert.match(r.msg, /O vale-refeição \(Pluxee\) é forma de pagamento de pedidos do 99Food: já está dentro dessas vendas/);
   assert.doesNotMatch(r.msg, /—|–/, "sem travessão");
   await a.fechar();
 });

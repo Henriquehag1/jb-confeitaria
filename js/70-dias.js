@@ -47,10 +47,12 @@ async function avisarPendencias(){
       .gte("data", mes).lte("data", ultimoDia(mes));
     if(!error && data) n = data.length;
   } catch(e){}
-  b.className = n > 0 ? "big" : "big ghost";
+  const bo = await resumoBolsaHome().catch(() => null);
+  const txBolsa = bo ? "Bolsa extra: " + reais(bo.disponivel) + (bo.disponivel < 0 ? ", passou" : " · " + bo.noites + (bo.noites === 1 ? " noite" : " noites") + " de freela") : null;
+  b.className = n > 0 || (bo && bo.disponivel < 0) ? "big" : "big ghost";
   b.querySelector(".s").textContent = n === 0
-    ? "Os dias da Eliana e da Yasmin no mês"
-    : (n === 1 ? "1 dia esperando você confirmar" : n + " dias esperando você confirmar");
+    ? (txBolsa || "Os dias da Eliana e da Yasmin no mês")
+    : (n === 1 ? "1 dia esperando você confirmar" : n + " dias esperando você confirmar") + (txBolsa ? " · " + txBolsa : "");
 }
 
 /* ---------- o botão "Cheguei" da Eliana e da Yasmin ----------
@@ -198,6 +200,7 @@ async function abrirDias(){
   LEMBRETES = (oc && !oc.error && oc.data) || [];
   PAGOS = (pg && !pg.error && pg.data) || [];
   await carregarEquipe(ini, fim);
+  BOLSA_BASE = await carregarBolsaBase(ini).catch(() => null);
   montarCalendarioDias();
   show("scDias");
 }
@@ -551,6 +554,8 @@ function montarCalendarioDias(){
 
   const box = $("diasCorpo");
   box.innerHTML = "";
+  fecharExplicacao();
+  box.appendChild(blocoBolsa());
 
   const pessoas = [];
   ACORDOS.forEach(a => { if(!pessoas.includes(a.user_id)) pessoas.push(a.user_id); });

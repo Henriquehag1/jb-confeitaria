@@ -435,6 +435,10 @@ function formFreela(){
   pessoas.forEach(u => { const o = document.createElement("option"); o.value = u; o.textContent = eqNome(u); sel.appendChild(o); });
   sel.value = st.no_lugar_de || "";
   sel.onchange = () => { st.no_lugar_de = sel.value; };
+  const B = bolsaCalcular(BOLSA_BASE, bolsaItens(ACORDOS, DIAS, FREELAS, FALTAS, bolsaNome));
+  const nb = document.createElement("p"); nb.className = "eq-bolsa" + (B.disponivel < B.freela ? " alerta" : ""); nb.id = "eqFrBolsa";
+  nb.textContent = "Na bolsa do mês: " + reais(B.disponivel) + (B.disponivel < B.freela ? ". Uma freela agora sai do lucro." : ", dá para " + B.noites + (B.noites === 1 ? " noite" : " noites") + " de R$ " + moeda(B.freela) + ".");
+  f.appendChild(nb);
   f.append(l1, l2, campo("No lugar de", sel),
            campo("Observação (opcional)", entrada("text", st.obs, v => { st.obs = v; }, { id: "eqFrObs", maxlength: "200" })));
 
