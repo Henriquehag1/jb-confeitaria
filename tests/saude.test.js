@@ -15,6 +15,19 @@ const KPI = [
   { mes: "2026-09-01", entradas: 31145.08, saidas: 15580.19, pro_labore: 2500, unidades_dia: 71, equilibrio_dia: 65, contrib_un: 5.09, custo_fixo_mes: 9881.5 },
   { mes: "2026-10-01", entradas: 168.02, saidas: 8312.79, pro_labore: 2500, unidades_dia: 71, equilibrio_dia: 33, contrib_un: 10.21, custo_fixo_mes: 9881.5 }
 ];
+const FIXOS = [
+  { origem: "item", nome: "Aluguel do ateliê (metade)", valor: 1916.11, ordem: 10, obs: "A outra metade é do consultório", item_id: 1 },
+  { origem: "item", nome: "Luz do ateliê (metade)", valor: 241.06, ordem: 20, obs: null, item_id: 2 },
+  { origem: "item", nome: "Água do ateliê (metade)", valor: 81.98, ordem: 30, obs: null, item_id: 3 },
+  { origem: "item", nome: "Internet do ateliê (metade)", valor: 49.5, ordem: 40, obs: null, item_id: 4 },
+  { origem: "item", nome: "Contabilidade", valor: 200, ordem: 50, obs: "Só da confeitaria", item_id: 5 },
+  { origem: "item", nome: "Saipos", valor: 175, ordem: 60, obs: "Só da confeitaria", item_id: 6 },
+  { origem: "item", nome: "Produção da Eliana", valor: 700, ordem: 70, obs: "Medido em setembro/2026: 2 dias em 12. Revisar.", item_id: 7 },
+  { origem: "item", nome: "Parcelamento do Simples Nacional", valor: 302.85, ordem: 80, obs: "Acordo de 23/09/2026, 26 parcelas. Outra frase.", item_id: 9 },
+  { origem: "item", nome: "Anuidade Pluxee", valor: 31.67, ordem: 95, obs: null, item_id: 8 },
+  { origem: "folha", nome: "Folha: Yasmin", valor: 3683.33, ordem: 900, obs: "Acordo semanal de R$ 850.00 desde 01/09/2026", item_id: null },
+  { origem: "pro_labore", nome: "Pró-labore da Jessica", valor: 2500, ordem: 950, obs: "Não sai da conta", item_id: null }
+];
 const comDados = db => {
   db.__jb_kpi_destino = DESTINO;
   db.__jb_kpi_mes = KPI;
@@ -25,6 +38,7 @@ const comDados = db => {
     { id: 3, user_id: "uEli", data: "2026-09-10", turno: "dia", status: "sugerido", origem: "auto" }
   ];
   db.jb_freela = [{ id: 1, nome: "Bela", data: "2026-09-20", valor: 120, cancelada: false }];
+  db.jb_custo_fixo_calculado = FIXOS;
   db.jb_parametro = [{ chave: "fatia_noite", valor: 0.46, fonte: "Venda da noite em setembro", medido_em: "2026-09-30" },
                      { chave: "freela_noite", valor: 120, fonte: "Freela de 08/10", medido_em: "2026-10-08" },
                      { chave: "noites_mes", valor: 30, fonte: "", medido_em: "2026-10-09" }];
@@ -41,14 +55,14 @@ test("a conta da saúde: veredito, lucro, folga, contratar e conselhos saem dos 
              cons: s.recomendacoes.map(x => x.t),
              v: [saudeVeredito(0.12).rot, saudeVeredito(0.05).rot, saudeVeredito(0.01).rot, saudeVeredito(-0.02).rot] };
   }, [DESTINO[1], KPI[0]]);
-  assert.equal(r.lucro, 210.88);
+  assert.equal(r.lucro, 678.8, "R$ 10.560,30 que sobram da venda − R$ 9.881,50 de contas fixas");
   assert.equal(r.rot, "No limite");
-  assert.equal(r.dono, 2710.88);
+  assert.equal(r.dono, 3178.8);
   assert.equal(r.folga, 0.092);
   assert.equal(r.eqPct, 0.073);
-  assert.equal(r.falta, 2707.34);
-  assert.equal(r.unExtra, 18);
-  assert.equal(r.diarias, 1);
+  assert.equal(r.falta, 2239.42);
+  assert.equal(r.unExtra, 15);
+  assert.equal(r.diarias, 4, "sem parâmetro, diária de R$ 140");
   assert.equal(r.dif, 2433);
   assert.deepEqual(r.v, ["Saudável", "Atenção", "No limite", "No vermelho"]);
   assert.deepEqual(r.cons, ["A maior conta é o app: R$ 49,99 de cada R$ 100.", "Folga pequena sobre o ponto de equilíbrio.",
@@ -59,14 +73,21 @@ test("a conta da saúde: veredito, lucro, folga, contratar e conselhos saem dos 
 test("tela Saúde do negócio: usa o último mês fechado, não o mês pela metade", async () => {
   const a = await abrir("uHen", { agora: AGORA, db: comDados });
   a.texto = sel => a.page.locator(sel).first().innerText();
-  assert.match(await a.texto("#saudeSub"), /No limite · Setembro: sobraram R\$ 210,88 depois de tudo/);
+  assert.match(await a.texto("#saudeSub"), /No limite · Setembro: sobraram R\$ 678,80 depois de tudo/);
   assert.match(await a.page.getAttribute("#saudePonto", "class"), /tom-ambar/);
   await a.page.click("#btnSaude"); await a.espera(700);
   assert.equal(await a.tela(), "scSaude");
   assert.equal(await a.titulo(), "Saúde do negócio");
   assert.match(await a.texto("#sdVeredito"), /No limite/i);
   assert.match(await a.texto("#sdVeredito"), /Setembro de 2026/);
-  assert.match(await a.texto("#sdLucro"), /R\$ 210,88/);
+  assert.match(await a.texto("#sdLucro"), /R\$ 678,80/);
+  // a conta inteira, linha por linha, fecha no lucro
+  const ct = await a.texto("#sdConta");
+  assert.match(ct, /De onde sai o lucro de setembro/i);
+  assert.match(ct, /Os clientes pagaram\s*R\$ 54\.072,21[\s\S]*− App e promoção\s*R\$ 27\.030,70[\s\S]*− Imposto \(Simples\)\s*R\$ 3\.422,77[\s\S]*− Ingrediente e embalagem\s*R\$ 13\.058,44[\s\S]*= Sobrou da venda\s*R\$ 10\.560,30/);
+  assert.match(ct, /− Yasmin \(equipe\)\s*R\$ 3\.683,33[\s\S]*− Pró-labore da Jessica\s*R\$ 2\.500,00[\s\S]*− Aluguel do ateliê \(metade\)\s*R\$ 1\.916,11/);
+  assert.match(ct, /− Anuidade Pluxee\s*R\$ 31,67[\s\S]*= Lucro do mês\s*R\$ 678,80/);
+  assert.match(ct, /Não é o extrato do banco/);
   assert.match(await a.texto("#sdVeredito"), /O dono leva/);
   assert.match(await a.texto("#sdTendencia"), /ago[\s\S]*set/i);
   assert.doesNotMatch(await a.texto("#sdTendencia"), /out/i, "outubro pela metade fica fora");
@@ -79,7 +100,8 @@ test("tela Saúde do negócio: usa o último mês fechado, não o mês pela meta
   assert.match(eq, /2 dias × R\$ 140,00/, "só os dias confirmados contam");
   assert.match(eq, /Freelas[\s\S]*R\$ 120,00/);
   assert.match(eq, /Equipe no mês[\s\S]*R\$ 4\.083,33 · 7,6%/);
-  assert.match(await a.texto("#sdContratar"), /\+18 doces\/dia/);
+  assert.match(await a.texto("#sdContratar"), /\+15 doces\/dia/);
+  assert.match(await a.texto("#sdNoite"), /Freela extra[\s\S]*5 noites por mês/);
   assert.match(await a.texto("#sdConselhos"), /A maior conta é o app/);
   assert.match(await a.texto("#sdCaixa"), /Sobrou no caixa[\s\S]*R\$ 15\.564,89/);
 
@@ -101,7 +123,7 @@ test("tela Saúde do negócio: usa o último mês fechado, não o mês pela meta
 
   // tocar num número abre de onde ele sai
   await a.page.click("#sdLucro"); await a.espera(150);
-  assert.match(await a.texto("#saudeCorpo .explica:not(.hide)"), /R\$ 54\.072,21 × 0,4% = R\$ 210,88/);
+  assert.match(await a.texto("#saudeCorpo .explica:not(.hide)"), /R\$ 10\.560,30 que sobraram da venda − R\$ 9\.881,50 de contas fixas = R\$ 678,80/);
   await a.page.click('#sdYasmin [data-cen="renegociar"]'); await a.espera(150);
   assert.match(await a.texto("#saudeCorpo .explica:not(.hide)"), /6 noites, folga no domingo, mesma hora \(R\$ 21,16\)/);
   assert.equal(await a.page.locator("#saudeCorpo .explica:not(.hide)").count(), 1, "uma explicação aberta por vez");
