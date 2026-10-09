@@ -35,9 +35,10 @@ async function abrirMes(){
     const { data } = await sb.from("jb_canal").select("*").order("ordem");
     CANAIS_MES = data || [];
   }
-  const [r, f] = await Promise.all([
+  const [r, f, jm] = await Promise.all([
     sb.from("jb_resultado_mes").select("*").eq("mes", MES).maybeSingle(),
-    sb.from("jb_faturamento").select("canal_id,valor,manual").eq("mes", MES)
+    sb.from("jb_faturamento").select("canal_id,valor,manual").eq("mes", MES),
+    sb.from("jb_mes").select("detalhe").eq("mes", MES).maybeSingle()
   ]);
   const porCanal = {}, manualCanal = {};
   (f.data || []).forEach(x => { porCanal[x.canal_id] = Number(x.valor); manualCanal[x.canal_id] = !!x.manual; });
@@ -47,6 +48,7 @@ async function abrirMes(){
     sincronizadoEm: r.data ? r.data.atualizado_em : null,
     obs: r.data ? r.data.obs : null,
     fixoRef: r.data ? Number(r.data.custo_fixo_referencia) : null,
+    detalhe: (jm && !jm.error && jm.data && jm.data.detalhe) || null,
     porCanal, manualCanal
   };
   if(!r.data){
@@ -237,30 +239,17 @@ function montarMes(){
   si.addEventListener("keydown", e => { if(e.key === "Enter") si.blur(); });
   ls.append(sn, si);
   sai.appendChild(ls);
+  const grupos = (MES_DADOS.detalhe && MES_DADOS.detalhe.grupos) || [];
   explicar(ls, "Tudo que saiu", [
-    "Todo dinheiro que saiu da conta no mês: as contas fixas mais os gastos lançados, compra de insumo incluída.",
-    "Vem do Nosso Financeiro, atualizado toda segunda. Digitar por cima faz o seu número valer.",
-    "Não confunda com o custo do produto: aqui é caixa, dinheiro que saiu na data em que saiu."
-  ]);
+    "Todo dinheiro que saiu no mês: os gastos lançados (insumo, mercado, embalagem, gente) e as contas fixas pagas.",
+    "Vem do Nosso Financeiro na hora do lançamento. Os grupos logo abaixo mostram cada lançamento.",
+    "Não confunda com o custo do produto: aqui é caixa, dinheiro que saiu na data em que saiu. O lucro está na Saúde do negócio."
+  ], { conta: grupos.length ? grupos.map(g => g.nome + " " + moeda(g.total)).join(" + ") + " = R$ " + moeda(grupos.reduce((x, g) => x + Number(g.total), 0)) : null });
 
-  if(MES_DADOS.fixoRef){
-    const caixaEsperado = MES_DADOS.fixoRef - (MES_DADOS.proLabore || 0);
-    const ref = document.createElement("div"); ref.className = "linhaval leve";
-    const rn = document.createElement("span"); rn.className = "n";
-    rn.textContent = "Só de conta fixa e gente, o esperado é";
-    const rv = document.createElement("span"); rv.className = "v";
-    rv.textContent = "R$ " + moeda(caixaEsperado);
-    ref.append(rn, rv);
-    sai.appendChild(ref);
-    explicar(ref, "Só de conta fixa e gente", [
-      "Quanto deveria sair no mês sem nenhuma compra: aluguel, folha, contabilidade, sistema, tudo que vem todo mês.",
-      "Serve para conferir. Se o que saiu está bem abaixo disso, faltou lançar alguma conta.",
-      "O pró-labore da Jessica sai da conta fixa porque ele não sai do caixa da confeitaria."
-    ], { conta: rs(MES_DADOS.fixoRef) + " de conta fixa − " + rs(MES_DADOS.proLabore || 0)
-               + " de pró-labore = " + rs(caixaEsperado) });
-  }
+  /* de onde vem o que saiu: cada grupo abre os lançamentos que formam o número */
+  if(grupos.length) sai.appendChild(blocoGruposSaida(grupos));
   const nota2 = document.createElement("p"); nota2.className = "nota-taxa";
-  nota2.textContent = "Contas fixas mais os gastos lançados no Nosso Financeiro, atualizado toda segunda. Se digitar por cima, o seu número passa a valer. A linha acima é só para conferir se não esqueceu nada.";
+  nota2.textContent = "Vem sozinho do Nosso Financeiro: os gastos do mês e as contas fixas pagas" + (MES >= primeiroDia(hojeSP()) ? ", e as que ainda vão vencer neste mês (marcadas como previstas)" : "") + ". Compra no cartão entra pela parcela do mês. Se digitar por cima, o seu número passa a valer.";
   if(MES_DADOS.proLabore){
     const pl2 = document.createElement("p"); pl2.className = "nota-taxa";
     pl2.textContent = "O pró-labore da Jessica, R$ " + moeda(MES_DADOS.proLabore)
@@ -280,7 +269,7 @@ function montarMes(){
 
   const falta = document.createElement("p");
   falta.className = "tip";
-  falta.textContent = "Os cartões e os gráficos lá em cima se refazem sozinhos: saem dos preços, da contagem e do custo fixo. Mudou um preço na aba Preço, mudou aqui. O que ainda falta é o lucro separado por canal, que chega quando a contagem tiver mais semanas.";
+  falta.textContent = "Aqui é só o dinheiro de verdade. Se dá lucro, para onde vai cada R$ 100 e quanto precisa vender por dia estão na Saúde do negócio.";
   box.appendChild(falta);
 }
 
@@ -325,16 +314,6 @@ async function carregarKPIs(){
     destAnt:   acha(d.data, ant),
     dias:      dv.data || []
   };
-}
-
-/* um cartão de número, sem enfeite */
-function kpiCard(rotulo, numero, sub, tom){
-  const c = document.createElement("div"); c.className = "kpi";
-  const r = document.createElement("div"); r.className = "rot"; r.textContent = rotulo;
-  const n = document.createElement("div"); n.className = "num" + (tom ? " " + tom : ""); n.textContent = numero;
-  c.append(r, n);
-  if(sub){ const s = document.createElement("div"); s.className = "sub"; s.textContent = sub; c.appendChild(s); }
-  return c;
 }
 
 /* uma barra deitada: o comprimento é o número, o rótulo fica em cima e sempre aparece */
@@ -499,175 +478,16 @@ function explicarPlacar(cap, entradas, resultado){
   const ehEste = MES === primeiroDia(hojeSP());
   explicar(cap, resultado >= 0 ? "Sobrou no mês" : "Faltou no mês", [
     "Dinheiro de verdade: o que entrou na conta menos o que saiu dela.",
-    "O que entrou vem do Nosso Financeiro, canal por canal, já sem a comissão do app. O que saiu é a conta fixa mais os gastos lançados lá.",
+    "O que entrou vem do Nosso Financeiro, canal por canal, já sem a comissão do app. O que saiu são os gastos e as contas fixas pagas, lançados lá.",
     ehEste ? "O mês ainda não fechou, então esse número ainda vai mudar." : null,
     K && K.pro_labore ? "O pró-labore da Jessica não está aqui porque não sai da conta. Ele está no custo de cada produto." : null
   ], { conta: rs(entradas) + " que entrou − " + rs(MES_DADOS.saidas) + " que saiu = "
              + (resultado < 0 ? "−" : "") + rs(Math.abs(resultado)) });
 }
 
-function explicarKPIs(cartoes, K, D){
-  const porDia = K.unidades_dia == null ? null : Number(K.unidades_dia);
-  const eq = K.equilibrio_dia == null ? null : Number(K.equilibrio_dia);
-  const fora = Number(K.dias_fora || 0);
-
-  if(cartoes.dia) explicar(cartoes.dia, "Vendendo por dia", [
-    "Quantas unidades saem por dia, na média.",
-    "Sai da contagem de turno: o que estava na geladeira na abertura, menos o que sobrou no fechamento, menos a perda.",
-    fora ? "Dias com contagem que não fecha ficam de fora. Costuma ser reposição na geladeira sem marcar." : null
-  ], { conta: K.dias_contados + " dia" + (K.dias_contados === 1 ? "" : "s") + " de turno fechado"
-             + (fora ? ", " + fora + " fora por contagem torta" : "")
-             + (porDia == null ? "" : " · média de " + porDia + " por dia") });
-
-  if(cartoes.eq) explicar(cartoes.eq, "Precisa vender por dia", [
-    "O ponto de equilíbrio: quanto precisa sair por dia só para pagar a conta fixa.",
-    "É a conta fixa do mês dividida pelo que cada doce deixa, e isso dividido por 30.",
-    porDia != null && eq != null && porDia < eq
-      ? "Hoje está vendendo menos que isso. Cada dia abaixo da linha cava o buraco do mês." : null
-  ], { conta: rs(K.custo_fixo_mes) + " ÷ " + rs(K.contrib_un) + " ÷ 30 dias = " + eq + " por dia" });
-
-  if(cartoes.doce) explicar(cartoes.doce, "Cada doce deixa", [
-    "O que sobra de cada unidade vendida depois de tirar a fatia do app, o imposto e o ingrediente.",
-    "A conta fixa não entra nessa conta de propósito: é justamente ela que esse valor tem de cobrir.",
-    "Muda sozinho quando você mexe num preço, num insumo ou na taxa de um canal."
-  ], { conta: rs(K.preco_medio) + " de preço médio − app − imposto − ingrediente = " + rs(K.contrib_un) });
-
-  if(cartoes.sobra && D) explicar(cartoes.sobra, "Sobra de cada R$ 100", [
-    "De cada R$ 100 que o cliente paga no app, o que sobra depois de tudo, já contando a conta fixa.",
-    "É o mesmo número da última barra do gráfico aqui embaixo.",
-    Number(D.sobra) <= 0 ? "Está negativo: do jeito que os preços estão hoje, vender mais aumenta o prejuízo." : null
-  ], { conta: MES_KPI.destAnt
-        ? "Neste mês " + rs(Number(D.sobra) * 100) + " · no mês passado " + rs(Number(MES_KPI.destAnt.sobra) * 100)
-        : rs(Number(D.sobra) * 100) + " de cada R$ 100" });
-}
-
-const EXP_DESTINO = {
-  "App e promoção": [
-    "A comissão do app mais o desconto que você banca nas promoções.",
-    "Cada canal cobra diferente. Aqui as fatias entram pesadas pelo quanto cada canal trouxe neste mês, então a mistura muda o número."
-  ],
-  "Imposto": [
-    "O Simples sobre a venda. Calculado sozinho pela tabela do Simples com a venda estimada dos últimos 12 meses (veja em Saúde do negócio).",
-    "Quanto mais a loja fatura, maior a faixa e maior a porcentagem. O número muda sozinho quando entra um mês novo."
-  ],
-  "Ingrediente e embalagem": [
-    "O que entra no produto pela ficha técnica, já com os 5% de perda somados.",
-    "Muda sozinho quando você atualiza o preço de um insumo na aba Insumos, ou quando troca uma receita."
-  ],
-  "Conta fixa": [
-    "Aluguel, gente, pró-labore, contabilidade, sistema, tudo dividido pelas unidades do mês.",
-    "Quanto mais unidades saem, menor fica esse pedaço. É por isso que volume importa tanto aqui."
-  ]
-};
-
-function explicarBarraDestino(b, nome, K){
-  if(nome === "Sobra" || nome === "Falta"){
-    explicar(b, nome === "Sobra" ? "Sobra" : "Falta", [
-      "O que resta do preço depois das quatro barras de cima.",
-      nome === "Falta"
-        ? "Negativo quer dizer que o preço de hoje não cobre o que custa vender. Ou o preço sobe, ou a promoção cai, ou o custo desce."
-        : "É o lucro do produto, antes de qualquer coisa que você tire da conta."
-    ], { dentro: b.querySelector(".cab"), tudoClicavel: true });
-    return;
-  }
-  const linhas = EXP_DESTINO[nome];
-  if(!linhas) return;
-  const conta = nome === "Conta fixa" && K && K.custo_fixo_mes && K.unidades_mes
-    ? rs(K.custo_fixo_mes) + " ÷ " + numeroBR(K.unidades_mes) + " unidades = " + rs(K.custo_fixo_un) + " por doce"
-    : null;
-  explicar(b, nome, linhas, { dentro: b.querySelector(".cab"), tudoClicavel: true, conta });
-}
-
 function numeroBR(v){ return Number(v).toLocaleString("pt-BR", { maximumFractionDigits: 0 }); }
 
 function montarKPIs(box){
-  const K = MES_KPI && MES_KPI.atual, D = MES_KPI && MES_KPI.destino;
-  if(!K) return;
-
-  /* ---- os quatro números ---- */
-  const g = document.createElement("div"); g.className = "kpis";
-
-  const porDia = K.unidades_dia == null ? null : Number(K.unidades_dia);
-  const eq = K.equilibrio_dia == null ? null : Number(K.equilibrio_dia);
-  const fora = Number(K.dias_fora || 0);
-
-  const cartoes = {};
-  cartoes.dia = kpiCard(
-    "Vendendo por dia",
-    porDia == null ? "sem contagem" : porDia + " un",
-    porDia == null ? "Ainda faltam dias de contagem fechada."
-      : "Média de " + K.dias_contados + " dia" + (K.dias_contados === 1 ? "" : "s")
-        + " de turno fechado" + (fora ? ", fora " + fora + " com contagem torta" : "") + "."
-  );
-  g.appendChild(cartoes.dia);
-
-  if(eq != null){
-    const folga = porDia == null ? null : porDia - eq;
-    cartoes.eq = kpiCard(
-      "Precisa vender por dia",
-      eq + " un",
-      folga == null ? "Só para cobrir a conta fixa do mês."
-        : folga >= 0 ? "Está vendendo " + folga + " a mais que isso. É essa a folga."
-                     : "Faltam " + (-folga) + " por dia só para empatar.",
-      folga == null ? "" : folga >= 0 ? "bom" : "alerta"
-    );
-    g.appendChild(cartoes.eq);
-  }
-
-  if(K.contrib_un != null){
-    cartoes.doce = kpiCard(
-      "Cada doce deixa",
-      "R$ " + moeda(K.contrib_un),
-      "Do preço médio de R$ " + moeda(K.preco_medio) + ", é o que sobra depois do app, do imposto e do ingrediente. Dele saem as contas fixas."
-    );
-    g.appendChild(cartoes.doce);
-  }
-
-  if(D){
-    const s = Number(D.sobra) * 100;
-    const sAnt = MES_KPI.destAnt ? Number(MES_KPI.destAnt.sobra) * 100 : null;
-    cartoes.sobra = kpiCard(
-      "Sobra de cada R$ 100",
-      "R$ " + moeda(s),
-      sAnt == null ? "Depois de tudo, do preço que o cliente paga."
-                   : "No mês passado era R$ " + moeda(sAnt) + ".",
-      s <= 0 ? "alerta" : s < 5 ? "alerta" : "bom"
-    );
-    g.appendChild(cartoes.sobra);
-  }
-  if(g.children.length){ box.appendChild(g); explicarKPIs(cartoes, K, D); }
-
-  /* ---- para onde vai cada R$ 100 ---- */
-  if(D){
-    const c = document.createElement("div"); c.className = "graf";
-    const h = document.createElement("h3"); h.textContent = "Para onde vai cada R$ 100";
-    const dica = document.createElement("p"); dica.className = "dica";
-    dica.textContent = "Do preço de tabela que o cliente paga. Calculado com a mistura real deste mês: quanto veio de cada app e quanto cada produto girou.";
-    c.append(h, dica);
-    const bs = document.createElement("div"); bs.className = "barras";
-    const sobra = Number(D.sobra);
-    const linhas = [
-      ["App e promoção",        Number(D.app),         "Comissão mais o desconto que você banca"],
-      ["Imposto",               Number(D.imposto),     null],
-      ["Ingrediente e embalagem", Number(D.ingrediente), "Já com a perda"],
-      ["Conta fixa",            Number(D.custo_fixo),  "Aluguel, gente, pró-labore, tudo dividido pelas unidades"],
-      [sobra >= 0 ? "Sobra" : "Falta", sobra,
-       sobra >= 0 ? null : "A barra mostra o tamanho do buraco, não uma sobra"]
-    ];
-    const maior = Math.max(...linhas.map(l => Math.abs(l[1])), 0.01);
-    linhas.forEach(([nome, v, nota], i) => {
-      const ult = i === linhas.length - 1;
-      const b = barra(bs, nome, "R$ " + moeda(v * 100), Math.abs(v) / maior,
-                      { nota, destaque: ult, ruim: ult && v <= 0 });
-      explicarBarraDestino(b, nome, K);
-    });
-    c.appendChild(bs);
-    const rod = document.createElement("p"); rod.className = "rodape";
-    rod.textContent = "É um retrato do preço, não do extrato. O extrato do mês está logo abaixo.";
-    c.appendChild(rod);
-    box.appendChild(c);
-  }
-
   /* ---- de onde vem o dinheiro ---- */
   const comDinheiro = CANAIS_MES.filter(c => (MES_DADOS.porCanal[c.id] || 0) > 0);
   if(comDinheiro.length){
@@ -713,28 +533,37 @@ function montarKPIs(box){
     box.appendChild(c);
   }
 
-  /* ---- unidades por dia ---- */
-  const dias = (MES_KPI.dias || []).slice(-21);
-  if(dias.length >= 3){
-    const c = document.createElement("div"); c.className = "graf";
-    const h = document.createElement("h3"); h.textContent = "Unidades por dia";
-    const dica = document.createElement("p"); dica.className = "dica";
-    dica.textContent = "Cada coluna é um dia de contagem. As claras são dias com turno aberto ou contagem que não fecha: aparecem, mas não entram em nenhuma média.";
-    c.append(h, dica);
-    colunasPorDia(c, dias, eq);
-    explicar(h, "Unidades por dia", [
-      "Uma coluna por dia de contagem, nos últimos 21 dias.",
-      "As claras são dias com o turno ainda aberto ou com contagem que não fecha, quase sempre reposição na geladeira sem marcar. Aparecem para você ver que existem, mas ficam fora de toda média.",
-      eq ? "A linha tracejada é o " + eq + " por dia que paga a conta fixa. Dia abaixo dela é dia que não se pagou." : null,
-      "Coluna cortada no topo, com o risquinho, é dia cuja contagem não cabe na escala."
-    ], { depois: c.querySelector(".dica") });
-    const foraN = dias.filter(d => !d.confiavel).length;
-    if(foraN){
-      const rod = document.createElement("p"); rod.className = "rodape";
-      rod.textContent = foraN === 1 ? "Um dia está claro. Vale conferir a contagem dele."
-        : foraN + " dias estão claros. Vale conferir a contagem deles.";
-      c.appendChild(rod);
-    }
-    box.appendChild(c);
-  }
+}
+
+/* grupos do que saiu no mês, cada um abre a lista de lançamentos */
+function blocoGruposSaida(grupos){
+  const box = document.createElement("div"); box.className = "cx-grupos"; box.id = "cxGrupos";
+  const h = document.createElement("p"); h.className = "cx-tit"; h.textContent = "Toque num grupo para ver cada lançamento";
+  box.appendChild(h);
+  grupos.forEach((g, i) => {
+    const prev = (g.itens || []).filter(x => x.previsto);
+    const linha = document.createElement("button"); linha.type = "button"; linha.className = "cx-grupo"; linha.dataset.grupo = g.nome;
+    linha.setAttribute("aria-expanded", "false");
+    const n = document.createElement("span"); n.className = "n";
+    n.textContent = g.nome;
+    const sm = document.createElement("small");
+    sm.textContent = (g.itens || []).length + ((g.itens || []).length === 1 ? " lançamento" : " lançamentos") + (prev.length ? ", " + prev.length + " previsto" + (prev.length === 1 ? "" : "s") : "");
+    n.appendChild(sm);
+    const v = document.createElement("b"); v.textContent = "R$ " + moeda(g.total);
+    linha.append(n, v);
+    const lista = document.createElement("div"); lista.className = "cx-itens hide";
+    (g.itens || []).forEach(x => {
+      const l = document.createElement("div"); l.className = "cx-item" + (x.previsto ? " prev" : "");
+      const d = document.createElement("span"); d.className = "d"; d.textContent = String(x.data || "").slice(8, 10) + "/" + String(x.data || "").slice(5, 7);
+      const t = document.createElement("span"); t.className = "t";
+      t.textContent = x.desc || "Sem descrição";
+      const det = [x.parcela ? "parcela " + x.parcela : null, x.cartao ? "cartão " + x.cartao : (x.forma && x.forma !== "conta" ? x.forma : null), x.previsto ? "previsto, ainda não pago" : null].filter(Boolean).join(" · ");
+      if(det){ const s2 = document.createElement("small"); s2.textContent = det; t.appendChild(s2); }
+      const vv = document.createElement("b"); vv.textContent = "R$ " + moeda(x.valor);
+      l.append(d, t, vv); lista.appendChild(l);
+    });
+    linha.onclick = () => { const ab = lista.classList.toggle("hide"); linha.setAttribute("aria-expanded", String(!ab)); };
+    box.append(linha, lista);
+  });
+  return box;
 }

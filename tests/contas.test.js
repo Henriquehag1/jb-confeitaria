@@ -217,3 +217,30 @@ test("leitura de código: arrecadação e boleto bancário, com dígitos conferi
   assert.equal(r.bolVolta, true);
   semErros(a); await a.fechar();
 });
+
+test("cartões: a parte da confeitaria em cada fatura, com cada compra ao tocar", async () => {
+  const fat = [
+    { cartao: "Santander Unique Visa", vencimento: mais(20), compras: 1568.67, divida: 0, pago: false, ativo: true,
+      itens: [{ data: mais(-10), desc: "Loja santo Antônio 2/6", valor: 683.78, parcela: "2/6" }, { data: mais(-5), desc: "Embalagem bolo", valor: 884.89, parcela: null }] },
+    { cartao: "XP (divida antiga JB)", vencimento: mais(3), compras: 612.71, divida: 3156.28, pago: false, ativo: true,
+      itens: [{ data: mais(-20), desc: "Atacadão 3/3", valor: 478.91, parcela: "3/3" }, { data: mais(-15), desc: "Mercado livre 4/6", valor: 133.8, parcela: "4/6" }] },
+    { cartao: "XP (divida antiga JB)", vencimento: mais(-4), compras: 0, divida: 4378.83, pago: true, ativo: true, itens: [] },
+    { cartao: "Bradesco Visa", vencimento: mais(25), compras: 226.66, divida: 0, pago: false, ativo: false, itens: [] }
+  ];
+  const a = await abrirContas("uHen", { db: db => { db.jb_cartao_fatura = fat; return db; } });
+  const linhas = () => a.page.evaluate(() => [...document.querySelectorAll("#contaCartoes .conta-fatura")].map(c => c.querySelector(".conta-fat-topo").innerText.replace(/\s+/g, " ").trim()));
+  const l = await linhas();
+  assert.equal(l.length, 2, "a paga vai para Pagas e a inativa não aparece: " + JSON.stringify(l));
+  assert.match(l[0], /Fatura XP \(divida antiga JB\) 2 compras R\$ 612,71 · dívida antiga R\$ 3\.156,28 R\$ 3\.768,99 CARTÃO/);
+  assert.match(l[1], /Fatura Santander Unique Visa 2 compras R\$ 1\.568,67 R\$ 1\.568,67 CARTÃO/);
+  assert.equal(await a.page.evaluate(() => document.querySelectorAll("#contaCartoes .conta-fat-itens:not(.hide)").length), 0, "nasce fechado");
+  await a.page.click("#contaCartoes .conta-fatura:nth-of-type(1) .conta-fat-topo"); await a.espera(150);
+  const itens = await a.page.evaluate(() => [...document.querySelectorAll("#contaCartoes .conta-fat-itens:not(.hide) .cx-item")].map(x => x.innerText.replace(/\s+/g, " ").trim()));
+  assert.equal(itens.length, 4);
+  assert.match(itens[0], /Atacadão 3\/3 parcela 3\/3 R\$ 478,91/);
+  assert.match(itens[2], /Dívida antiga no cartão parcela do mês do parcelamento antigo R\$ 3\.156,28/);
+  assert.match(itens[3], /Parte da confeitaria nesta fatura R\$ 3\.768,99/);
+  await a.page.click('#contasLista .conta-abas [data-aba="pagas"]'); await a.espera(200);
+  assert.deepEqual((await linhas()).map(x => /✓ PAGA/.test(x)), [true]);
+  semErros(a); await a.fechar();
+});

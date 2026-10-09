@@ -20,6 +20,8 @@ const CONTA_TIPO = { imposto: "Imposto", fixa: "Conta fixa", fornecedor: "Fornec
 let CONTA_FALTAS = [];      // faltas com desconto (jb_falta): abatem da conta da pessoa que cobre aquele período
 let CONTA_BANCO = {};      // por pessoa: saldo do banco de horas em minutos
 let CONTA_DIARIAS = [];     // por pessoa que ganha por dia: { uid, nome, valor, dias: [iso...] } ainda não pagos
+let CONTA_CARTOES = [];     // parte da confeitaria em cada fatura de cartão (jb_cartao_fatura), vinda do Nosso Financeiro
+const CARTAO_ABERTO = {};   // fatura com as compras abertas na tela
 const CONTA_BALDE = "contas";
 const PDFJS_URL = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.mjs";
 const PDFJS_WORKER = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.mjs";
@@ -212,6 +214,8 @@ async function carregarContas(){
     return;
   }
   CONTAS = r.data || [];
+  const cc = await sb.from("jb_cartao_fatura").select("*").eq("ativo", true).order("vencimento");
+  CONTA_CARTOES = (cc && !cc.error && cc.data) || [];
   await carregarEquipeContas();
 }
 
@@ -331,6 +335,8 @@ function montarContas(){
     secao("Atrasadas", atrasadas, "alerta");
     secao("Nos próximos 7 dias", semana, "logo");
     secao("Mais para frente", depois);
+    const fatAbertas = CONTA_CARTOES.filter(f => !f.pago);
+    if(fatAbertas.length) box.appendChild(blocoCartoes(fatAbertas));
     if(!abertas.length){
       const p = document.createElement("p"); p.className = "tip conta-vazio";
       p.textContent = "Nenhuma conta em aberto. As contas fixas chegam sozinhas do Nosso Financeiro; impostos e boletos de fornecedor você lança aqui.";
@@ -341,12 +347,76 @@ function montarContas(){
     r.textContent = pagas.length ? pagas.length + (pagas.length === 1 ? " conta paga" : " contas pagas") + " nos últimos 90 dias, R$ " + moeda(pago) : "Nenhuma conta paga nos últimos 90 dias.";
     box.appendChild(r);
     pagas.forEach(c => box.appendChild(cartaoConta(c)));
+    const fatPagas = CONTA_CARTOES.filter(f => f.pago);
+    if(fatPagas.length) box.appendChild(blocoCartoes(fatPagas));
   } else {
     if(CONTA_DIARIAS.length) box.appendChild(blocoDiarias());
     const h = document.createElement("h3"); h.className = "conta-sec"; h.textContent = "Por data de vencimento";
     box.appendChild(h);
     CONTAS.slice().sort(porVenc).forEach(c => box.appendChild(cartaoConta(c)));
+    if(CONTA_CARTOES.length) box.appendChild(blocoCartoes(CONTA_CARTOES));
   }
+}
+
+/* Cartões: a parte da confeitaria em cada fatura. Uma linha por cartão e vencimento;
+   tocar mostra cada compra (data, parcela, valor) e a parcela da dívida antiga. */
+function blocoCartoes(lista){
+  const wrap = document.createElement("div"); wrap.className = "conta-cartoes"; wrap.id = "contaCartoes";
+  const h = document.createElement("h3"); h.className = "conta-sec"; h.textContent = "Cartões · parte da confeitaria";
+  wrap.appendChild(h);
+  const dica = document.createElement("p"); dica.className = "conta-info"; dica.textContent = "Compras da confeitaria lançadas no Nosso Financeiro, na fatura em que caem. Toque para ver cada compra.";
+  wrap.appendChild(dica);
+  lista.slice().sort((a, b) => a.vencimento < b.vencimento ? -1 : a.vencimento > b.vencimento ? 1 : a.cartao.localeCompare(b.cartao)).forEach(f => {
+    const chave = f.cartao + "|" + f.vencimento;
+    const total = Number(f.compras || 0) + Number(f.divida || 0);
+    const itens = Array.isArray(f.itens) ? f.itens : [];
+    const est = f.pago ? "paga" : contaDias(f.vencimento) <= 7 ? "logo" : "depois";
+    const el = document.createElement("div"); el.className = "enc conta conta-fatura est-" + est; el.dataset.cartao = chave;
+    const topo = document.createElement("button"); topo.type = "button"; topo.className = "enc-topo conta-fat-topo";
+    topo.setAttribute("aria-expanded", String(!!CARTAO_ABERTO[chave]));
+    const [, mm, dd] = f.vencimento.split("-");
+    const data = document.createElement("div"); data.className = "conta-data";
+    const d1 = document.createElement("b"); d1.textContent = dd;
+    const d2 = document.createElement("span"); d2.textContent = CONTA_MES_CURTO[Number(mm) - 1];
+    data.append(d1, d2);
+    const meio = document.createElement("div"); meio.className = "enc-meio";
+    const b = document.createElement("b"); b.textContent = "Fatura " + f.cartao;
+    const sub = document.createElement("span"); sub.className = "conta-quando";
+    sub.textContent = [itens.length ? itens.length + (itens.length === 1 ? " compra" : " compras") + " R$ " + moeda(f.compras) : null,
+                       Number(f.divida) > 0 ? "dívida antiga R$ " + moeda(f.divida) : null].filter(Boolean).join(" · ");
+    meio.append(b, sub);
+    const dir = document.createElement("div"); dir.className = "enc-dir";
+    const v = document.createElement("b"); v.textContent = "R$ " + moeda(total);
+    const chip = document.createElement("span"); chip.className = "enc-chip conta-chip-" + est; chip.textContent = f.pago ? "✓ PAGA" : "CARTÃO";
+    dir.append(v, chip);
+    topo.append(data, meio, dir);
+    el.appendChild(topo);
+    const det = document.createElement("div"); det.className = "conta-fat-itens" + (CARTAO_ABERTO[chave] ? "" : " hide");
+    itens.forEach(x => {
+      const l = document.createElement("div"); l.className = "cx-item";
+      const d = document.createElement("span"); d.className = "d"; d.textContent = String(x.data || "").slice(8, 10) + "/" + String(x.data || "").slice(5, 7);
+      const t = document.createElement("span"); t.className = "t"; t.textContent = x.desc || "Compra";
+      if(x.parcela){ const sm = document.createElement("small"); sm.textContent = "parcela " + x.parcela; t.appendChild(sm); }
+      const vv = document.createElement("b"); vv.textContent = "R$ " + moeda(x.valor);
+      l.append(d, t, vv); det.appendChild(l);
+    });
+    if(Number(f.divida) > 0){
+      const l = document.createElement("div"); l.className = "cx-item";
+      const d = document.createElement("span"); d.className = "d"; d.textContent = dd + "/" + mm;
+      const t = document.createElement("span"); t.className = "t"; t.textContent = "Dívida antiga no cartão";
+      const sm = document.createElement("small"); sm.textContent = "parcela do mês do parcelamento antigo"; t.appendChild(sm);
+      const vv = document.createElement("b"); vv.textContent = "R$ " + moeda(f.divida);
+      l.append(d, t, vv); det.appendChild(l);
+    }
+    const tot = document.createElement("div"); tot.className = "cx-item conta-fat-total";
+    const tl = document.createElement("span"); tl.className = "t"; tl.textContent = "Parte da confeitaria nesta fatura";
+    const tv = document.createElement("b"); tv.textContent = "R$ " + moeda(total);
+    tot.append(document.createElement("span"), tl, tv); det.appendChild(tot);
+    el.appendChild(det);
+    topo.onclick = () => { CARTAO_ABERTO[chave] = !CARTAO_ABERTO[chave]; det.classList.toggle("hide", !CARTAO_ABERTO[chave]); topo.setAttribute("aria-expanded", String(!!CARTAO_ABERTO[chave])); };
+    wrap.appendChild(el);
+  });
+  return wrap;
 }
 
 function cartaoConta(c){

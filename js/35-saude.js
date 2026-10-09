@@ -201,6 +201,63 @@ function saudeRecomendacoes(r){
 }
 
 /* ============================================================
+   QUAL PERÍODO OLHAR: um mês fechado, o mês de agora (até hoje) ou o acumulado
+   ============================================================ */
+let SAUDE_SEL = null;   // "atual" | "aaaa-mm-01" | "acumulado"
+
+/* soma várias contas de mês (saudeLucroMes) numa só: o acumulado do período */
+function saudeSomarContas(lista){
+  const soma = k => r2(lista.reduce((s, L) => s + Number(L[k] || 0), 0));
+  const juntar = (campo) => {
+    const m = {};
+    lista.forEach(L => (L[campo] || []).forEach(i => {
+      const x = m[i.nome] || (m[i.nome] = Object.assign({}, i, { valor: 0 }));
+      x.valor = r2(x.valor + Number(i.valor || 0));
+    }));
+    return Object.values(m).sort((a, b) => b.valor - a.valor);
+  };
+  const L = { bruto: soma("bruto"), app: soma("app"), imposto: soma("imposto"), ingrediente: soma("ingrediente"), margem: soma("margem"),
+              fixo: soma("fixo"), antesExtra: soma("antesExtra"), extraTotal: soma("extraTotal"), lucro: soma("lucro"),
+              itens: juntar("itens"), extras: juntar("extras") };
+  L.sobra = L.bruto > 0 ? L.lucro / L.bruto : null;
+  return L;
+}
+
+/* o mês de agora: a venda sai da contagem da geladeira (o repasse dos apps chega depois),
+   as contas fixas entram proporcionais aos dias que já passaram, e a ajuda extra pelo que já saiu */
+function saudeVisaoAtual(x){
+  const { Dref, preco, fixos, extras, dias, hoje } = x;
+  const mes = primeiroDia(hoje);
+  const nMes = Number(ultimoDia(mes).slice(8));
+  const passados = Number(hoje.slice(8)) - 1;                 // dias já fechados
+  const bons = (dias || []).filter(d => d.data >= mes && d.data < hoje && d.confiavel);
+  if(!Dref || !(preco > 0) || passados < 1 || !bons.length) return null;
+  const media = bons.reduce((s, d) => s + Number(d.vendeu || 0), 0) / bons.length;
+  const fr = { app: Dref.app, imposto: Dref.imposto, ingrediente: Dref.ingrediente };
+  const venda = r2(media * passados * preco);
+  const prop = passados / nMes;
+  const fixosAte = (fixos || []).map(f => Object.assign({}, f, { valor: r2(Number(f.valor) * prop) }));
+  const L = saudeLucroMes(Object.assign({ mes, bruto_estimado: venda }, fr), fixosAte, extras || []);
+  const Lp = saudeLucroMes(Object.assign({ mes, bruto_estimado: r2(media * nMes * preco) }, fr), fixos || [],
+                           (extras || []).map(e => Object.assign({}, e, { valor: r2(Number(e.valor) / prop) })));
+  return { mes, L, Lp, media: Math.round(media), diasBons: bons.length, passados, nMes, preco, prop };
+}
+
+/* quanto foi comprado de insumo, mercado e embalagem no mês, pelo valor cheio da compra
+   (compra parcelada conta inteira no mês da primeira parcela) */
+function saudeComprasDoMes(detalhe){
+  const grupos = (detalhe && detalhe.grupos) || [];
+  let total = 0;
+  grupos.filter(g => /insumo|mercado|embalage/i.test(g.nome)).forEach(g => (g.itens || []).forEach(i => {
+    if(i.previsto) return;
+    const m = String(i.parcela || "").match(/^(\d+)\/(\d+)$/);
+    if(m){ if(m[1] === "1") total += Number(i.valor) * Number(m[2]); }
+    else total += Number(i.valor);
+  }));
+  return r2(total);
+}
+
+/* ============================================================
    CARREGAR
    ============================================================ */
 const DIA_NOME = ["domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sábado"];
@@ -270,10 +327,56 @@ async function carregarSaude(){
   r.tendencia = tendencia;
   r.fontes = fontes;
   r.yasminNome = yasmin ? yasmin.nome : "Yasmin";
+
+  /* os períodos que dá para escolher */
+  const [dv, jm] = await Promise.all([
+    sb.from("jb_dia_vendas").select("data,vendeu,fechado,confiavel"),
+    sb.from("jb_mes").select("mes,detalhe")
+  ]);
+  const diasVenda = (dv && !dv.error && dv.data) || [];
+  const detalhes = {}; ((jm && !jm.error && jm.data) || []).forEach(m => { detalhes[m.mes] = m.detalhe; });
+  const fechados = destinos.filter(d => d.mes < primeiroDia(hoje) && Number(d.bruto_estimado) > 0).sort((a, b) => a.mes < b.mes ? -1 : 1);
+  const extrasDe = async m => { const g = await bolsaGastoMes(m).catch(() => null); return g ? g.itens : []; };
+  const atual = saudeVisaoAtual({ Dref: D, preco: K ? Number(K.preco_medio) : null, fixos, extras: await extrasDe(primeiroDia(hoje)), dias: diasVenda, hoje });
+  r.periodos = (atual ? ["atual"] : []).concat(fechados.slice(-3).map(d => d.mes)).concat(fechados.length > 1 ? ["acumulado"] : []);
+  let sel = SAUDE_SEL && r.periodos.includes(SAUDE_SEL) ? SAUDE_SEL : (atual ? "atual" : D.mes);
+  r.sel = sel;
+  r.diasVenda = diasVenda;
+  const base = { proLabore: r.proLabore, udia: r.udia, equilibrio: r.equilibrio, folga: r.folga, custoFixo: r.custoFixo, contribUn: r.contribUn };
+  const visaoDe = (L, extra) => Object.assign({}, base, {
+    conta: L, lucro: L.lucro, sobra: L.sobra, bruto: L.bruto, veredito: saudeVeredito(L.sobra),
+    donoLeva: r2(r.proLabore + L.lucro),
+    destino: { app: L.bruto ? L.app / L.bruto : 0, imposto: L.bruto ? L.imposto / L.bruto : 0, ingrediente: L.bruto ? L.ingrediente / L.bruto : 0,
+               custo_fixo: L.bruto ? L.fixo / L.bruto : 0, sobra: L.sobra || 0 }
+  }, extra || {});
+  if(sel === "atual"){
+    const A = atual;
+    const folgaA = r.equilibrio ? (A.media - r.equilibrio) / r.equilibrio : null;
+    r.visao = visaoDe(A.L, { tipo: "atual", mes: A.mes, M: mesLongo(A.mes).split(" ")[0].toLowerCase() + " até ontem",
+      titulo: mesLongo(A.mes) + ", até ontem (" + A.passados + " de " + A.nMes + " dias)", rotLucro: " de lucro até ontem",
+      veredito: saudeVeredito(A.Lp.sobra), proj: A.Lp, atual: A, udia: A.media, folga: folgaA,
+      proLabore: r2(r.proLabore * A.prop), donoLeva: r2(r.proLabore * A.prop + A.L.lucro) });
+  } else if(sel === "acumulado"){
+    const lista = [];
+    for(const d of fechados){
+      lista.push(d.mes === D.mes ? r.conta : saudeLucroMes(d, fixos, await extrasDe(d.mes)));
+    }
+    const L = saudeSomarContas(lista);
+    const de = mesLongo(fechados[0].mes).split(" ")[0].toLowerCase(), ate = mesLongo(fechados[fechados.length - 1].mes).split(" ")[0].toLowerCase();
+    r.visao = visaoDe(L, { tipo: "acumulado", mes: D.mes, M: "de " + de + " a " + ate, meses: lista.length,
+      titulo: "Acumulado de " + de + " a " + ate + " (" + lista.length + " meses)", rotLucro: " de lucro no período",
+      donoLeva: r2(r.proLabore * lista.length + L.lucro), proLaboreTot: r2(r.proLabore * lista.length) });
+  } else {
+    const Dm = destinos.find(d => d.mes === sel);
+    const L = sel === D.mes ? r.conta : saudeLucroMes(Dm, fixos, await extrasDe(sel));
+    r.visao = visaoDe(L, { tipo: "mes", mes: sel, M: mesLongo(sel).split(" ")[0].toLowerCase(), titulo: mesLongo(sel), rotLucro: " de lucro no mês",
+      compras: detalhes[sel] ? saudeComprasDoMes(detalhes[sel]) : null });
+  }
   return r;
 }
 
-async function abrirSaude(){
+async function abrirSaude(sel){
+  if(sel) SAUDE_SEL = sel;
   aviso("saudeMsg", "", "");
   $("saudeCorpo").innerHTML = "<p class='tip'>Fazendo as contas...</p>";
   show("scSaude");
@@ -325,24 +428,48 @@ function montarSaude(){
     sdTexto(box, "Ainda não há mês fechado com faturamento. Quando o Nosso Financeiro lançar as entradas do mês, esta tela se monta sozinha.");
     return;
   }
-  const D = S.destino, M = mesLongo(S.mes).split(" ")[0].toLowerCase();
+  const V = S.visao || Object.assign({}, S, { tipo: "mes", titulo: mesLongo(S.mes), rotLucro: " de lucro no mês", M: mesLongo(S.mes).split(" ")[0].toLowerCase() });
+  const D = V.destino, M = V.M;
+  const mRef = mesLongo(S.mes).split(" ")[0].toLowerCase();
+
+  /* 0. qual período olhar */
+  const chips = document.createElement("div"); chips.className = "chips sd-periodos"; chips.id = "sdPeriodos";
+  (S.periodos || []).forEach(k => {
+    const b = document.createElement("button"); b.type = "button"; b.dataset.periodo = k;
+    b.textContent = k === "atual" ? "Este mês" : k === "acumulado" ? "Acumulado" : mesCurto(k);
+    b.setAttribute("aria-pressed", String(k === S.sel));
+    b.onclick = () => abrirSaude(k);
+    chips.appendChild(b);
+  });
+  if(chips.children.length > 1) box.appendChild(chips);
 
   /* 1. veredito */
-  const v = sdCard(null, "sdVeredito"); v.classList.add("sd-veredito", "tom-" + S.veredito.tom);
-  const et = document.createElement("span"); et.className = "sd-selo"; et.textContent = S.veredito.rot; v.appendChild(et);
-  const q = document.createElement("p"); q.className = "sd-pergunta"; q.textContent = "O negócio está dando lucro? " + mesLongo(S.mes); v.appendChild(q);
+  const v = sdCard(null, "sdVeredito"); v.classList.add("sd-veredito", "tom-" + V.veredito.tom);
+  const et = document.createElement("span"); et.className = "sd-selo"; et.textContent = V.veredito.rot; v.appendChild(et);
+  const q = document.createElement("p"); q.className = "sd-pergunta"; q.textContent = "O negócio está dando lucro? " + V.titulo; v.appendChild(q);
   const n = document.createElement("div"); n.className = "sd-numero"; n.id = "sdLucro";
-  n.textContent = reais(S.lucro);
-  const ns = document.createElement("small"); ns.textContent = " de lucro no mês"; n.appendChild(ns);
+  n.textContent = reais(V.lucro);
+  const ns = document.createElement("small"); ns.textContent = V.rotLucro; n.appendChild(ns);
   v.appendChild(n);
-  const C = S.conta;
-  explicar(n, "Lucro do mês", ["O que sobra da venda de " + M + " depois de pagar app, imposto, ingrediente, contas fixas, pró-labore e a ajuda extra (Eliana e freelas).",
-    "Linha por linha logo abaixo, em \"De onde sai o lucro\"."], { conta: reais(C.margem) + " que sobraram da venda − " + reais(C.fixo) + " de contas fixas" + (C.extraTotal ? " − " + reais(C.extraTotal) + " de ajuda extra" : "") + " = " + reais(S.lucro), tudoClicavel: true });
-  sdTexto(v, S.veredito.frase);
+  const C = V.conta;
+  explicar(n, V.tipo === "acumulado" ? "Lucro do período" : "Lucro do mês", ["O que sobra da venda (" + M + ") depois de pagar app, imposto, ingrediente, contas fixas, pró-labore e a ajuda extra (Eliana e freelas).",
+    V.tipo === "atual" ? "A venda sai da contagem da geladeira, porque os apps pagam depois. As contas fixas entram pelos dias que já passaram." : "Linha por linha logo abaixo, em \"De onde sai o lucro\"."],
+    { conta: reais(C.margem) + " que sobraram da venda − " + reais(C.fixo) + " de contas fixas" + (C.extraTotal ? " − " + reais(C.extraTotal) + " de ajuda extra" : "") + " = " + reais(V.lucro), tudoClicavel: true });
+  if(V.tipo === "atual" && V.proj){
+    const pj = document.createElement("p"); pj.className = "sd-proj"; pj.id = "sdProj";
+    pj.textContent = "No ritmo de agora, " + mesLongo(V.mes).split(" ")[0].toLowerCase() + " fecha com " + reais(V.proj.lucro) + " de lucro.";
+    v.appendChild(pj);
+    const A = V.atual;
+    explicar(pj, "Projeção do mês", ["Se o resto do mês vender como até agora: " + A.media + " doces por dia, a R$ " + moeda(A.preco) + " em média.",
+      "Muda todo dia, com a contagem da geladeira."],
+      { conta: A.media + " doces × " + A.nMes + " dias × R$ " + moeda(A.preco) + " = " + reais(V.proj.bruto) + " de venda · sobra " + reais(V.proj.margem) + " − contas fixas " + reais(V.proj.fixo) + (V.proj.extraTotal ? " − ajuda extra " + reais(V.proj.extraTotal) : "") + " = " + reais(V.proj.lucro), tudoClicavel: true });
+  }
+  sdTexto(v, V.veredito.frase);
   const mini = document.createElement("div"); mini.className = "sd-mini";
-  [["Sobra de cada R$ 100", reais(S.sobra * 100), ["Sobra de cada R$ 100", ["O que fica depois de tudo, a cada R$ 100 que o cliente paga."], reais(S.lucro) + " ÷ R$ " + moeda(S.bruto) + " × 100 = " + reais(S.sobra * 100)]],
-   ["Pró-labore", reais(S.proLabore), ["Pró-labore", ["O salário do dono, já pago dentro das contas fixas.", "Vem de Custos e preços, custos da casa."], null]],
-   ["O dono leva", reais(S.donoLeva), ["O dono leva", ["Pró-labore mais o lucro do mês."], "R$ " + moeda(S.proLabore) + " + " + reais(S.lucro) + " = " + reais(S.donoLeva)]]].forEach(([a, b, ex]) => {
+  const pl = V.tipo === "acumulado" ? V.proLaboreTot : V.proLabore;
+  [["Sobra de cada R$ 100", reais((V.sobra || 0) * 100), ["Sobra de cada R$ 100", ["O que fica depois de tudo, a cada R$ 100 que o cliente paga."], reais(V.lucro) + " ÷ R$ " + moeda(V.bruto) + " × 100 = " + reais((V.sobra || 0) * 100)]],
+   ["Pró-labore", reais(pl), ["Pró-labore", ["O salário do dono, já pago dentro das contas fixas.", V.tipo === "acumulado" ? V.meses + " meses × R$ " + moeda(V.proLabore) + "." : V.tipo === "atual" ? "Proporcional aos " + V.atual.passados + " de " + V.atual.nMes + " dias do mês." : "Vem de Custos e preços, custos da casa."], null]],
+   ["O dono leva", reais(V.donoLeva), ["O dono leva", ["Pró-labore mais o lucro."], "R$ " + moeda(pl) + " + " + reais(V.lucro) + " = " + reais(V.donoLeva)]]].forEach(([a, b, ex]) => {
     const d = document.createElement("div"); const x = document.createElement("span"); x.textContent = a; const y = document.createElement("b"); y.textContent = b; d.append(y, x); mini.appendChild(d);
     explicar(d, ex[0], ex[1], { conta: ex[2], tudoClicavel: true, depois: mini });
   });
@@ -350,23 +477,25 @@ function montarSaude(){
   box.appendChild(v);
 
   /* 1b. de onde sai o lucro: a conta inteira, linha por linha */
-  const lc = sdCard("De onde sai o lucro de " + M, "sdConta");
+  const lc = sdCard("De onde sai o lucro (" + M + ")", "sdConta");
   lc.classList.add("sd-extrato");
-  sdLinha(lc, "Os clientes pagaram", reais(C.bruto), "entra", ["Venda do mês", ["O que os clientes pagaram, no preço cheio do cardápio.",
-    "Vem do que cada canal repassou no Nosso Financeiro, voltado ao preço antes da comissão do app."]]);
+  sdLinha(lc, "Os clientes pagaram", reais(C.bruto), "entra", V.tipo === "atual"
+    ? ["Venda até ontem", ["Doces vendidos pela contagem da geladeira vezes o preço médio.", "Os apps pagam depois; por isso o mês de agora não usa o repasse."],
+       V.atual.media + " doces por dia × " + V.atual.passados + " dias × R$ " + moeda(V.atual.preco) + " = " + reais(C.bruto)]
+    : ["Venda", ["O que os clientes pagaram, no preço cheio do cardápio.", "Vem do que cada canal repassou no Nosso Financeiro, voltado ao preço antes da comissão do app."]]);
   [["App e promoção", C.app, D.app, "Comissão do app e desconto que a casa banca, medidos em cada canal."],
    ["Imposto (Simples)", C.imposto, D.imposto, "Alíquota da tabela do Simples, a mesma usada nos preços."],
-   ["Ingrediente e embalagem", C.ingrediente, D.ingrediente, "Pelas fichas técnicas dos doces vendidos, com 5% de perda."]].forEach(([rot, val, f, o]) =>
+   ["Ingrediente e embalagem", C.ingrediente, D.ingrediente, "Pelas fichas técnicas dos doces vendidos, com 5% de perda." + (V.compras ? " Conferência: as compras de insumo, mercado e embalagem lançadas no mês somam " + reais(V.compras) + " (valor cheio). Diferença pequena é estoque e perda." : "")]].forEach(([rot, val, f, o]) =>
     sdLinha(lc, "− " + rot, reais(val), "sai", [rot, [o], "R$ " + moeda(C.bruto) + " × " + pct(f) + " = " + reais(val)]));
   sdLinha(lc, "= Sobrou da venda", reais(C.margem), "sub", ["Sobrou da venda", ["O que a venda deixa para pagar as contas da casa."],
     "R$ " + moeda(C.bruto) + " − " + moeda(C.app) + " − " + moeda(C.imposto) + " − " + moeda(C.ingrediente) + " = " + reais(C.margem)]);
   C.itens.forEach(f => {
     const nome = f.origem === "folha" ? f.nome.replace(/^Folha: /, "") + " (equipe)" : f.nome;
     const obs = (f.obs || "").split(/\.\s/)[0].replace(/\.$/, "");
-    sdLinha(lc, "− " + nome, reais(f.valor), "sai", [nome, [(obs ? obs + ". " : "") + "Valor do mês em Custos e preços, custos da casa."]]);
+    sdLinha(lc, "− " + nome, reais(f.valor), "sai", [nome, [(obs ? obs + ". " : "") + (V.tipo === "atual" ? "Proporcional aos " + V.atual.passados + " de " + V.atual.nMes + " dias do mês." : V.tipo === "acumulado" ? "Soma dos " + V.meses + " meses, pelo valor de hoje." : "Valor do mês em Custos e preços, custos da casa.")]]);
   });
   C.extras.forEach(e => sdLinha(lc, "− " + e.nome + " (ajuda extra)", reais(e.valor), "sai", [e.nome, [(e.detalhe ? e.detalhe + ". " : "") + "Sai da bolsa de ajuda extra do mês."]]));
-  sdLinha(lc, "= Lucro do mês", reais(C.lucro), "total " + (C.lucro >= 0 ? "bom" : "alerta"), ["Lucro do mês", ["Sobrou da venda menos todas as contas fixas."],
+  sdLinha(lc, V.tipo === "acumulado" ? "= Lucro do período" : V.tipo === "atual" ? "= Lucro até ontem" : "= Lucro do mês", reais(C.lucro), "total " + (C.lucro >= 0 ? "bom" : "alerta"), ["Lucro do mês", ["Sobrou da venda menos todas as contas fixas."],
     reais(C.margem) + " − " + reais(C.fixo) + (C.extraTotal ? " − " + reais(C.extraTotal) + " de ajuda extra" : "") + " = " + reais(C.lucro)]);
   sdTexto(lc, "Não é o extrato do banco: é a venda do mês menos o que ela custou. O banco está no fim da tela, em \"E o caixa?\".", "nota");
   box.appendChild(lc);
@@ -377,7 +506,7 @@ function montarSaude(){
     const mx = Math.max(...S.tendencia.map(x => Math.abs(x.lucro)), 1);
     const g = document.createElement("div"); g.className = "sd-colunas";
     S.tendencia.forEach(x => {
-      const c = document.createElement("div"); c.className = "sd-col" + (x.lucro < 0 ? " neg" : "") + (x.mes === S.mes ? " atual" : "");
+      const c = document.createElement("div"); c.className = "sd-col" + (x.lucro < 0 ? " neg" : "") + (x.mes === V.mes && V.tipo === "mes" ? " atual" : "");
       const val = document.createElement("b"); val.textContent = (x.lucro < 0 ? "−" : "") + "R$ " + n0(Math.abs(x.lucro));
       const bar = document.createElement("i"); bar.style.height = Math.max(4, Math.abs(x.lucro) / mx * 70) + "px";
       const m = document.createElement("span"); m.textContent = mesCurto(x.mes);
@@ -403,19 +532,32 @@ function montarSaude(){
   fatias.forEach(([, f, cls]) => { const s = document.createElement("i"); s.className = cls; s.style.width = Math.max(0, f * 100) + "%"; pilha.appendChild(s); });
   pv.appendChild(pilha);
   fatias.forEach(([rot, f, cls, ex]) => sdLinha(pv, rot, "R$ " + moeda(f * 100), "cor-" + cls,
-    [ex[0], ex[1], (ex[2] ? ex[2] + ". " : "") + "R$ " + moeda(f * 100) + " de cada R$ 100 = R$ " + moeda(f * S.bruto) + " no mês"]));
+    [ex[0], ex[1], (ex[2] ? ex[2] + ". " : "") + "R$ " + moeda(f * 100) + " de cada R$ 100 = R$ " + moeda(f * V.bruto) + (V.tipo === "acumulado" ? " no período" : " no mês")]));
   box.appendChild(pv);
 
   /* 4. folga */
-  if(S.udia != null && S.equilibrio != null){
+  if(V.udia != null && S.equilibrio != null){
     const f = sdCard("Quanto falta para dar prejuízo", "sdFolga");
-    sdLinha(f, "Vendendo por dia", S.udia + " doces", null, ["Vendendo por dia", ["Média de doces vendidos por dia.", "Vem da contagem da geladeira dos últimos 60 dias."]]);
+    sdLinha(f, "Vendendo por dia", V.udia + " doces", null, ["Vendendo por dia", ["Média de doces vendidos por dia.", V.tipo === "atual" ? "Vem da contagem da geladeira deste mês (" + V.atual.diasBons + " dias que fecharam certo)." : "Vem da contagem da geladeira dos últimos 60 dias."]]);
     sdLinha(f, "Precisa vender", S.equilibrio + " doces", null, ["Ponto de equilíbrio", ["Quantos doces por dia pagam todas as contas fixas.", "Contas fixas do mês ÷ o que cada doce deixa ÷ 30 dias."],
       "R$ " + moeda(S.custoFixo) + " ÷ R$ " + moeda(S.contribUn) + " ÷ 30 = " + S.equilibrio]);
-    sdLinha(f, "Folga", (S.folga >= 0 ? "" : "−") + Math.round(Math.abs(S.folga) * 100) + "%", S.folga < 0.15 ? "alerta" : "bom",
-      ["Folga", ["Quanto a venda está acima do mínimo. Abaixo de 15% é pouco."], "(" + S.udia + " − " + S.equilibrio + ") ÷ " + S.equilibrio + " = " + Math.round(S.folga * 100) + "%"]);
+    sdLinha(f, "Folga", (V.folga >= 0 ? "" : "−") + Math.round(Math.abs(V.folga) * 100) + "%", V.folga < 0.15 ? "alerta" : "bom",
+      ["Folga", ["Quanto a venda está acima do mínimo. Abaixo de 15% é pouco."], "(" + V.udia + " − " + S.equilibrio + ") ÷ " + S.equilibrio + " = " + Math.round(V.folga * 100) + "%"]);
+    /* um dia por coluna, com a linha do que precisa vender */
+    const dias = (S.diasVenda || []).slice().sort((a, b) => a.data < b.data ? -1 : 1).slice(-21);
+    if(dias.length >= 3){
+      const g = document.createElement("div"); g.className = "graf sd-graf";
+      const h = document.createElement("h4"); h.textContent = "Doces por dia (últimos " + dias.length + " dias)"; g.appendChild(h);
+      colunasPorDia(g, dias, S.equilibrio);
+      const foraN = dias.filter(d => !d.confiavel).length;
+      explicar(h, "Doces por dia", ["Uma coluna por dia de contagem.", "As claras são dias com o turno aberto ou contagem que não fecha: aparecem, mas ficam fora de toda média.",
+        "A linha tracejada é o " + S.equilibrio + " por dia que paga as contas fixas."], { tudoClicavel: true });
+      if(foraN) sdTexto(g, foraN === 1 ? "Um dia está claro. Vale conferir a contagem dele." : foraN + " dias estão claros. Vale conferir a contagem deles.", "nota");
+      f.appendChild(g);
+    }
     box.appendChild(f);
   }
+  if(V.tipo !== "mes" || V.mes !== S.mes) sdTexto(box, "Daqui para baixo, as contas usam o último mês fechado: " + mRef + ".", "sd-aviso");
 
   /* 5. turno da noite */
   if(S.noite){
@@ -437,7 +579,7 @@ function montarSaude(){
     const B = S.bolsa;
     const mProx = mesLongo(mesSeguinte(S.mes)).split(" ")[0].toLowerCase();
     sdLinha(c, "Bolsa de ajuda extra de " + mProx, reais(B.total) + " · " + B.noites + (B.noites === 1 ? " noite" : " noites"), B.noites < 2 ? "alerta" : "bom",
-      ["Bolsa de ajuda extra", ["Para Eliana e freelas além de quem cobre a noite e o domingo.", "É " + pct(B.fatia) + " do que sobrou em " + M + " antes da ajuda extra; o resto fica de lucro.", "O saldo do mês, dia a dia, está em Quem veio no ateliê."],
+      ["Bolsa de ajuda extra", ["Para Eliana e freelas além de quem cobre a noite e o domingo.", "É " + pct(B.fatia) + " do que sobrou em " + mRef + " antes da ajuda extra; o resto fica de lucro.", "O saldo do mês, dia a dia, está em Quem veio no ateliê."],
        reais(B.antesExtra) + " × " + pct(B.fatia) + " = " + reais(B.total) + " ÷ R$ " + moeda(N.freela) + " = " + B.noites + (B.noites === 1 ? " noite" : " noites")]);
     if(S.vendaPorDiaria){
       const V = S.vendaPorDiaria;
@@ -534,7 +676,10 @@ function montarSaude(){
     sdLinha(c, "Sobrou no caixa", reais(S.caixa.sobrou), null, ["Caixa do Nosso Financeiro", ["Entrou menos saiu no mês, como está no banco.",
       "Não bate com o lucro: compra no cartão entra só a parcela do mês, parte do repasse é venda do mês anterior, e o pró-labore não sai da conta."],
       "R$ " + moeda(S.caixa.entrou) + " − R$ " + moeda(S.caixa.saiu) + " = " + reais(S.caixa.sobrou)]);
-    sdTexto(c, "Para saber se dá lucro, vale o número do topo.", "nota");
+    sdTexto(c, "Para saber se dá lucro, vale o número do topo. Cada lançamento do que entrou e saiu está no Caixa do mês.", "nota");
+    const bt = document.createElement("button"); bt.type = "button"; bt.className = "ct-env"; bt.id = "sdAbreCaixa"; bt.textContent = "Abrir o Caixa de " + mRef;
+    bt.onclick = () => { MES = S.mes; abrirMes(); };
+    c.appendChild(bt);
     box.appendChild(c);
   }
 }
