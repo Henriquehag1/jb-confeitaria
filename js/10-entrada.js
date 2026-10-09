@@ -130,6 +130,7 @@ async function carregarHome(){
     $("btnEncomendas").classList.add("hide");
     $("btnContas").classList.add("hide");
     $("btnSaude").classList.add("hide");
+    $("btnContador").classList.add("hide");
     aviso("homeMsg","","");
     ajustarGrupos();
     show("scHome");
@@ -212,6 +213,7 @@ async function carregarHome(){
   $("btnEncomendas").classList.toggle("hide", EU.papel !== "gestor");
   $("btnContas").classList.toggle("hide", EU.papel !== "gestor");
   $("btnSaude").classList.toggle("hide", EU.papel !== "gestor");
+  $("btnContador").classList.toggle("hide", EU.papel !== "gestor");
   if(gestor){
     const sd = await resumoSaudeHome().catch(() => null);
     $("saudePonto").className = "sd-ponto" + (sd ? " tom-" + sd.veredito.tom : "");
@@ -230,6 +232,10 @@ async function carregarHome(){
       sub.textContent = "Impostos, contas fixas e boletos, com comprovante";
       $("btnContas").classList.add("ghost");
     }
+    const ct = await resumoContadorHome().catch(() => null);
+    $("contadorSub").textContent = ct ? ct.texto : "Venda do mês e impostos, numa mensagem pronta";
+    $("contadorSub").className = "s" + (ct && ct.tom === "atraso" ? " alerta" : "");
+    $("btnContador").classList.toggle("ghost", !(ct && (ct.tom === "atraso" || ct.tom === "logo")));
   }
 
   aviso("homeMsg","", "");

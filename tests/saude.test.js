@@ -102,6 +102,10 @@ test("tela Saúde do negócio: usa o último mês fechado, não o mês pela meta
   assert.match(eq, /Equipe no mês[\s\S]*R\$ 4\.083,33 · 7,6%/);
   assert.match(await a.texto("#sdContratar"), /\+15 doces\/dia/);
   assert.match(await a.texto("#sdNoite"), /Freela extra[\s\S]*5 noites por mês/);
+  assert.match(await a.texto("#sdNoite"), /Para mais 1 noite de freela[\s\S]*\+1 doce por dia/);
+  await a.page.click("#sdNoite .sd-ln:has-text('Para mais 1 noite')"); await a.espera(150);
+  assert.match(await a.texto("#saudeCorpo .explica:not(.hide)"), /6 × R\$ 120,00 − lucro R\$ 678,80 = faltam R\$ 41,20 ÷ R\$ 152,70 = 1 doce por dia/);
+  await a.page.click("#sdNoite .sd-ln:has-text('Para mais 1 noite')"); await a.espera(100);
   assert.match(await a.texto("#sdConselhos"), /A maior conta é o app/);
   assert.match(await a.texto("#sdCaixa"), /Sobrou no caixa[\s\S]*R\$ 15\.564,89/);
 
