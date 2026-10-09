@@ -12,7 +12,7 @@ const DESTINO = [
   { mes: "2026-10-01", app: 0.334, imposto: 0.0633, ingrediente: 0.2279, custo_fixo: 0.1814, sobra: 0.1934, bruto_estimado: 231.19 }
 ];
 const KPI = [
-  { mes: "2026-09-01", entradas: 31145.08, saidas: 15580.19, pro_labore: 2500, unidades_dia: 71, equilibrio_dia: 65, contrib_un: 5.09, custo_fixo_mes: 9881.5 },
+  { mes: "2026-09-01", entradas: 31145.08, saidas: 15580.19, pro_labore: 2500, unidades_dia: 71, equilibrio_dia: 65, contrib_un: 5.09, custo_fixo_mes: 9881.5, preco_medio: 25.83 },
   { mes: "2026-10-01", entradas: 168.02, saidas: 8312.79, pro_labore: 2500, unidades_dia: 71, equilibrio_dia: 33, contrib_un: 10.21, custo_fixo_mes: 9881.5 }
 ];
 const FIXOS = [
@@ -84,7 +84,7 @@ test("tela Saúde do negócio: usa o último mês fechado, não o mês pela meta
   assert.match(await a.texto("#sdLucro"), /R\$ 978,80/);
   // a conta inteira, linha por linha, fecha no lucro
   const ct = await a.texto("#sdConta");
-  assert.match(ct, /De onde sai o lucro de setembro/i);
+  assert.match(ct, /De onde sai o lucro \(setembro\)/i);
   assert.match(ct, /Os clientes pagaram\s*R\$ 54\.072,21[\s\S]*− App e promoção\s*R\$ 27\.030,70[\s\S]*− Imposto \(Simples\)\s*R\$ 3\.422,77[\s\S]*− Ingrediente e embalagem\s*R\$ 13\.058,44[\s\S]*= Sobrou da venda\s*R\$ 10\.560,30/);
   assert.match(ct, /− Yasmin \(equipe\)\s*R\$ 3\.683,33[\s\S]*− Pró-labore da Jessica\s*R\$ 2\.500,00[\s\S]*− Aluguel do ateliê \(metade\)\s*R\$ 1\.916,11/);
   assert.doesNotMatch(ct, /Produção da Eliana/, "a Eliana saiu das contas fixas: vem da bolsa");
@@ -166,5 +166,72 @@ test("Custos e preços usa o imposto automático e troca o anexo num toque", asy
   assert.equal((await a.db("jb_imposto_regra"))[0].modo, "fixo");
   assert.equal(await a.page.evaluate(() => CFG.imposto_pct), 0.05);
   assert.equal(await a.page.locator('label', { hasText: "Imposto sobre a venda (%)" }).count(), 1, "no fixo o campo volta");
+  semErros(a); await a.fechar();
+});
+
+/* outubro até ontem: 7 dias fechados de 72 doces; o dia 05 com contagem torta fica fora */
+const VENDAS_OUT = ["2026-10-01","2026-10-02","2026-10-03","2026-10-04","2026-10-05","2026-10-06","2026-10-07"].map(d =>
+  ({ data: d, vendeu: d === "2026-10-05" ? 300 : 72, fechado: true, confiavel: d !== "2026-10-05" }))
+  .concat([{ data: "2026-10-08", vendeu: 20, fechado: false, confiavel: false }]);
+
+test("conta pura do mês de agora e do acumulado", async () => {
+  const a = await abrir("uHen", { agora: AGORA });
+  const r = await a.page.evaluate(([D, V]) => {
+    const A = saudeVisaoAtual({ Dref: D, preco: 25.83, fixos: [{ nome: "Contas", valor: 9181.5, origem: "item" }], extras: [], dias: V, hoje: "2026-10-08" });
+    const L1 = saudeLucroMes({ bruto_estimado: 1000, app: 0.5, imposto: 0.1, ingrediente: 0.2 }, [{ nome: "Aluguel", valor: 100 }], [{ nome: "Freelas", valor: 50 }]);
+    const L2 = saudeLucroMes({ bruto_estimado: 2000, app: 0.5, imposto: 0.1, ingrediente: 0.2 }, [{ nome: "Aluguel", valor: 100 }], []);
+    const S = saudeSomarContas([L1, L2]);
+    const compras = saudeComprasDoMes({ grupos: [{ nome: "Insumos e materia-prima", itens: [{ valor: 100, parcela: "1/6" }, { valor: 100, parcela: "2/6" }, { valor: 50 }] },
+                                                 { nome: "Pessoas", itens: [{ valor: 999 }] }, { nome: "Embalagens", itens: [{ valor: 10, previsto: true }] }] });
+    return { media: A.media, passados: A.passados, venda: A.L.bruto, fixo: A.L.fixo, pv: A.Lp.bruto, pf: A.Lp.fixo,
+             s: [S.bruto, S.margem, S.fixo, S.extraTotal, S.lucro, S.itens.map(i => i.nome + i.valor).join(), S.extras.map(i => i.nome + i.valor).join()], compras };
+  }, [DESTINO[1], VENDAS_OUT]);
+  assert.equal(r.media, 72, "o dia torto e o turno aberto ficam fora da média");
+  assert.equal(r.passados, 7);
+  assert.equal(r.venda, 13018.32, "72 × 7 × 25,83");
+  assert.equal(r.fixo, 2073.24, "contas fixas × 7/31");
+  assert.equal(r.pv, 57652.56, "72 × 31 × 25,83");
+  assert.equal(r.pf, 9181.5);
+  assert.deepEqual(r.s, [3000, 600, 200, 50, 350, "Aluguel200", "Freelas50"]);
+  assert.equal(r.compras, 650, "600 da compra parcelada (6 × 100) + 50; a segunda parcela, o previsto e Pessoas ficam fora");
+  await a.fechar();
+});
+
+test("Saúde: escolher o período (este mês, mês fechado, acumulado)", async () => {
+  const a = await abrir("uHen", { agora: AGORA, db: db => { comDados(db); db.__jb_dia_vendas = VENDAS_OUT; return db; } });
+  a.texto = sel => a.page.locator(sel).first().innerText();
+  await a.page.click("#btnSaude"); await a.espera(900);
+  const chips = await a.page.evaluate(() => [...document.querySelectorAll("#sdPeriodos button")].map(b => [b.textContent, b.getAttribute("aria-pressed")]));
+  assert.deepEqual(chips, [["Este mês", "true"], ["ago", "false"], ["set", "false"], ["Acumulado", "false"]]);
+  const v = await a.texto("#sdVeredito");
+  assert.match(v, /Outubro de 2026, até ontem \(7 de 31 dias\)/);
+  assert.match(v, /de lucro até ontem/);
+  assert.match(await a.texto("#sdProj"), /^No ritmo de agora, outubro fecha com R\$ 2\.078,05 de lucro\./);
+  const ct = await a.texto("#sdConta");
+  assert.match(ct, /Os clientes pagaram\s*R\$ 13\.018,32/);
+  assert.match(ct, /= Lucro até ontem/);
+  assert.match(await a.texto("#sdFolga"), /Vendendo por dia\s*72 doces/);
+  assert.match(await a.texto("#saudeCorpo"), /Daqui para baixo, as contas usam o último mês fechado: setembro/);
+  await a.page.click("#sdConta .sd-ln:has-text('Os clientes pagaram')"); await a.espera(150);
+  assert.match(await a.texto("#saudeCorpo .explica:not(.hide)"), /72 doces por dia × 7 dias × R\$ 25,83 = R\$ 13\.018,32/);
+
+  await a.page.click('#sdPeriodos [data-periodo="2026-09-01"]'); await a.espera(900);
+  assert.match(await a.texto("#sdLucro"), /R\$ 978,80/);
+  assert.doesNotMatch(await a.texto("#saudeCorpo"), /Daqui para baixo/);
+
+  await a.page.click('#sdPeriodos [data-periodo="acumulado"]'); await a.espera(900);
+  assert.match(await a.texto("#sdVeredito"), /Acumulado de agosto a setembro \(2 meses\)/);
+  assert.match(await a.texto("#sdConta"), /= Lucro do período/);
+  semErros(a); await a.fechar();
+});
+
+test("doces por dia na Saúde: uma coluna por dia, dias tortos e turno aberto marcados, linha do que precisa vender", async () => {
+  const a = await abrir("uHen", { agora: AGORA, db: db => { comDados(db); db.__jb_dia_vendas = VENDAS_OUT; return db; } });
+  await a.page.click("#btnSaude"); await a.espera(900);
+  const cols = await a.page.evaluate(() => [...document.querySelectorAll("#sdFolga .colunas .col")].map(c => c.classList.contains("fora")));
+  assert.equal(cols.length, 8);
+  assert.equal(cols.filter(Boolean).length, 2);
+  assert.equal(await a.page.evaluate(() => document.querySelector("#sdFolga .colunas text.metaTx").textContent), "65 para pagar as contas");
+  assert.match(await a.page.locator("#sdFolga").innerText(), /2 dias estão claros/);
   semErros(a); await a.fechar();
 });
