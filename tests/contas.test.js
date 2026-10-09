@@ -244,3 +244,37 @@ test("cartões: a parte da confeitaria em cada fatura, com cada compra ao tocar"
   assert.deepEqual((await linhas()).map(x => /✓ PAGA/.test(x)), [true]);
   semErros(a); await a.fechar();
 });
+
+test("foto do comprovante: mostra a foto, explica o próximo passo e guarda ao confirmar", async () => {
+  const a = await abrirContas("uJes");
+  const id = await cartao(a, "Contabilidade");
+  await clicarNo(a, id, "Paguei");
+  await a.page.evaluate(() => { delete window.__pdfTexto; });
+  await a.page.setInputFiles("#contaComprovante", { name: "IMG_0412.jpg", mimeType: "image/jpeg", buffer: Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0, 0, 0, 0]) });
+  await a.espera(400);
+  assert.ok(await a.page.$("#contaFotoPrevia"), "a foto aparece no painel");
+  assert.match(await a.texto("#contaLeitura"), /Foto anexada\. .*Confirmar pagamento/);
+  await a.page.click("#contaConfirmaPago"); await a.espera(400);
+  const r = (await a.db("jb_conta")).find(c => String(c.id) === id);
+  assert.equal(r.pago_por, "comprovante");
+  assert.match(r.comprovante_path, new RegExp("^" + id + "/comprovante-\\d+\\.jpg$"));
+  semErros(a); await a.fechar();
+});
+
+test("conta já paga sem comprovante: anexa depois, sem mexer na data nem no valor", async () => {
+  const a = await abrirContas("uJes");
+  const pagas = (await a.db("jb_conta")).filter(c => c.pago_em && !c.comprovante_path && !c.arquivada);
+  assert.ok(pagas.length, "o stub tem conta paga sem comprovante");
+  const c0 = pagas[0];
+  await a.page.click('.conta-abas [data-aba="pagas"]'); await a.espera(200);
+  assert.ok(await a.page.$("#contaAnexar" + c0.id), "botão de anexar na conta paga");
+  await a.page.setInputFiles("#contaAnexar" + c0.id, { name: "comprovante.jpg", mimeType: "image/jpeg", buffer: Buffer.from([0xff, 0xd8, 0xff, 0xe0]) });
+  await a.espera(500);
+  const r = (await a.db("jb_conta")).find(c => c.id === c0.id);
+  assert.match(r.comprovante_path, new RegExp("^" + c0.id + "/comprovante-\\d+\\.jpg$"));
+  assert.equal(r.pago_em, c0.pago_em); assert.equal(r.pago_por, c0.pago_por); assert.equal(r.valor_pago, c0.valor_pago);
+  assert.match(await a.texto("#contasMsg"), /comprovante guardado/);
+  assert.equal(await a.page.$("#contaAnexar" + c0.id), null, "depois de guardar o botão some");
+  semErros(a); await a.fechar();
+});
+

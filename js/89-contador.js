@@ -106,6 +106,18 @@ function contadorMensagem(p){
   return L.join("\n");
 }
 
+/* O mesmo texto para o e-mail: sem os asteriscos do WhatsApp, com assunto pronto.
+   Abre o app de e-mail do celular com o contador no Para; ela só confere e envia. */
+function contadorAssunto(p){
+  return "JB Confeitaria, dados de " + mesLongo(p.mes).toLowerCase().replace(" de ", "/") + " para o PGDAS-D";
+}
+function contadorEmailLink(p, para){
+  const corpo = String(p.mensagem || "").replace(/\*([^*\n]+)\*/g, "$1");
+  return "mailto:" + encodeURIComponent(para || "").replace(/%40/g, "@")
+    + "?subject=" + encodeURIComponent(contadorAssunto(p))
+    + "&body=" + encodeURIComponent(corpo);
+}
+
 /* ============================================================
    CARREGAR E SALVAR
    ============================================================ */
@@ -115,12 +127,15 @@ async function carregarContador(mes){
     sb.from("jb_canal").select("id,nome,ordem,taxa,promo,taxa_efetiva,vale_fatia,ativo"),
     sb.from("jb_faturamento").select("canal_id,valor").eq("mes", mes),
     sb.from("jb_conta").select("descricao,valor,valor_pago,pago_em,tipo,arquivada").eq("tipo", "imposto").eq("arquivada", false).gte("pago_em", mes).lte("pago_em", fim),
-    sb.from("jb_parametro").select("chave,valor"),
+    sb.from("jb_parametro").select("chave,valor,texto"),
     sb.from("jb_contador_mes").select("*").eq("mes", mes).maybeSingle()
   ]);
-  const param = {}; ((pr && pr.data) || []).forEach(p => { param[p.chave] = Number(p.valor); });
-  return contadorPacote({ mes, canais: (ca && ca.data) || [], fat: (fa && fa.data) || [], impostos: (co && co.data) || [],
-                          param, registro: (rg && !rg.error && rg.data) || null });
+  const param = {}, texto = {};
+  ((pr && pr.data) || []).forEach(p => { param[p.chave] = Number(p.valor); if(p.texto) texto[p.chave] = p.texto; });
+  const pacote = contadorPacote({ mes, canais: (ca && ca.data) || [], fat: (fa && fa.data) || [], impostos: (co && co.data) || [],
+                                  param, registro: (rg && !rg.error && rg.data) || null });
+  pacote.email = texto.contador_email || "";
+  return pacote;
 }
 
 async function salvarContador(campos){
@@ -249,8 +264,16 @@ function montarContador(){
   };
   const wa = document.createElement("a"); wa.id = "ctWhats"; wa.className = "ct-sec"; wa.textContent = "Abrir no WhatsApp";
   wa.href = "https://wa.me/?text=" + encodeURIComponent(P.mensagem); wa.target = "_blank"; wa.rel = "noopener";
-  ac.append(cp, wa);
+  const em = document.createElement("a"); em.id = "ctEmail"; em.className = "ct-sec ct-mail"; em.textContent = "Abrir no e-mail";
+  em.href = contadorEmailLink(P, P.email);
+  em.title = P.email ? "Para: " + P.email : "Sem e-mail do contador cadastrado";
+  ac.append(cp, wa, em);
   mg.appendChild(ac);
+  if(P.email){
+    const pa = document.createElement("p"); pa.className = "ct-para"; pa.id = "ctPara";
+    pa.textContent = "O e-mail já abre para " + P.email + ", com o assunto e o texto prontos. É só conferir e enviar.";
+    mg.appendChild(pa);
+  }
   const en = document.createElement("button"); en.type = "button"; en.id = "ctEnviado"; en.className = "ct-env" + (P.enviado ? " feito" : "");
   en.textContent = P.enviado ? "Enviado em " + ddmm(P.enviado) + ". Desfazer" : "Já mandei para o contador";
   en.onclick = travar(en, async () => {

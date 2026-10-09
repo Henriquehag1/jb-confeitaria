@@ -489,6 +489,12 @@ function cartaoConta(c){
   if(!c.pago_em){
     bt("Paguei", () => { CONTA_PAINEL = { id: c.id, modo: "pagar" }; CONTA_NOVA = false; montarContas(); });
   }
+  if(c.pago_em && !c.comprovante_path){
+    const lab = document.createElement("label"); lab.className = "conta-anexar"; lab.textContent = "Anexar comprovante";
+    const inp = document.createElement("input"); inp.type = "file"; inp.accept = "application/pdf,image/*"; inp.id = "contaAnexar" + c.id;
+    inp.onchange = () => { const f = inp.files && inp.files[0]; if(f){ lab.classList.add("enviando"); lab.firstChild.textContent = "Guardando…"; anexarComprovanteDepois(c, f); } };
+    lab.appendChild(inp); ac.appendChild(lab);
+  }
   if(c.codigo_barras && !c.pago_em) bt("Copiar código", () => copiarCodigo(c), "sec");
   bt("Editar", () => { CONTA_PAINEL = { id: c.id, modo: "editar" }; CONTA_NOVA = false; montarContas(); }, "sec");
   det.appendChild(ac);
@@ -520,7 +526,23 @@ async function abrirArquivo(caminho){
   if(jan) jan.location = r.data.signedUrl; else location.href = r.data.signedUrl;
 }
 
+/* Foto grande do celular vira um JPEG menor antes de subir: sobe rápido no 4G e cabe no balde.
+   Se o navegador não conseguir desenhar a foto, sobe o original. */
+async function contaReduzirFoto(file){
+  if(!/^image\//i.test(file.type || "") || file.size < 1500000 || typeof createImageBitmap !== "function") return file;
+  try {
+    const bmp = await createImageBitmap(file);
+    const k = Math.min(1, 1800 / Math.max(bmp.width, bmp.height));
+    const cv = document.createElement("canvas"); cv.width = Math.round(bmp.width * k); cv.height = Math.round(bmp.height * k);
+    cv.getContext("2d").drawImage(bmp, 0, 0, cv.width, cv.height);
+    const blob = await new Promise(ok => cv.toBlob(ok, "image/jpeg", 0.85));
+    if(!blob || blob.size >= file.size) return file;
+    return new File([blob], (file.name || "comprovante").replace(/\.[a-z0-9]+$/i, "") + ".jpg", { type: "image/jpeg" });
+  } catch(e){ return file; }
+}
+
 async function subirArquivo(contaId, file, nome){
+  file = await contaReduzirFoto(file);
   const ext = ((file.name || "").match(/\.([a-z0-9]{2,4})$/i) || [, (/pdf/.test(file.type) ? "pdf" : "jpg")])[1].toLowerCase();
   const caminho = contaId + "/" + nome + "-" + Date.now() + "." + ext;
   const r = await sb.storage.from(CONTA_BALDE).upload(caminho, file, { contentType: file.type || "application/pdf", upsert: false });
@@ -531,6 +553,29 @@ async function subirArquivo(contaId, file, nome){
 /* ============================================================
    PAGAR: comprovante (lido sozinho) ou data à mão
    ============================================================ */
+const contaEFoto = f => !!f && (/^image\//i.test(f.type || "") || /\.(jpe?g|png|heic|heif|webp)$/i.test(f.name || ""));
+
+/* Depois de escolher o arquivo a lista é redesenhada: traz o painel de volta para a vista,
+   senão no celular parece que nada aconteceu. */
+function contaMostrarPainel(){
+  const p = document.getElementById("contaPainel");
+  if(!p) return;
+  try { p.scrollIntoView({ block: "center", behavior: "smooth" }); } catch(e){ p.scrollIntoView(); }
+}
+
+/* Conta já paga sem comprovante: anexa a foto ou o PDF direto, sem mexer na data nem no valor. */
+async function anexarComprovanteDepois(c, file){
+  if(!file) return;
+  let caminho;
+  try { caminho = await subirArquivo(c.id, file, "comprovante"); }
+  catch(e){ aviso("contasMsg", "Não consegui guardar o comprovante. Tente de novo.", "err"); return; }
+  const { error } = await sb.from("jb_conta").update({ comprovante_path: caminho }).eq("id", c.id);
+  if(error){ aviso("contasMsg", "Não consegui guardar o comprovante. Tente de novo.", "err"); return; }
+  c.comprovante_path = caminho;
+  aviso("contasMsg", c.descricao + ": comprovante guardado.", "ok");
+  montarContas();
+}
+
 function painelPagar(c){
   const p = document.createElement("div"); p.className = "conta-painel"; p.id = "contaPainel";
   const st = CONTA_PAINEL;
@@ -553,9 +598,15 @@ function painelPagar(c){
     if(st.leitura.pagoEm) st.data = st.leitura.pagoEm;
     if(st.leitura.valor != null) st.valor = st.leitura.valor;
     montarContas();
+    contaMostrarPainel();
   };
   lab.appendChild(inp);
   p.appendChild(lab);
+
+  if(st.file && contaEFoto(st.file)){
+    const fig = document.createElement("img"); fig.className = "conta-foto"; fig.id = "contaFotoPrevia"; fig.alt = "Foto do comprovante";
+    try { fig.src = URL.createObjectURL(st.file); p.appendChild(fig); } catch(e){}
+  }
 
   if(st.file){
     const l = st.leitura || {};
@@ -569,7 +620,8 @@ function painelPagar(c){
     if(conf.codigoDiverge){ partes.push("o código é de OUTRO boleto"); tipo = "alerta"; }
     else if(c.valor != null && l.valor != null && !conf.valorBate){ partes.push("valor diferente do previsto (R$ " + moeda(contaAPagar(c)) + ")"); tipo = "alerta"; }
     msg.textContent = partes.length ? "Li no comprovante: " + partes.join(", ") + "."
-                                    : "Não consegui ler esse arquivo. Confira a data e o valor abaixo.";
+                    : contaEFoto(st.file) ? "Foto anexada. Confira a data e o valor abaixo e toque em Confirmar pagamento."
+                                          : "Não consegui ler esse arquivo. Confira a data e o valor abaixo e toque em Confirmar pagamento.";
     msg.classList.add(tipo);
     p.appendChild(msg);
   }
