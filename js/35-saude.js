@@ -51,7 +51,7 @@ function saudeLucroMes(D, fixos, extra){
                              .sort((a, b) => b.valor - a.valor);
   const fixo = r2(itens.reduce((s, f) => s + f.valor, 0));
   /* ajuda extra do mês (Eliana e freelas): sai da bolsa, depois das contas fixas */
-  const extras = (extra || []).filter(e => Number(e.valor) > 0).map(e => ({ nome: e.nome, valor: r2(Number(e.valor)), detalhe: e.detalhe || "" }));
+  const extras = (extra || []).filter(e => Number(e.valor) !== 0).map(e => ({ nome: e.nome, valor: r2(Number(e.valor)), detalhe: e.detalhe || "" }));
   const extraTotal = r2(extras.reduce((s, e) => s + e.valor, 0));
   const antesExtra = r2(margem - fixo);
   const lucro = r2(antesExtra - extraTotal);
@@ -62,7 +62,7 @@ function saudeCalcular(x){
   const D0 = x.destino, K = x.kpi || {}, P = x.param || {};
   let fixos = x.fixos;
   if(!fixos && K.custo_fixo_mes != null) fixos = [{ nome: "Contas fixas do mês", valor: K.custo_fixo_mes, origem: "item" }];
-  const extra = (x.equipe || []).filter(p => p.regime === "diaria" || p.regime === "freela").map(p => ({ nome: p.nome, valor: p.mes, detalhe: p.detalhe }));
+  const extra = (x.equipe || []).filter(p => p.regime === "diaria" || p.regime === "freela" || p.regime === "falta").map(p => ({ nome: p.nome, valor: p.mes, detalhe: p.detalhe }));
   const L = saudeLucroMes(D0, fixos || [], extra);
   const bruto = L ? L.bruto : 0;
   const sobra = L ? L.sobra : null;
@@ -226,7 +226,7 @@ function saudeSomarContas(lista){
 /* o mês de agora: a venda sai da contagem da geladeira (o repasse dos apps chega depois),
    as contas fixas entram proporcionais aos dias que já passaram, e a ajuda extra pelo que já saiu */
 function saudeVisaoAtual(x){
-  const { Dref, preco, fixos, extras, dias, hoje } = x;
+  const { Dref, preco, fixos, extras, extrasMes, dias, hoje } = x;
   const mes = primeiroDia(hoje);
   const nMes = Number(ultimoDia(mes).slice(8));
   const passados = Number(hoje.slice(8)) - 1;                 // dias já fechados
@@ -238,8 +238,17 @@ function saudeVisaoAtual(x){
   const prop = passados / nMes;
   const fixosAte = (fixos || []).map(f => Object.assign({}, f, { valor: r2(Number(f.valor) * prop) }));
   const L = saudeLucroMes(Object.assign({ mes, bruto_estimado: venda }, fr), fixosAte, extras || []);
-  const Lp = saudeLucroMes(Object.assign({ mes, bruto_estimado: r2(media * nMes * preco) }, fr), fixos || [],
-                           (extras || []).map(e => Object.assign({}, e, { valor: r2(Number(e.valor) / prop) })));
+  /* projeção do mês: o ritmo até ontem levado ao mês inteiro, mas nunca menos do que já está marcado
+     para o mês (freela agendada para amanhã já é custo certo). Desconto de falta não se projeta. */
+  const nomesEx = [...new Set((extras || []).concat(extrasMes || []).map(e => e.nome))];
+  const val = (l, n) => { const e = (l || []).find(z => z.nome === n); return e ? Number(e.valor) : 0; };
+  const extrasProj = nomesEx.map(n => {
+    const ate = val(extras, n), tudo = extrasMes ? val(extrasMes, n) : null;
+    const ritmo = ate > 0 ? r2(ate / prop) : ate;
+    const e = (extrasMes || []).find(z => z.nome === n) || (extras || []).find(z => z.nome === n);
+    return Object.assign({}, e, { valor: tudo != null ? (ritmo > 0 ? Math.max(ritmo, tudo) : tudo) : ritmo });
+  });
+  const Lp = saudeLucroMes(Object.assign({ mes, bruto_estimado: r2(media * nMes * preco) }, fr), fixos || [], extrasProj);
   return { mes, L, Lp, media: Math.round(media), diasBons: bons.length, passados, nMes, preco, prop };
 }
 
@@ -284,10 +293,11 @@ async function carregarSaude(){
   const param = {}, fontes = {};
   ((pr && !pr.error && pr.data) || []).forEach(p => { param[p.chave] = Number(p.valor); fontes[p.chave] = p; });
 
-  const [dt, fr, us] = await Promise.all([
+  const [dt, fr, us, fa] = await Promise.all([
     sb.from("jb_dia_trabalhado").select("id,user_id,data,status").eq("status", "confirmado").gte("data", ini).lte("data", fim),
     sb.from("jb_freela").select("valor,data").eq("cancelada", false).gte("data", ini).lte("data", fim),
-    sb.from("jb_usuario").select("user_id,nome")
+    sb.from("jb_usuario").select("user_id,nome"),
+    sb.from("jb_falta").select("valor_desconto,desconta,data").eq("cancelada", false).gte("data", ini).lte("data", fim)
   ]);
   const nomes = {}; ((us && us.data) || []).forEach(u => { nomes[u.user_id] = u.nome; });
   const dias = (dt && dt.data) || [];
@@ -316,7 +326,9 @@ async function carregarSaude(){
   });
   const freelas = (fr && fr.data) || [];
   if(freelas.length) equipe.push({ nome: "Freelas", regime: "freela", mes: freelas.reduce((s, f) => s + Number(f.valor), 0), hora: null,
-                                   detalhe: freelas.length + (freelas.length === 1 ? " noite" : " noites") });
+                                   detalhe: freelas.length + (freelas.length === 1 ? " freela" : " freelas") });
+  const descontado = r2(((fa && !fa.error && fa.data) || []).filter(f => f.desconta).reduce((s, f) => s + Number(f.valor_desconto || 0), 0));
+  if(descontado > 0) equipe.push({ nome: "Faltas descontadas", regime: "falta", mes: -descontado, hora: null, detalhe: "o que deixou de ser pago a quem faltou" });
 
   const r = saudeCalcular({ destino: D, kpi: K, fixos: fixos.length ? fixos : null, equipe, param, yasmin, imposto: (imp && !imp.error && imp.data) || null });
   const fixoMes = r.custoFixo || 0;
@@ -336,8 +348,10 @@ async function carregarSaude(){
   const diasVenda = (dv && !dv.error && dv.data) || [];
   const detalhes = {}; ((jm && !jm.error && jm.data) || []).forEach(m => { detalhes[m.mes] = m.detalhe; });
   const fechados = destinos.filter(d => d.mes < primeiroDia(hoje) && Number(d.bruto_estimado) > 0).sort((a, b) => a.mes < b.mes ? -1 : 1);
-  const extrasDe = async m => { const g = await bolsaGastoMes(m).catch(() => null); return g ? g.itens : []; };
-  const atual = saudeVisaoAtual({ Dref: D, preco: K ? Number(K.preco_medio) : null, fixos, extras: await extrasDe(primeiroDia(hoje)), dias: diasVenda, hoje });
+  const extrasDe = async (m, ate) => bolsaExtrasLucro(await bolsaGastoMes(m, ate).catch(() => null));
+  const mesHoje = primeiroDia(hoje);
+  const atual = saudeVisaoAtual({ Dref: D, preco: K ? Number(K.preco_medio) : null, fixos,
+    extras: await extrasDe(mesHoje, hoje), extrasMes: await extrasDe(mesHoje), dias: diasVenda, hoje });
   r.periodos = (atual ? ["atual"] : []).concat(fechados.slice(-3).map(d => d.mes)).concat(fechados.length > 1 ? ["acumulado"] : []);
   let sel = SAUDE_SEL && r.periodos.includes(SAUDE_SEL) ? SAUDE_SEL : (atual ? "atual" : D.mes);
   r.sel = sel;
@@ -394,7 +408,7 @@ async function resumoSaudeHome(){
   const D = saudeMesRef(dd.data, hojeSP());
   if(!D || cf.error || !cf.data || !cf.data.length) return null;
   const extra = await bolsaGastoMes(D.mes).catch(() => null);
-  const L = saudeLucroMes(D, cf.data, extra ? extra.itens : []);
+  const L = saudeLucroMes(D, cf.data, bolsaExtrasLucro(extra));
   return { mes: D.mes, lucro: L.lucro, veredito: saudeVeredito(L.sobra) };
 }
 
@@ -494,7 +508,9 @@ function montarSaude(){
     const obs = (f.obs || "").split(/\.\s/)[0].replace(/\.$/, "");
     sdLinha(lc, "− " + nome, reais(f.valor), "sai", [nome, [(obs ? obs + ". " : "") + (V.tipo === "atual" ? "Proporcional aos " + V.atual.passados + " de " + V.atual.nMes + " dias do mês." : V.tipo === "acumulado" ? "Soma dos " + V.meses + " meses, pelo valor de hoje." : "Valor do mês em Custos e preços, custos da casa.")]]);
   });
-  C.extras.forEach(e => sdLinha(lc, "− " + e.nome + " (ajuda extra)", reais(e.valor), "sai", [e.nome, [(e.detalhe ? e.detalhe + ". " : "") + "Sai da bolsa de ajuda extra do mês."]]));
+  C.extras.forEach(e => e.valor < 0
+    ? sdLinha(lc, "+ " + e.nome, reais(-e.valor), "entra", [e.nome, [(e.detalhe ? e.detalhe + ". " : "") + "A freela que cobriu a falta já está na ajuda extra; o desconto de quem faltou volta para a conta aqui."]])
+    : sdLinha(lc, "− " + e.nome + " (ajuda extra)", reais(e.valor), "sai", [e.nome, [(e.detalhe ? e.detalhe + ". " : "") + "Sai da bolsa de ajuda extra do mês."]]));
   sdLinha(lc, V.tipo === "acumulado" ? "= Lucro do período" : V.tipo === "atual" ? "= Lucro até ontem" : "= Lucro do mês", reais(C.lucro), "total " + (C.lucro >= 0 ? "bom" : "alerta"), ["Lucro do mês", ["Sobrou da venda menos todas as contas fixas."],
     reais(C.margem) + " − " + reais(C.fixo) + (C.extraTotal ? " − " + reais(C.extraTotal) + " de ajuda extra" : "") + " = " + reais(C.lucro)]);
   sdTexto(lc, "Não é o extrato do banco: é a venda do mês menos o que ela custou. O banco está no fim da tela, em \"E o caixa?\".", "nota");

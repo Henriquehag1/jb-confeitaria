@@ -235,3 +235,30 @@ test("doces por dia na Saúde: uma coluna por dia, dias tortos e turno aberto ma
   assert.match(await a.page.locator("#sdFolga").innerText(), /2 dias estão claros/);
   semErros(a); await a.fechar();
 });
+
+test("ajuda extra no lucro: só até ontem na conta de agora, falta descontada volta, freela agendada entra na projeção", async () => {
+  const a = await abrir("uHen", { agora: AGORA, db: db => {
+    db.jb_acordo = [{ user_id: "uEli", inicio: "2026-01-01", fim: null, regime: "diaria", valor: 140 }];
+    db.jb_dia_trabalhado = [{ id: 1, user_id: "uEli", data: "2026-10-02", status: "confirmado" },
+                            { id: 2, user_id: "uEli", data: "2026-10-09", status: "confirmado" }];
+    db.jb_freela = [{ id: 1, nome: "Bela", data: "2026-10-05", valor: 120, cancelada: false },
+                    { id: 2, nome: "Marcus", data: "2026-10-09", valor: 130, cancelada: false },
+                    { id: 3, nome: "Marcus", data: "2026-10-10", valor: 130, cancelada: false }];
+    db.jb_falta = [{ id: 1, user_id: "uYas", data: "2026-10-05", desconta: true, valor_desconto: 137.55, cancelada: false }];
+    return db; } });
+  const r = await a.page.evaluate(async ([D, V]) => {
+    const ate = bolsaExtrasLucro(await bolsaGastoMes("2026-10-01", "2026-10-08"));
+    const mes = bolsaExtrasLucro(await bolsaGastoMes("2026-10-01"));
+    const A = saudeVisaoAtual({ Dref: D, preco: 25.83, fixos: [{ nome: "Contas", valor: 9181.5, origem: "item" }], extras: ate, extrasMes: mes, dias: V, hoje: "2026-10-08" });
+    const pega = (L, n) => (L.extras.find(e => e.nome === n) || {}).valor;
+    return { ate: ate.map(e => e.nome + ":" + e.valor).join(), mes: mes.map(e => e.nome + ":" + e.valor).join(),
+             total: A.L.extraTotal, pEl: pega(A.Lp, "Eliana"), pFr: pega(A.Lp, "Freelas"), pFa: pega(A.Lp, "Faltas descontadas") };
+  }, [DESTINO[1], VENDAS_OUT]);
+  assert.equal(r.ate, "Eliana:140,Freelas:120,Faltas descontadas:-137.55", "o dia 09 e as freelas de 09 e 10 ainda não aconteceram");
+  assert.equal(r.mes, "Eliana:280,Freelas:380,Faltas descontadas:-137.55");
+  assert.equal(r.total, 122.45, "140 + 120 − 137,55");
+  assert.equal(r.pEl, 620, "140 em 7 dias, no ritmo do mês inteiro, dá 620: maior que os 280 já marcados");
+  assert.ok(r.pFr >= 380, "a projeção de freelas não fica abaixo do que já está marcado: " + r.pFr);
+  assert.equal(r.pFa, -137.55, "desconto de falta não se projeta");
+  await a.fechar();
+});

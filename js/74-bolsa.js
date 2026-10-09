@@ -48,7 +48,8 @@ async function carregarBolsaBase(mes){
 }
 
 /* o que saiu da bolsa num mês, direto do banco (Home e Saúde do negócio) */
-async function bolsaGastoMes(mes){
+/* ate (opcional): só o que aconteceu ANTES desse dia, para comparar com a venda "até ontem" */
+async function bolsaGastoMes(mes, ate){
   const ini = mes, fim = ultimoDia(mes);
   const [ac, dt, fr, fa, us] = await Promise.all([
     sb.from("jb_acordo").select("user_id,inicio,fim,regime,valor").lte("inicio", fim).or("fim.is.null,fim.gte." + ini),
@@ -59,7 +60,17 @@ async function bolsaGastoMes(mes){
   ]);
   if(ac.error || dt.error) return null;
   const nomes = {}; ((us && us.data) || []).forEach(u => { nomes[u.user_id] = u.nome; });
-  return bolsaItens((ac.data || []), (dt.data || []), (fr && fr.data) || [], (fa && fa.data) || [], u => nomes[u] || "Pessoa");
+  const antes = l => ate ? l.filter(x => x.data < ate) : l;
+  return bolsaItens((ac.data || []), antes(dt.data || []), antes((fr && fr.data) || []), antes((fa && fa.data) || []), u => nomes[u] || "Pessoa");
+}
+
+/* para a conta do lucro: os itens da bolsa e, se houve falta descontada, uma linha negativa
+   (a freela que cobriu a falta já está nos itens; o que deixou de ser pago a quem faltou volta aqui) */
+function bolsaExtrasLucro(g){
+  if(!g) return [];
+  const l = g.itens.slice();
+  if(g.devolvido > 0) l.push({ nome: "Faltas descontadas", valor: -g.devolvido, detalhe: "o que deixou de ser pago a quem faltou" });
+  return l;
 }
 
 /* junta os itens: dias de quem ganha por diária, freelas e as faltas descontadas */
@@ -75,7 +86,7 @@ function bolsaItens(acordos, dias, freelas, faltas, nomeDe){
     detalhe: p.n + (p.n === 1 ? " dia" : " dias") + " × R$ " + moeda(p.diaria) }));
   const fr = freelas.filter(f => !f.cancelada);
   if(fr.length) itens.push({ nome: "Freelas", valor: Math.round(fr.reduce((s, f) => s + Number(f.valor || 0), 0) * 100) / 100,
-    detalhe: fr.length + (fr.length === 1 ? " noite" : " noites") });
+    detalhe: fr.length + (fr.length === 1 ? " freela" : " freelas") });
   const devolvido = Math.round(faltas.filter(f => f.desconta && !f.cancelada).reduce((s, f) => s + Number(f.valor_desconto || 0), 0) * 100) / 100;
   return { itens, devolvido };
 }

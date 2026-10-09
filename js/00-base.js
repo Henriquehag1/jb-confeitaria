@@ -15,7 +15,7 @@ const LOGINS = [
 ];
 
 const TZ = "America/Sao_Paulo";
-const VERSAO = "2026-10-09g";   // aparece no login e no pé da Home, para saber qual versão cada celular tem
+const VERSAO = "2026-10-09h";   // aparece no login e no pé da Home, para saber qual versão cada celular tem
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
   auth: { persistSession: true, autoRefreshToken: true }
 });
