@@ -27,7 +27,8 @@ const comDados = db => {
     { id: 6, tipo: "imposto", descricao: "Multa por atraso da declaração de julho/2026", competencia: "2026-07-01", vencimento: "2026-11-03", valor: 25, pago_em: null, valor_pago: null, arquivada: false },
     { id: 2, tipo: "fixa", descricao: "Contabilidade", competencia: OUT, vencimento: "2026-10-10", valor: 200, pago_em: "2026-10-10", valor_pago: 200, arquivada: false }
   ];
-  db.jb_parametro = [{ chave: "contador_dia", valor: 5 }, { chave: "taxa_pluxee", valor: 0.1516 }];
+  db.jb_parametro = [{ chave: "contador_dia", valor: 5 }, { chave: "taxa_pluxee", valor: 0.1516 },
+                     { chave: "contador_email", valor: 0, texto: "contador@exemplo.com.br" }];
   db.jb_contador_mes = [{ mes: "2026-09-01", vendas: {}, enviado_em: "2026-10-02T15:00:00Z" }];
   return db;
 };
@@ -86,6 +87,16 @@ test("tela do contador: status, números, mensagem, relatório do app e marcar c
   assert.match(msg, /• DAS do Simples, setembro\/2026: R\$ 1\.240,00 em 20\/10/);
   assert.match(msg, /Obrigada!$/);
   assert.match(await a.page.getAttribute("#ctWhats", "href"), /^https:\/\/wa\.me\/\?text=Ol%C3%A1/);
+
+  // e-mail: abre o app de e-mail com o contador no Para, assunto e texto sem os asteriscos do WhatsApp
+  const mail = await a.page.getAttribute("#ctEmail", "href");
+  assert.match(mail, /^mailto:contador@exemplo\.com\.br\?subject=/);
+  const q = new URLSearchParams(mail.split("?")[1]);
+  assert.equal(q.get("subject"), "JB Confeitaria, dados de outubro/2026 para o PGDAS-D");
+  assert.match(q.get("body"), /^Olá! Tudo bem\?/);
+  assert.match(q.get("body"), /\nVendas de outubro \(valor/);
+  assert.ok(!q.get("body").includes("*"), "sem asteriscos no e-mail");
+  assert.match(await a.texto("#ctPara"), /contador@exemplo\.com\.br/);
 
   // copiar
   await a.page.evaluate(() => Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: async t => { window.__COPIA = t; } } }));

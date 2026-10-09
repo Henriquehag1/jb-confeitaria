@@ -739,6 +739,10 @@ button{font-family:inherit;font-size:inherit;cursor:pointer;}
 .conta-p-tit{margin:0 0 8px;font-size:.82rem;color:var(--tinta-2);}
 .conta-arquivo{display:block;position:relative;padding:12px;border-radius:10px;border:1.5px dashed var(--coral);background:var(--creme);text-align:center;font-size:.86rem;color:var(--coral-forte);font-weight:500;cursor:pointer;margin-bottom:8px;}
 .conta-arquivo input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;}
+.conta-foto{display:block;max-width:100%;max-height:220px;margin:0 auto 8px;border-radius:10px;border:1px solid var(--linha);object-fit:contain;background:#fff;}
+.conta-anexar{position:relative;display:inline-flex;align-items:center;justify-content:center;min-height:40px;padding:0 14px;border-radius:10px;border:1.5px dashed var(--coral-acao);color:var(--coral-forte);font-weight:600;font-size:.86rem;cursor:pointer;background:#fff;}
+.conta-anexar input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;}
+.conta-anexar.enviando{opacity:.6;pointer-events:none;}
 .conta-leitura{margin:0 0 8px;padding:8px 10px;border-radius:9px;font-size:.8rem;line-height:1.35;}
 .conta-leitura.ok{background:var(--verde-veu);color:var(--verde);}
 .conta-leitura.alerta{background:var(--ambar-veu);color:var(--ambar);font-weight:500;}
@@ -1147,6 +1151,8 @@ button.fotobt:disabled{color:var(--tinta-3);}
 .ct-acoes>*{flex:1 1 140px;min-height:46px;border-radius:12px;font-weight:600;font-size:.92rem;display:flex;align-items:center;justify-content:center;text-decoration:none;}
 .ct-prim{background:var(--coral-acao);color:var(--creme);border:none;}
 .ct-sec{background:#fff;color:#1F7A4D;border:1.5px solid #1F7A4D;}
+.ct-acoes>.ct-mail{color:var(--coral-forte);border-color:var(--coral-acao);}
+.ct-para{margin:8px 0 0;font-size:.76rem;color:var(--tinta-3);line-height:1.4;}
 .ct-env{display:block;width:100%;margin-top:10px;min-height:44px;border-radius:12px;border:1.5px dashed var(--linha-2);background:none;color:var(--tinta-2);font-weight:500;}
 .ct-env.feito{border-style:solid;border-color:var(--verde-linha);color:var(--verde);}
 .sd-extrato .sd-ln{padding:6px 0;}
@@ -1775,23 +1781,23 @@ button.fotobt:disabled{color:var(--tinta-3);}
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.116.0/dist/umd/supabase.min.js"></script>
-<script src="js/00-base.js?v=2026-10-09f"></script>
-<script src="js/10-entrada.js?v=2026-10-09f"></script>
-<script src="js/20-custos.js?v=2026-10-09f"></script>
-<script src="js/25-promo.js?v=2026-10-09f"></script>
-<script src="js/30-mes.js?v=2026-10-09f"></script>
-<script src="js/35-saude.js?v=2026-10-09f"></script>
-<script src="js/40-producao.js?v=2026-10-09f"></script>
-<script src="js/50-contagem.js?v=2026-10-09f"></script>
-<script src="js/60-afazeres.js?v=2026-10-09f"></script>
-<script src="js/70-dias.js?v=2026-10-09f"></script>
-<script src="js/72-equipe.js?v=2026-10-09f"></script>
-<script src="js/74-bolsa.js?v=2026-10-09f"></script>
-<script src="js/76-conferencia.js?v=2026-10-09f"></script>
-<script src="js/80-estoque.js?v=2026-10-09f"></script>
-<script src="js/85-encomendas.js?v=2026-10-09f"></script>
-<script src="js/88-contas.js?v=2026-10-09f"></script>
-<script src="js/89-contador.js?v=2026-10-09f"></script>
-<script src="js/90-ligacoes.js?v=2026-10-09f"></script>
+<script src="js/00-base.js?v=2026-10-09g"></script>
+<script src="js/10-entrada.js?v=2026-10-09g"></script>
+<script src="js/20-custos.js?v=2026-10-09g"></script>
+<script src="js/25-promo.js?v=2026-10-09g"></script>
+<script src="js/30-mes.js?v=2026-10-09g"></script>
+<script src="js/35-saude.js?v=2026-10-09g"></script>
+<script src="js/40-producao.js?v=2026-10-09g"></script>
+<script src="js/50-contagem.js?v=2026-10-09g"></script>
+<script src="js/60-afazeres.js?v=2026-10-09g"></script>
+<script src="js/70-dias.js?v=2026-10-09g"></script>
+<script src="js/72-equipe.js?v=2026-10-09g"></script>
+<script src="js/74-bolsa.js?v=2026-10-09g"></script>
+<script src="js/76-conferencia.js?v=2026-10-09g"></script>
+<script src="js/80-estoque.js?v=2026-10-09g"></script>
+<script src="js/85-encomendas.js?v=2026-10-09g"></script>
+<script src="js/88-contas.js?v=2026-10-09g"></script>
+<script src="js/89-contador.js?v=2026-10-09g"></script>
+<script src="js/90-ligacoes.js?v=2026-10-09g"></script>
 </body>
 </html>
