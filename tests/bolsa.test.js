@@ -35,7 +35,7 @@ test("conta da bolsa: metade da sobra antes da ajuda extra; Eliana e freela tira
     const zero = bolsaCalcular({ total: 100, freela: 120 }, { itens: [{ valor: 250 }], devolvido: 0 });
     return { itens: g.itens, dev: g.devolvido, disp: B.disponivel, noites: B.noites, neg: zero.disponivel, nNeg: zero.noites, pct: zero.usadoPct, seg: mesSeguinte("2026-12-01") };
   });
-  assert.deepEqual(r.itens, [{ nome: "Eliana", valor: 140, detalhe: "1 dia × R$ 140,00" }, { nome: "Freelas", valor: 120, detalhe: "1 noite" }]);
+  assert.deepEqual(r.itens, [{ nome: "Eliana", valor: 140, detalhe: "1 dia × R$ 140,00" }, { nome: "Freelas", valor: 120, detalhe: "1 freela" }]);
   assert.equal(r.dev, 137.55);
   assert.equal(r.disp, 566.95);
   assert.equal(r.noites, 4);
