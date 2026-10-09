@@ -1036,6 +1036,60 @@ button.fotobt:disabled{color:var(--tinta-3);}
 .eq-banco summary small{font-weight:400;font-size:.76rem;color:var(--tinta-3);}
 .eq-ln .info.neg{color:var(--coral-fundo);}
 .eq-ln .info.pos{color:var(--verde);}
+/* Saúde do negócio */
+.sd-ponto{display:inline-block;width:10px;height:10px;border-radius:50%;margin-left:6px;vertical-align:1px;background:transparent;}
+.sd-ponto.tom-verde{background:var(--verde);} .sd-ponto.tom-amarelo{background:#D9A400;} .sd-ponto.tom-ambar{background:#E07B1F;} .sd-ponto.tom-vermelho{background:var(--coral-fundo);}
+.sd-card{background:var(--creme);border:1px solid var(--linha);border-radius:16px;padding:14px 15px;margin-bottom:12px;}
+.sd-card h3{margin:0 0 10px;font-size:.7rem;letter-spacing:.2em;text-transform:uppercase;color:var(--tinta-3);font-weight:600;}
+.sd-veredito{border-width:2px;}
+.sd-veredito.tom-verde{border-color:var(--verde);background:var(--verde-veu);}
+.sd-veredito.tom-amarelo{border-color:#D9A400;background:#FFF7DB;}
+.sd-veredito.tom-ambar{border-color:#E07B1F;background:var(--ambar-veu);}
+.sd-veredito.tom-vermelho{border-color:var(--coral-fundo);background:#FBE3DF;}
+.sd-selo{display:inline-block;padding:3px 12px;border-radius:999px;font-size:.72rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#fff;background:var(--tinta-3);}
+.tom-verde .sd-selo{background:var(--verde);} .tom-amarelo .sd-selo{background:#B58900;} .tom-ambar .sd-selo{background:#C9620F;} .tom-vermelho .sd-selo{background:var(--coral-fundo);}
+.sd-pergunta{margin:10px 0 2px;font-size:.84rem;color:var(--tinta-2);}
+.sd-numero{font-size:2.1rem;font-weight:700;line-height:1.1;font-variant-numeric:tabular-nums;color:var(--tinta);}
+.sd-numero small{font-size:.8rem;font-weight:400;color:var(--tinta-2);}
+.sd-tx{margin:6px 0 0;font-size:.86rem;line-height:1.45;color:var(--tinta);}
+.sd-tx.nota{font-size:.76rem;color:var(--tinta-3);}
+.sd-mini{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:12px;}
+.sd-mini div{background:rgba(255,255,255,.7);border-radius:10px;padding:8px 9px;}
+.sd-mini b{display:block;font-size:.98rem;font-variant-numeric:tabular-nums;}
+.sd-mini span{font-size:.68rem;color:var(--tinta-2);}
+.sd-ln{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:7px 0;border-bottom:1px dashed var(--linha);font-size:.86rem;}
+.sd-ln:last-of-type{border-bottom:none;}
+.sd-ln span{color:var(--tinta-2);min-width:0;}
+.sd-ln span small{display:block;font-size:.72rem;color:var(--tinta-3);margin-top:1px;}
+.sd-ln b{font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap;}
+.sd-ln.alerta b{color:var(--coral-fundo);} .sd-ln.bom b{color:var(--verde);}
+.sd-pilha{display:flex;height:16px;border-radius:8px;overflow:hidden;margin:2px 0 8px;gap:2px;background:var(--linha);}
+.sd-pilha i{display:block;height:100%;}
+.sd-pilha .app,.sd-ln.cor-app span::before{background:#C9620F;}
+.sd-pilha .imp,.sd-ln.cor-imp span::before{background:#8A6BB0;}
+.sd-pilha .ing,.sd-ln.cor-ing span::before{background:#D9A400;}
+.sd-pilha .fixo,.sd-ln.cor-fixo span::before{background:#7C9CB8;}
+.sd-pilha .sobra,.sd-ln.cor-sobra span::before{background:var(--verde);}
+.sd-pilha .falta,.sd-ln.cor-falta span::before{background:var(--coral-fundo);}
+.sd-ln[class*="cor-"] span::before{content:"";display:inline-block;width:9px;height:9px;border-radius:3px;margin-right:7px;vertical-align:0;}
+.sd-colunas{display:flex;align-items:flex-end;gap:10px;height:118px;padding-top:6px;}
+.sd-col{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:4px;min-width:0;}
+.sd-col b{font-size:.7rem;font-variant-numeric:tabular-nums;white-space:nowrap;}
+.sd-col i{display:block;width:100%;max-width:46px;border-radius:6px 6px 2px 2px;background:#A9C9B5;}
+.sd-col.atual i{background:var(--verde);}
+.sd-col.neg i{background:#E9A79C;} .sd-col.neg.atual i{background:var(--coral-fundo);}
+.sd-col span{font-size:.7rem;color:var(--tinta-3);text-transform:capitalize;}
+.sd-cons{border-left:4px solid var(--linha-2);padding:6px 0 6px 11px;margin-bottom:10px;}
+.sd-cons b{display:block;font-size:.88rem;}
+.sd-cons p{margin:3px 0 0;font-size:.82rem;color:var(--tinta-2);line-height:1.42;}
+.sd-cons.tom-verde{border-left-color:var(--verde);} .sd-cons.tom-ambar{border-left-color:#E07B1F;} .sd-cons.tom-vermelho{border-left-color:var(--coral-fundo);}
+.imp-bloco{margin:10px 0;padding:11px 12px;border:1px solid var(--linha);border-radius:12px;background:#fff;}
+.imp-tit{margin:0;font-weight:600;font-size:.9rem;}
+.imp-tx{margin:4px 0 0;font-size:.78rem;color:var(--tinta-2);line-height:1.4;}
+.imp-alerta{margin:6px 0 0;font-size:.78rem;color:var(--ambar);line-height:1.4;}
+.imp-acoes{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px;}
+.imp-acoes button{min-height:36px;padding:0 12px;border-radius:10px;border:1px solid var(--linha-2);background:var(--areia);font-family:inherit;font-size:.8rem;color:var(--tinta);}
+.imp-acoes button[aria-pressed="true"]{background:var(--coral-acao);border-color:var(--coral-acao);color:#fff;font-weight:600;}
 .conta-banco{margin:0 0 9px;font-size:.8rem;color:var(--coral-fundo);line-height:1.4;font-weight:500;}
 .legenda i.pg::after{content:"✓";position:absolute;top:-1px;right:1px;font-size:.5rem;color:var(--creme);font-weight:700;}
 .pagto{margin-top:13px;border-top:1px solid var(--linha);padding-top:11px;}
@@ -1323,6 +1377,11 @@ button.fotobt:disabled{color:var(--tinta-3);}
 
     <div class="grupo g-numero">
       <h3>Os n&uacute;meros</h3>
+    <button class="big hide" id="btnSaude">
+      <span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20.3s-7.6-4.6-7.6-10.2A4.3 4.3 0 0 1 12 7.4a4.3 4.3 0 0 1 7.6 2.7c0 5.6-7.6 10.2-7.6 10.2Z"/><path d="M6.4 12.4h3l1.4-2.6 2.2 4.6 1.4-2h3.2"/></svg></span>
+      <span class="tx"><span class="t">Sa&uacute;de do neg&oacute;cio <i class="sd-ponto" id="saudePonto"></i></span><span class="s" id="saudeSub">Se d&aacute; lucro, quanto, e se cabe contratar</span></span>
+      <span class="seta" aria-hidden="true">&#8250;</span>
+    </button>
     <button class="big ghost" id="btnHist">
       <span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3.4" y="5.1" width="17.2" height="15.5" rx="2.6"/><path d="M3.4 10.1h17.2"/><path d="M8.1 3v4.1"/><path d="M15.9 3v4.1"/></svg></span>
       <span class="tx"><span class="t">&Uacute;ltimos dias</span><span class="s">O que saiu em cada dia</span></span>
@@ -1427,6 +1486,11 @@ button.fotobt:disabled{color:var(--tinta-3);}
   </section>
 
   <!-- ================= RESULTADO DO MÊS ================= -->
+  <section id="scSaude" class="hide">
+    <div id="saudeMsg"></div>
+    <div id="saudeCorpo"></div>
+  </section>
+
   <section id="scMes" class="hide">
     <div class="chips" id="mesChips"></div>
     <div id="mesMsg"></div>
@@ -1604,19 +1668,20 @@ button.fotobt:disabled{color:var(--tinta-3);}
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.116.0/dist/umd/supabase.min.js"></script>
-<script src="js/00-base.js?v=2026-10-08e"></script>
-<script src="js/10-entrada.js?v=2026-10-08e"></script>
-<script src="js/20-custos.js?v=2026-10-08e"></script>
-<script src="js/25-promo.js?v=2026-10-08e"></script>
-<script src="js/30-mes.js?v=2026-10-08e"></script>
-<script src="js/40-producao.js?v=2026-10-08e"></script>
-<script src="js/50-contagem.js?v=2026-10-08e"></script>
-<script src="js/60-afazeres.js?v=2026-10-08e"></script>
-<script src="js/70-dias.js?v=2026-10-08e"></script>
-<script src="js/72-equipe.js?v=2026-10-08e"></script>
-<script src="js/80-estoque.js?v=2026-10-08e"></script>
-<script src="js/85-encomendas.js?v=2026-10-08e"></script>
-<script src="js/88-contas.js?v=2026-10-08e"></script>
-<script src="js/90-ligacoes.js?v=2026-10-08e"></script>
+<script src="js/00-base.js?v=2026-10-08f"></script>
+<script src="js/10-entrada.js?v=2026-10-08f"></script>
+<script src="js/20-custos.js?v=2026-10-08f"></script>
+<script src="js/25-promo.js?v=2026-10-08f"></script>
+<script src="js/30-mes.js?v=2026-10-08f"></script>
+<script src="js/35-saude.js?v=2026-10-08f"></script>
+<script src="js/40-producao.js?v=2026-10-08f"></script>
+<script src="js/50-contagem.js?v=2026-10-08f"></script>
+<script src="js/60-afazeres.js?v=2026-10-08f"></script>
+<script src="js/70-dias.js?v=2026-10-08f"></script>
+<script src="js/72-equipe.js?v=2026-10-08f"></script>
+<script src="js/80-estoque.js?v=2026-10-08f"></script>
+<script src="js/85-encomendas.js?v=2026-10-08f"></script>
+<script src="js/88-contas.js?v=2026-10-08f"></script>
+<script src="js/90-ligacoes.js?v=2026-10-08f"></script>
 </body>
 </html>

@@ -443,6 +443,16 @@ ${agora ? "window.__AGORA=" + JSON.stringify(agora) + ";" : ""}
   }
 
   function tabela(t){
+    // resultado pronto de uma view, para o teste controlar o número (só gestor lê)
+    if(DB["__" + t]) return gestor() ? DB["__" + t].map(x => ({ ...x })) : [];
+    if(t === "jb_imposto_estimado" && DB.jb_imposto_regra){
+      if(!gestor()) return [];
+      const r = DB.jb_imposto_regra[0];
+      const ef = r.anexo === "II" ? 0.0682 : 0.0633;
+      const fixa = Number((DB.jb_config.find(c => c.chave === "imposto_pct") || {}).valor || 0);
+      return [{ modo: r.modo, anexo: r.anexo, meses_com_dado: 9, rbt12: 437190.74, faixa: 3, aliquota_efetiva: ef, aliquota_fixa: fixa,
+                pago_sobre_bruto: 0.0183, aliquota_usada: r.modo === "auto" ? ef : fixa }];
+    }
     if(t === "jb_estoque_sugestao") return gestor() ? viewEstoqueSugestao() : [];
     if(t === "jb_produto_app") return viewProdutoApp();
     if(t === "jb_ficha_item_custo") return gestor() ? viewFichaItemCusto() : [];
@@ -467,7 +477,7 @@ ${agora ? "window.__AGORA=" + JSON.stringify(agora) + ";" : ""}
                       "jb_custo_fixo_total","jb_volume_calculado","jb_giro_produto","jb_insumo","jb_preco","jb_margem","jb_promo_teto","jb_canal","jb_config","jb_vale_taxa","jb_meio_pagamento",
                       "jb_mes","jb_faturamento","jb_ficha","jb_ficha_item","jb_subreceita","jb_subreceita_item","jb_uso_ingrediente",
                       "jb_insumo_ultimo_pago","jb_ficha_alertas","jb_compra","jb_compra_item","jb_estoque_contagem","jb_estoque_item","jb_estoque_sugestao",
-                      "jb_kpi_mes","jb_kpi_destino","jb_dia_vendas","jb_encomenda","jb_bolo_opcao","jb_ocorrencia","jb_conta","jb_falta","jb_freela","jb_banco_horas"];
+                      "jb_kpi_mes","jb_kpi_destino","jb_dia_vendas","jb_encomenda","jb_bolo_opcao","jb_ocorrencia","jb_conta","jb_falta","jb_freela","jb_banco_horas","jb_imposto_regra"];
     if(soGestor.includes(t) && !gestor()) return [];
     if(t === "jb_dia_trabalhado" && !gestor()) return (DB[t]||[]).filter(r => r.user_id === window.__UID);
     if(t === "jb_adendo" && !gestor()) return (DB[t]||[]).filter(r => r.registrado_por === window.__UID);

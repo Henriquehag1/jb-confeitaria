@@ -74,6 +74,7 @@ $("btnResultado").onclick = abrirMes;
 $("btnDias").onclick = abrirDias;
 $("btnAfazeres").onclick = abrirAfazeres;
 $("btnEstoque").onclick = abrirEstoque;
+$("btnSaude").onclick = () => abrirSaude();
 $("btnContas").onclick = () => { CONTA_PAINEL = null; CONTA_NOVA = false; CONTA_PAINEL_NOVO = null; abrirContas(); };
 $("btnEncomendas").onclick = () => { ENC_ABA = "pedidos"; abrirEncomendas(); };
 $("abaEncPedidos").onclick = () => trocarAbaEnc("pedidos");

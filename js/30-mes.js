@@ -547,8 +547,8 @@ const EXP_DESTINO = {
     "Cada canal cobra diferente. Aqui as fatias entram pesadas pelo quanto cada canal trouxe neste mês, então a mistura muda o número."
   ],
   "Imposto": [
-    "O Simples sobre a venda, do jeito que está cadastrado em Custos e preços.",
-    "Está lançado como uma porcentagem fixa. O efetivo do PGDAS costuma ficar entre 5,2% e 6,8%: quando o contador passar o número certo, isto aqui muda junto."
+    "O Simples sobre a venda. Calculado sozinho pela tabela do Simples com a venda estimada dos últimos 12 meses (veja em Saúde do negócio).",
+    "Quanto mais a loja fatura, maior a faixa e maior a porcentagem. O número muda sozinho quando entra um mês novo."
   ],
   "Ingrediente e embalagem": [
     "O que entra no produto pela ficha técnica, já com os 5% de perda somados.",
