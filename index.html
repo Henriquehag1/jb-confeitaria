@@ -1083,6 +1083,33 @@ button.fotobt:disabled{color:var(--tinta-3);}
 .sd-cons b{display:block;font-size:.88rem;}
 .sd-cons p{margin:3px 0 0;font-size:.82rem;color:var(--tinta-2);line-height:1.42;}
 .sd-cons.tom-verde{border-left-color:var(--verde);} .sd-cons.tom-ambar{border-left-color:#E07B1F;} .sd-cons.tom-vermelho{border-left-color:var(--coral-fundo);}
+.sd-card .temexp{cursor:pointer;}
+.sd-ln button.porque{margin-left:6px;flex:none;align-self:center;}
+.sd-ln b{margin-left:auto;}
+.sd-numero button.porque,.sd-mini button.porque,.sd-noite button.porque,.sd-colunas button.porque,.sd-cen button.porque{position:absolute;top:6px;right:6px;}
+.sd-numero,.sd-mini div,.sd-noite,.sd-colunas,.sd-cen{position:relative;}
+.sd-mini div{padding-right:26px;}
+.sd-noite{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:8px;padding-right:0;}
+.sd-noite div{background:#fff;border:1px solid var(--linha);border-radius:12px;padding:9px 10px;}
+.sd-noite b{display:block;font-size:1.05rem;font-variant-numeric:tabular-nums;}
+.sd-noite span{font-size:.7rem;color:var(--tinta-2);}
+.sd-noite .bom b{color:var(--verde);} .sd-noite .alerta b{color:var(--coral-fundo);}
+.sd-noite > button.porque{top:-4px;right:-4px;}
+.sd-decisao{border-radius:12px;padding:11px 13px;margin-bottom:10px;border:2px solid var(--linha-2);background:#fff;}
+.sd-decisao b{display:block;font-size:1.05rem;}
+.sd-decisao p{margin:4px 0 0;font-size:.82rem;color:var(--tinta-2);line-height:1.42;}
+.sd-decisao.tom-verde{border-color:var(--verde);background:var(--verde-veu);} .sd-decisao.tom-verde b{color:var(--verde);}
+.sd-decisao.tom-ambar{border-color:#E07B1F;background:var(--ambar-veu);} .sd-decisao.tom-ambar b{color:#C9620F;}
+.sd-decisao.tom-vermelho{border-color:var(--coral-fundo);background:#FBE3DF;} .sd-decisao.tom-vermelho b{color:var(--coral-fundo);}
+.sd-cenarios{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px;}
+.sd-cen{background:#fff;border:1px solid var(--linha);border-radius:12px;padding:9px 28px 9px 10px;}
+.sd-cen.rec{border:2px solid var(--verde);background:var(--verde-veu);}
+.sd-cen .t{display:block;font-size:.76rem;color:var(--tinta-2);font-weight:500;}
+.sd-cen b{display:block;font-size:1.05rem;font-variant-numeric:tabular-nums;margin-top:2px;}
+.sd-cen small{font-size:.72rem;color:var(--tinta-3);}
+.sd-cen small.bom{color:var(--verde);font-weight:600;} .sd-cen small.alerta{color:var(--coral-fundo);font-weight:600;}
+.sd-cenarios .explica{grid-column:1 / -1;margin:0;}
+.sd-mini .explica{grid-column:1 / -1;}
 .imp-bloco{margin:10px 0;padding:11px 12px;border:1px solid var(--linha);border-radius:12px;background:#fff;}
 .imp-tit{margin:0;font-weight:600;font-size:.9rem;}
 .imp-tx{margin:4px 0 0;font-size:.78rem;color:var(--tinta-2);line-height:1.4;}
@@ -1668,20 +1695,20 @@ button.fotobt:disabled{color:var(--tinta-3);}
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.116.0/dist/umd/supabase.min.js"></script>
-<script src="js/00-base.js?v=2026-10-08f"></script>
-<script src="js/10-entrada.js?v=2026-10-08f"></script>
-<script src="js/20-custos.js?v=2026-10-08f"></script>
-<script src="js/25-promo.js?v=2026-10-08f"></script>
-<script src="js/30-mes.js?v=2026-10-08f"></script>
-<script src="js/35-saude.js?v=2026-10-08f"></script>
-<script src="js/40-producao.js?v=2026-10-08f"></script>
-<script src="js/50-contagem.js?v=2026-10-08f"></script>
-<script src="js/60-afazeres.js?v=2026-10-08f"></script>
-<script src="js/70-dias.js?v=2026-10-08f"></script>
-<script src="js/72-equipe.js?v=2026-10-08f"></script>
-<script src="js/80-estoque.js?v=2026-10-08f"></script>
-<script src="js/85-encomendas.js?v=2026-10-08f"></script>
-<script src="js/88-contas.js?v=2026-10-08f"></script>
-<script src="js/90-ligacoes.js?v=2026-10-08f"></script>
+<script src="js/00-base.js?v=2026-10-09a"></script>
+<script src="js/10-entrada.js?v=2026-10-09a"></script>
+<script src="js/20-custos.js?v=2026-10-09a"></script>
+<script src="js/25-promo.js?v=2026-10-09a"></script>
+<script src="js/30-mes.js?v=2026-10-09a"></script>
+<script src="js/35-saude.js?v=2026-10-09a"></script>
+<script src="js/40-producao.js?v=2026-10-09a"></script>
+<script src="js/50-contagem.js?v=2026-10-09a"></script>
+<script src="js/60-afazeres.js?v=2026-10-09a"></script>
+<script src="js/70-dias.js?v=2026-10-09a"></script>
+<script src="js/72-equipe.js?v=2026-10-09a"></script>
+<script src="js/80-estoque.js?v=2026-10-09a"></script>
+<script src="js/85-encomendas.js?v=2026-10-09a"></script>
+<script src="js/88-contas.js?v=2026-10-09a"></script>
+<script src="js/90-ligacoes.js?v=2026-10-09a"></script>
 </body>
 </html>
