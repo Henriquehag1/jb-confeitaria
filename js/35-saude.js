@@ -87,6 +87,12 @@ function saudeCalcular(x){
   r.pontosApp = bruto > 0 ? r.faltaClt / bruto : null;
   r.freelaRef = Number(P.freela_noite || ref.diariaFreela);
   r.diariasCabem = Math.floor(r.cabe / r.freelaRef);
+  /* mais uma noite de freela: quanto falta no mês e quantos doces a mais por dia pagam isso */
+  r.doceMes = r.contribUn > 0 ? Math.round(r.contribUn * 30 * 100) / 100 : null;
+  if(lucro != null && r.doceMes){
+    const falta = Math.round(((r.diariasCabem + 1) * r.freelaRef - lucro) * 100) / 100;
+    r.proxFreela = { noite: r.diariasCabem + 1, falta, doces: Math.max(1, Math.ceil(falta / r.doceMes)) };
+  } else r.proxFreela = null;
 
   const I = x.imposto;
   r.imposto = I ? {
@@ -414,6 +420,13 @@ function montarSaude(){
       ["Freela de hoje", ["O valor combinado com a última freela."], "R$ " + moeda(N.porNoite) + " − R$ " + moeda(N.freela) + " = " + reais(N.sobraFreela)]);
     sdLinha(c, "Freela extra (além de quem já cobre)", S.diariasCabem + (S.diariasCabem === 1 ? " noite por mês" : " noites por mês"), S.diariasCabem < 2 ? "alerta" : "",
       ["Freela extra", ["Para ajuda além de quem já cobre a noite, o freela sai inteiro do lucro."], "Lucro R$ " + moeda(S.cabe) + " ÷ R$ " + moeda(N.freela) + " = " + S.diariasCabem]);
+    if(S.proxFreela){
+      const X = S.proxFreela;
+      sdLinha(c, "Para mais 1 noite de freela", "+" + X.doces + (X.doces === 1 ? " doce por dia" : " doces por dia"), null,
+        ["Mais uma noite de freela", ["Quanto a venda precisa subir para pagar a " + X.noite + "ª noite do mês sem tirar do lucro.",
+          "Cada doce a mais por dia deixa R$ " + moeda(S.doceMes) + " no mês (R$ " + moeda(S.contribUn) + " × 30)."],
+         X.noite + " × R$ " + moeda(N.freela) + " − lucro " + reais(S.lucro) + " = faltam R$ " + moeda(X.falta) + " ÷ R$ " + moeda(S.doceMes) + " = " + X.doces + (X.doces === 1 ? " doce" : " doces") + " por dia"]);
+    }
     sdTexto(c, "A noite precisa de 1 pessoa. Quem cobre se paga até " + reais(N.teto) + " por noite.", "nota");
     box.appendChild(c);
   }

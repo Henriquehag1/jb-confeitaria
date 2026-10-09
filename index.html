@@ -1086,6 +1086,26 @@ button.fotobt:disabled{color:var(--tinta-3);}
 .sd-card .temexp{cursor:pointer;}
 .sd-ln button.porque{margin-left:6px;flex:none;align-self:center;}
 .sd-ln b{margin-left:auto;}
+.big .tx .s.alerta{color:var(--coral-fundo);font-weight:600;}
+.ct-status{border-width:1.5px;}
+.ct-status b{display:block;font-size:1.05rem;}
+.ct-status p{margin:4px 0 0;font-size:.82rem;color:var(--tinta-2);}
+.ct-status.tom-ok{border-color:var(--verde-linha);background:var(--verde-veu);} .ct-status.tom-ok b{color:var(--verde);}
+.ct-status.tom-atraso{border-color:var(--rosa);background:var(--coral-veu);} .ct-status.tom-atraso b{color:var(--coral-fundo);}
+.ct-status.tom-logo b{color:var(--ambar);}
+.sd-ln span small.est{color:var(--ambar);}
+.sd-ln.ct-total{border-top:1.5px solid var(--tinta-3);border-bottom:none;font-weight:600;}
+.sd-ln.ct-total span{color:var(--tinta);}
+.ct-rel{display:flex;gap:8px;margin-top:8px;}
+.ct-rel input{flex:1;min-width:0;min-height:40px;border:1px solid var(--linha-2);border-radius:10px;padding:0 10px;font:inherit;background:#fff;}
+.ct-rel button{min-height:40px;border-radius:10px;border:1.5px solid var(--coral-acao);background:#fff;color:var(--coral-forte);font-weight:600;padding:0 12px;}
+.ct-texto{white-space:pre-wrap;word-break:break-word;font-family:inherit;font-size:.82rem;line-height:1.45;background:#fff;border:1px solid var(--linha);border-radius:12px;padding:12px;margin:0 0 12px;max-height:340px;overflow:auto;}
+.ct-acoes{display:flex;gap:8px;flex-wrap:wrap;}
+.ct-acoes>*{flex:1 1 140px;min-height:46px;border-radius:12px;font-weight:600;font-size:.92rem;display:flex;align-items:center;justify-content:center;text-decoration:none;}
+.ct-prim{background:var(--coral-acao);color:var(--creme);border:none;}
+.ct-sec{background:#fff;color:#1F7A4D;border:1.5px solid #1F7A4D;}
+.ct-env{display:block;width:100%;margin-top:10px;min-height:44px;border-radius:12px;border:1.5px dashed var(--linha-2);background:none;color:var(--tinta-2);font-weight:500;}
+.ct-env.feito{border-style:solid;border-color:var(--verde-linha);color:var(--verde);}
 .sd-extrato .sd-ln{padding:6px 0;}
 .sd-extrato .sd-ln.entra b{color:var(--verde);}
 .sd-extrato .sd-ln.sai span{padding-left:4px;}
@@ -1430,6 +1450,11 @@ button.fotobt:disabled{color:var(--tinta-3);}
       <span class="tx"><span class="t">Contas a pagar</span><span class="s" id="contasSub">Impostos, contas fixas e boletos, com comprovante</span></span>
       <span class="seta" aria-hidden="true">&#8250;</span>
     </button>
+    <button class="big ghost hide" id="btnContador">
+      <span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4.2 6.2h15.6a1 1 0 0 1 1 1v9.6a1 1 0 0 1-1 1H9.6l-4.4 3v-3h-1a1 1 0 0 1-1-1V7.2a1 1 0 0 1 1-1Z"/><path d="M7.8 10.4h8.4"/><path d="M7.8 13.8h5.2"/></svg></span>
+      <span class="tx"><span class="t">Dados para o contador</span><span class="s" id="contadorSub">Venda do mês e impostos, numa mensagem pronta</span></span>
+      <span class="seta" aria-hidden="true">&#8250;</span>
+    </button>
     <button class="big ghost hide" id="btnCustos">
       <span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2.8" width="14" height="18.4" rx="2.6"/><rect x="8" y="5.9" width="8" height="3.3" rx="1"/><path d="M8.7 13.2h.01"/><path d="M12 13.2h.01"/><path d="M15.3 13.2h.01"/><path d="M8.7 17.2h.01"/><path d="M12 17.2h.01"/><path d="M15.3 17.2h.01"/></svg></span>
       <span class="tx"><span class="t">Custos e pre&ccedil;os</span><span class="s">Receitas, insumos e quanto sobra em cada canal</span></span>
@@ -1519,6 +1544,12 @@ button.fotobt:disabled{color:var(--tinta-3);}
   </section>
 
   <!-- ================= RESULTADO DO MÊS ================= -->
+  <section id="scContador" class="hide">
+    <div class="chips" id="contadorChips"></div>
+    <div id="contadorMsg"></div>
+    <div id="contadorCorpo"></div>
+  </section>
+
   <section id="scSaude" class="hide">
     <div id="saudeMsg"></div>
     <div id="saudeCorpo"></div>
@@ -1701,20 +1732,21 @@ button.fotobt:disabled{color:var(--tinta-3);}
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.116.0/dist/umd/supabase.min.js"></script>
-<script src="js/00-base.js?v=2026-10-09b"></script>
-<script src="js/10-entrada.js?v=2026-10-09b"></script>
-<script src="js/20-custos.js?v=2026-10-09b"></script>
-<script src="js/25-promo.js?v=2026-10-09b"></script>
-<script src="js/30-mes.js?v=2026-10-09b"></script>
-<script src="js/35-saude.js?v=2026-10-09b"></script>
-<script src="js/40-producao.js?v=2026-10-09b"></script>
-<script src="js/50-contagem.js?v=2026-10-09b"></script>
-<script src="js/60-afazeres.js?v=2026-10-09b"></script>
-<script src="js/70-dias.js?v=2026-10-09b"></script>
-<script src="js/72-equipe.js?v=2026-10-09b"></script>
-<script src="js/80-estoque.js?v=2026-10-09b"></script>
-<script src="js/85-encomendas.js?v=2026-10-09b"></script>
-<script src="js/88-contas.js?v=2026-10-09b"></script>
-<script src="js/90-ligacoes.js?v=2026-10-09b"></script>
+<script src="js/00-base.js?v=2026-10-09c"></script>
+<script src="js/10-entrada.js?v=2026-10-09c"></script>
+<script src="js/20-custos.js?v=2026-10-09c"></script>
+<script src="js/25-promo.js?v=2026-10-09c"></script>
+<script src="js/30-mes.js?v=2026-10-09c"></script>
+<script src="js/35-saude.js?v=2026-10-09c"></script>
+<script src="js/40-producao.js?v=2026-10-09c"></script>
+<script src="js/50-contagem.js?v=2026-10-09c"></script>
+<script src="js/60-afazeres.js?v=2026-10-09c"></script>
+<script src="js/70-dias.js?v=2026-10-09c"></script>
+<script src="js/72-equipe.js?v=2026-10-09c"></script>
+<script src="js/80-estoque.js?v=2026-10-09c"></script>
+<script src="js/85-encomendas.js?v=2026-10-09c"></script>
+<script src="js/88-contas.js?v=2026-10-09c"></script>
+<script src="js/89-contador.js?v=2026-10-09c"></script>
+<script src="js/90-ligacoes.js?v=2026-10-09c"></script>
 </body>
 </html>
