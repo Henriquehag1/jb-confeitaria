@@ -52,7 +52,7 @@ function contadorPacote(x){
     const fatia = contadorFatiaConta(c, P.taxa_pluxee);
     const estimado = fatia > 0 ? r2c(recebido / fatia) : null;
     const rel = relat[c.id] != null ? Number(relat[c.id]) : null;
-    return { canal_id: c.id, nome: c.nome, rot: nomeCanalContador(c.nome), recebido, fatia, estimado, relatorio: rel,
+    return { canal_id: c.id, nome: c.nome, rot: nomeCanalContador(c.nome), recebido, fatia, estimado, relatorio: rel, vale: Number(c.vale_fatia || 0) > 0,
              valor: rel != null ? rel : (estimado || 0), origem: rel != null ? "relatorio" : (fatia >= 0.999 ? "conta" : "estimado") };
   });
   const recebidos = canais.filter(c => (fat[c.id] || 0) > 0)
@@ -67,7 +67,8 @@ function contadorPacote(x){
     totalRecebido: r2c(recebidos.reduce((s, v) => s + v.valor, 0)),
     estimados: vendas.filter(v => v.origem === "estimado" && v.valor > 0).length,
     prazo: contadorPrazo(x.mes, P.contador_dia || 5),
-    enviado: reg.enviado_em ? diaSPde(reg.enviado_em) : null
+    enviado: reg.enviado_em ? diaSPde(reg.enviado_em) : null,
+    conferido: reg.conferido_em ? diaSPde(reg.conferido_em) : null, conferencia: reg.conferencia || null
   };
   p.mensagem = contadorMensagem(p);
   return p;
@@ -84,6 +85,9 @@ function contadorMensagem(p){
   L.push("*Vendas de " + m + "* (valor dos pedidos, antes da comissão dos aplicativos):");
   p.vendas.filter(v => v.valor > 0).forEach(v => L.push("• " + v.rot + ": R$ " + moeda(v.valor) + (v.origem === "estimado" ? " (estimado)" : "")));
   L.push("Total de vendas: R$ " + moeda(p.totalVendas));
+  const comVale = p.vendas.filter(v => v.vale && v.valor > 0).map(v => v.nome);
+  if(comVale.length && p.recebidos.some(v => v.nome === "Vale-refeição"))
+    L.push("O vale-refeição (Pluxee) é forma de pagamento de pedidos do " + comVale.join(" e do ") + ": já está dentro dessas vendas.");
   L.push("");
   L.push("*Recebido na conta em " + m + "* (para conferência):");
   p.recebidos.forEach(v => L.push("• " + v.rot + ": R$ " + moeda(v.valor)));
@@ -183,6 +187,13 @@ function montarContador(){
     "No dia 5 os relatórios dos aplicativos do mês anterior já fecharam, e ele ainda tem duas semanas."], { tudoClicavel: true });
   box.appendChild(st);
 
+  /* 1b. conferência nos portais (tarefa do dia 5) */
+  if(P.conferido){
+    const cf = sdCard("Conferido nos portais em " + ddmm(P.conferido), "ctConferencia");
+    sdTexto(cf, P.conferencia || "Números conferidos.");
+    box.appendChild(cf);
+  }
+
   /* 2. vendas */
   const v = sdCard("Vendas de " + m, "ctVendas");
   sdTexto(v, "Valor dos pedidos, antes da comissão do app. É sobre isso que o Simples é calculado.", "nota");
@@ -214,7 +225,9 @@ function montarContador(){
   /* 3. recebido */
   const rc = sdCard("Recebido na conta em " + m, "ctRecebido");
   if(!P.recebidos.length) sdTexto(rc, "Nada lançado ainda no Nosso Financeiro para este mês.", "nota");
-  P.recebidos.forEach(x => sdLinha(rc, x.rot, "R$ " + moeda(x.valor), null, [x.rot, ["O que caiu na conta no mês, lançado no Nosso Financeiro.", "Vai para o contador conferir com o que os aplicativos informam à Receita."]]));
+  P.recebidos.forEach(x => sdLinha(rc, x.rot, "R$ " + moeda(x.valor), null, [x.rot, x.nome === "Vale-refeição"
+    ? ["Não é venda separada: é o pagamento em vale de pedidos do 99Food e do Keeta, que chega pela Pluxee, já sem a taxa dela.", "Por isso aparece aqui, no recebido, e não nas vendas. A mensagem explica isso ao contador."]
+    : ["O que caiu na conta no mês, lançado no Nosso Financeiro.", "Vai para o contador conferir com o que os aplicativos informam à Receita."]]));
   if(P.recebidos.length) sdLinha(rc, "Total recebido", "R$ " + moeda(P.totalRecebido), "ct-total", null);
   box.appendChild(rc);
 

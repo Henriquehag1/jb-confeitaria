@@ -22,7 +22,6 @@ const FIXOS = [
   { origem: "item", nome: "Internet do ateliê (metade)", valor: 49.5, ordem: 40, obs: null, item_id: 4 },
   { origem: "item", nome: "Contabilidade", valor: 200, ordem: 50, obs: "Só da confeitaria", item_id: 5 },
   { origem: "item", nome: "Saipos", valor: 175, ordem: 60, obs: "Só da confeitaria", item_id: 6 },
-  { origem: "item", nome: "Produção da Eliana", valor: 700, ordem: 70, obs: "Medido em setembro/2026: 2 dias em 12. Revisar.", item_id: 7 },
   { origem: "item", nome: "Parcelamento do Simples Nacional", valor: 302.85, ordem: 80, obs: "Acordo de 23/09/2026, 26 parcelas. Outra frase.", item_id: 9 },
   { origem: "item", nome: "Anuidade Pluxee", valor: 31.67, ordem: 95, obs: null, item_id: 8 },
   { origem: "folha", nome: "Folha: Yasmin", valor: 3683.33, ordem: 900, obs: "Acordo semanal de R$ 850.00 desde 01/09/2026", item_id: null },
@@ -52,6 +51,7 @@ test("a conta da saúde: veredito, lucro, folga, contratar e conselhos saem dos 
                               imposto: { aliquota_usada: 0.0633, modo: "auto", anexo: "I", faixa: 3, rbt12: 437190.74, meses_com_dado: 9, pago_sobre_bruto: 0.0183 } });
     return { lucro: s.lucro, rot: s.veredito.rot, dono: s.donoLeva, folga: Math.round(s.folga * 1000) / 1000, eqPct: Math.round(s.equipePct * 1000) / 1000,
              falta: Math.round(s.faltaClt * 100) / 100, unExtra: s.unExtraDia, diarias: s.diariasCabem, dif: Math.round(s.imposto.diferencaMes),
+             bolsa: s.bolsa.total,
              cons: s.recomendacoes.map(x => x.t),
              v: [saudeVeredito(0.12).rot, saudeVeredito(0.05).rot, saudeVeredito(0.01).rot, saudeVeredito(-0.02).rot] };
   }, [DESTINO[1], KPI[0]]);
@@ -62,7 +62,8 @@ test("a conta da saúde: veredito, lucro, folga, contratar e conselhos saem dos 
   assert.equal(r.eqPct, 0.073);
   assert.equal(r.falta, 2239.42);
   assert.equal(r.unExtra, 15);
-  assert.equal(r.diarias, 4, "sem parâmetro, diária de R$ 140");
+  assert.equal(r.diarias, 2, "bolsa = metade de R$ 678,80; sem parâmetro, diária de R$ 140");
+  assert.equal(r.bolsa, 339.4);
   assert.equal(r.dif, 2433);
   assert.deepEqual(r.v, ["Saudável", "Atenção", "No limite", "No vermelho"]);
   assert.deepEqual(r.cons, ["A maior conta é o app: R$ 49,99 de cada R$ 100.", "Folga pequena sobre o ponto de equilíbrio.",
@@ -73,20 +74,21 @@ test("a conta da saúde: veredito, lucro, folga, contratar e conselhos saem dos 
 test("tela Saúde do negócio: usa o último mês fechado, não o mês pela metade", async () => {
   const a = await abrir("uHen", { agora: AGORA, db: comDados });
   a.texto = sel => a.page.locator(sel).first().innerText();
-  assert.match(await a.texto("#saudeSub"), /No limite · Setembro: sobraram R\$ 678,80 depois de tudo/);
+  assert.match(await a.texto("#saudeSub"), /No limite · Setembro: sobraram R\$ 978,80 depois de tudo/);
   assert.match(await a.page.getAttribute("#saudePonto", "class"), /tom-ambar/);
   await a.page.click("#btnSaude"); await a.espera(700);
   assert.equal(await a.tela(), "scSaude");
   assert.equal(await a.titulo(), "Saúde do negócio");
   assert.match(await a.texto("#sdVeredito"), /No limite/i);
   assert.match(await a.texto("#sdVeredito"), /Setembro de 2026/);
-  assert.match(await a.texto("#sdLucro"), /R\$ 678,80/);
+  assert.match(await a.texto("#sdLucro"), /R\$ 978,80/);
   // a conta inteira, linha por linha, fecha no lucro
   const ct = await a.texto("#sdConta");
   assert.match(ct, /De onde sai o lucro de setembro/i);
   assert.match(ct, /Os clientes pagaram\s*R\$ 54\.072,21[\s\S]*− App e promoção\s*R\$ 27\.030,70[\s\S]*− Imposto \(Simples\)\s*R\$ 3\.422,77[\s\S]*− Ingrediente e embalagem\s*R\$ 13\.058,44[\s\S]*= Sobrou da venda\s*R\$ 10\.560,30/);
   assert.match(ct, /− Yasmin \(equipe\)\s*R\$ 3\.683,33[\s\S]*− Pró-labore da Jessica\s*R\$ 2\.500,00[\s\S]*− Aluguel do ateliê \(metade\)\s*R\$ 1\.916,11/);
-  assert.match(ct, /− Anuidade Pluxee\s*R\$ 31,67[\s\S]*= Lucro do mês\s*R\$ 678,80/);
+  assert.doesNotMatch(ct, /Produção da Eliana/, "a Eliana saiu das contas fixas: vem da bolsa");
+  assert.match(ct, /− Anuidade Pluxee\s*R\$ 31,67[\s\S]*− Eliana \(ajuda extra\)\s*R\$ 280,00[\s\S]*− Freelas \(ajuda extra\)\s*R\$ 120,00[\s\S]*= Lucro do mês\s*R\$ 978,80/);
   assert.match(ct, /Não é o extrato do banco/);
   assert.match(await a.texto("#sdVeredito"), /O dono leva/);
   assert.match(await a.texto("#sdTendencia"), /ago[\s\S]*set/i);
@@ -100,11 +102,12 @@ test("tela Saúde do negócio: usa o último mês fechado, não o mês pela meta
   assert.match(eq, /2 dias × R\$ 140,00/, "só os dias confirmados contam");
   assert.match(eq, /Freelas[\s\S]*R\$ 120,00/);
   assert.match(eq, /Equipe no mês[\s\S]*R\$ 4\.083,33 · 7,6%/);
-  assert.match(await a.texto("#sdContratar"), /\+15 doces\/dia/);
-  assert.match(await a.texto("#sdNoite"), /Freela extra[\s\S]*5 noites por mês/);
+  assert.match(await a.texto("#sdContratar"), /\+13 doces\/dia/);
+  assert.match(await a.texto("#sdNoite"), /Bolsa de ajuda extra de outubro[\s\S]*R\$ 689,40 · 5 noites/);
+  assert.match(await a.texto("#sdNoite"), /Para pagar 1 diária de R\$ 120,00\s*R\$ 614,44 de venda · 24 doces/);
   assert.match(await a.texto("#sdNoite"), /Para mais 1 noite de freela[\s\S]*\+1 doce por dia/);
   await a.page.click("#sdNoite .sd-ln:has-text('Para mais 1 noite')"); await a.espera(150);
-  assert.match(await a.texto("#saudeCorpo .explica:not(.hide)"), /6 × R\$ 120,00 − lucro R\$ 678,80 = faltam R\$ 41,20 ÷ R\$ 152,70 = 1 doce por dia/);
+  assert.match(await a.texto("#saudeCorpo .explica:not(.hide)"), /Faltam R\$ 30,60 na bolsa = R\$ 61,20 de sobra ÷ R\$ 152,70 = 1 doce por dia/);
   await a.page.click("#sdNoite .sd-ln:has-text('Para mais 1 noite')"); await a.espera(100);
   assert.match(await a.texto("#sdConselhos"), /A maior conta é o app/);
   assert.match(await a.texto("#sdCaixa"), /Sobrou no caixa[\s\S]*R\$ 15\.564,89/);
@@ -127,7 +130,7 @@ test("tela Saúde do negócio: usa o último mês fechado, não o mês pela meta
 
   // tocar num número abre de onde ele sai
   await a.page.click("#sdLucro"); await a.espera(150);
-  assert.match(await a.texto("#saudeCorpo .explica:not(.hide)"), /R\$ 10\.560,30 que sobraram da venda − R\$ 9\.881,50 de contas fixas = R\$ 678,80/);
+  assert.match(await a.texto("#saudeCorpo .explica:not(.hide)"), /R\$ 10\.560,30 que sobraram da venda − R\$ 9\.181,50 de contas fixas − R\$ 400,00 de ajuda extra = R\$ 978,80/);
   await a.page.click('#sdYasmin [data-cen="renegociar"]'); await a.espera(150);
   assert.match(await a.texto("#saudeCorpo .explica:not(.hide)"), /6 noites, folga no domingo, mesma hora \(R\$ 21,16\)/);
   assert.equal(await a.page.locator("#saudeCorpo .explica:not(.hide)").count(), 1, "uma explicação aberta por vez");

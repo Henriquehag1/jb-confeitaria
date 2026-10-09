@@ -42,7 +42,7 @@ function saudeMesRef(destinos, hoje){
    sobrou da venda − cada conta fixa do mês (equipe, aluguel, ..., pró-labore) = lucro.
    As contas fixas entram pelo valor do mês, item por item (não divididas por doce). */
 const r2 = v => Math.round(v * 100) / 100;
-function saudeLucroMes(D, fixos){
+function saudeLucroMes(D, fixos, extra){
   if(!D) return null;
   const bruto = r2(Number(D.bruto_estimado));
   const app = r2(bruto * Number(D.app)), imposto = r2(bruto * Number(D.imposto)), ingrediente = r2(bruto * Number(D.ingrediente));
@@ -50,15 +50,20 @@ function saudeLucroMes(D, fixos){
   const itens = (fixos || []).map(f => ({ nome: f.nome, valor: r2(Number(f.valor)), origem: f.origem, obs: f.obs || "" }))
                              .sort((a, b) => b.valor - a.valor);
   const fixo = r2(itens.reduce((s, f) => s + f.valor, 0));
-  const lucro = r2(margem - fixo);
-  return { bruto, app, imposto, ingrediente, margem, itens, fixo, lucro, sobra: bruto > 0 ? lucro / bruto : null };
+  /* ajuda extra do mês (Eliana e freelas): sai da bolsa, depois das contas fixas */
+  const extras = (extra || []).filter(e => Number(e.valor) > 0).map(e => ({ nome: e.nome, valor: r2(Number(e.valor)), detalhe: e.detalhe || "" }));
+  const extraTotal = r2(extras.reduce((s, e) => s + e.valor, 0));
+  const antesExtra = r2(margem - fixo);
+  const lucro = r2(antesExtra - extraTotal);
+  return { bruto, app, imposto, ingrediente, margem, itens, fixo, antesExtra, extras, extraTotal, lucro, sobra: bruto > 0 ? lucro / bruto : null };
 }
 
 function saudeCalcular(x){
   const D0 = x.destino, K = x.kpi || {}, P = x.param || {};
   let fixos = x.fixos;
   if(!fixos && K.custo_fixo_mes != null) fixos = [{ nome: "Contas fixas do mês", valor: K.custo_fixo_mes, origem: "item" }];
-  const L = saudeLucroMes(D0, fixos || []);
+  const extra = (x.equipe || []).filter(p => p.regime === "diaria" || p.regime === "freela").map(p => ({ nome: p.nome, valor: p.mes, detalhe: p.detalhe }));
+  const L = saudeLucroMes(D0, fixos || [], extra);
   const bruto = L ? L.bruto : 0;
   const sobra = L ? L.sobra : null;
   const lucro = L ? L.lucro : null;
@@ -86,13 +91,22 @@ function saudeCalcular(x){
   r.unExtraDia = r.contribUn > 0 ? Math.ceil(r.faltaClt / r.contribUn / 30) : null;
   r.pontosApp = bruto > 0 ? r.faltaClt / bruto : null;
   r.freelaRef = Number(P.freela_noite || ref.diariaFreela);
-  r.diariasCabem = Math.floor(r.cabe / r.freelaRef);
-  /* mais uma noite de freela: quanto falta no mês e quantos doces a mais por dia pagam isso */
+  /* bolsa de ajuda extra do mês seguinte: uma fatia do que sobrou antes da Eliana e dos freelas */
+  const fatiaBolsa = P.bolsa_fatia != null ? Number(P.bolsa_fatia) : 0.5;
+  const totalBolsa = L ? r2(Math.max(0, L.antesExtra) * fatiaBolsa) : 0;
+  r.bolsa = { fatia: fatiaBolsa, antesExtra: L ? L.antesExtra : null, total: totalBolsa, noites: Math.floor(totalBolsa / r.freelaRef) };
+  r.diariasCabem = r.bolsa.noites;
+  /* mais uma noite de freela na bolsa: quanto a sobra precisa crescer e quantos doces a mais por dia pagam isso */
   r.doceMes = r.contribUn > 0 ? Math.round(r.contribUn * 30 * 100) / 100 : null;
-  if(lucro != null && r.doceMes){
-    const falta = Math.round(((r.diariasCabem + 1) * r.freelaRef - lucro) * 100) / 100;
-    r.proxFreela = { noite: r.diariasCabem + 1, falta, doces: Math.max(1, Math.ceil(falta / r.doceMes)) };
+  if(L && r.doceMes && fatiaBolsa > 0){
+    const faltaBolsa = r2((r.bolsa.noites + 1) * r.freelaRef - totalBolsa);
+    const faltaSobra = r2(faltaBolsa / fatiaBolsa);
+    r.proxFreela = { noite: r.bolsa.noites + 1, faltaBolsa, falta: faltaSobra, doces: Math.max(1, Math.ceil(faltaSobra / r.doceMes)) };
   } else r.proxFreela = null;
+  /* venda bruta que paga uma diária: de cada R$ 100 vendidos sobram (100 − app − imposto − ingrediente) */
+  r.margemPct = L && L.bruto > 0 ? L.margem / L.bruto : null;
+  r.vendaPorDiaria = r.margemPct > 0 ? { valor: r.freelaRef, venda: r2(r.freelaRef / r.margemPct),
+                                          doces: r.contribUn > 0 ? Math.ceil(r.freelaRef / r.contribUn) : null } : null;
 
   const I = x.imposto;
   r.imposto = I ? {
@@ -251,8 +265,8 @@ async function carregarSaude(){
   const fixoMes = r.custoFixo || 0;
   const tendencia = destinos.filter(d => d.mes <= D.mes && Number(d.bruto_estimado) > 0)
     .sort((a, b) => a.mes < b.mes ? -1 : 1).slice(-4)
-    .map(d => { const L = saudeLucroMes(d, [{ nome: "fixas", valor: fixoMes }]);
-                return { mes: d.mes, lucro: L.lucro, margem: L.margem, sobra: L.sobra, bruto: L.bruto }; });
+    .map(d => { const L = saudeLucroMes(d, [{ nome: "fixas", valor: fixoMes }], d.mes === D.mes ? r.conta.extras : []);
+                return { mes: d.mes, lucro: L.lucro, margem: L.margem, extra: L.extraTotal, sobra: L.sobra, bruto: L.bruto }; });
   r.tendencia = tendencia;
   r.fontes = fontes;
   r.yasminNome = yasmin ? yasmin.nome : "Yasmin";
@@ -276,7 +290,8 @@ async function resumoSaudeHome(){
   if(dd.error || !dd.data) return null;
   const D = saudeMesRef(dd.data, hojeSP());
   if(!D || cf.error || !cf.data || !cf.data.length) return null;
-  const L = saudeLucroMes(D, cf.data);
+  const extra = await bolsaGastoMes(D.mes).catch(() => null);
+  const L = saudeLucroMes(D, cf.data, extra ? extra.itens : []);
   return { mes: D.mes, lucro: L.lucro, veredito: saudeVeredito(L.sobra) };
 }
 
@@ -321,8 +336,8 @@ function montarSaude(){
   const ns = document.createElement("small"); ns.textContent = " de lucro no mês"; n.appendChild(ns);
   v.appendChild(n);
   const C = S.conta;
-  explicar(n, "Lucro do mês", ["O que sobra da venda de " + M + " depois de pagar app, imposto, ingrediente, todas as contas fixas e o pró-labore.",
-    "Linha por linha logo abaixo, em \"De onde sai o lucro\"."], { conta: reais(C.margem) + " que sobraram da venda − " + reais(C.fixo) + " de contas fixas = " + reais(S.lucro), tudoClicavel: true });
+  explicar(n, "Lucro do mês", ["O que sobra da venda de " + M + " depois de pagar app, imposto, ingrediente, contas fixas, pró-labore e a ajuda extra (Eliana e freelas).",
+    "Linha por linha logo abaixo, em \"De onde sai o lucro\"."], { conta: reais(C.margem) + " que sobraram da venda − " + reais(C.fixo) + " de contas fixas" + (C.extraTotal ? " − " + reais(C.extraTotal) + " de ajuda extra" : "") + " = " + reais(S.lucro), tudoClicavel: true });
   sdTexto(v, S.veredito.frase);
   const mini = document.createElement("div"); mini.className = "sd-mini";
   [["Sobra de cada R$ 100", reais(S.sobra * 100), ["Sobra de cada R$ 100", ["O que fica depois de tudo, a cada R$ 100 que o cliente paga."], reais(S.lucro) + " ÷ R$ " + moeda(S.bruto) + " × 100 = " + reais(S.sobra * 100)]],
@@ -350,8 +365,9 @@ function montarSaude(){
     const obs = (f.obs || "").split(/\.\s/)[0].replace(/\.$/, "");
     sdLinha(lc, "− " + nome, reais(f.valor), "sai", [nome, [(obs ? obs + ". " : "") + "Valor do mês em Custos e preços, custos da casa."]]);
   });
+  C.extras.forEach(e => sdLinha(lc, "− " + e.nome + " (ajuda extra)", reais(e.valor), "sai", [e.nome, [(e.detalhe ? e.detalhe + ". " : "") + "Sai da bolsa de ajuda extra do mês."]]));
   sdLinha(lc, "= Lucro do mês", reais(C.lucro), "total " + (C.lucro >= 0 ? "bom" : "alerta"), ["Lucro do mês", ["Sobrou da venda menos todas as contas fixas."],
-    reais(C.margem) + " − " + reais(C.fixo) + " = " + reais(C.lucro)]);
+    reais(C.margem) + " − " + reais(C.fixo) + (C.extraTotal ? " − " + reais(C.extraTotal) + " de ajuda extra" : "") + " = " + reais(C.lucro)]);
   sdTexto(lc, "Não é o extrato do banco: é a venda do mês menos o que ela custou. O banco está no fim da tela, em \"E o caixa?\".", "nota");
   box.appendChild(lc);
 
@@ -368,8 +384,8 @@ function montarSaude(){
       c.append(val, bar, m); g.appendChild(c);
     });
     t.appendChild(g);
-    explicar(g, "Lucro mês a mês", ["Mesma conta do lucro: o que sobrou da venda de cada mês menos as contas fixas de hoje (R$ " + moeda(S.custoFixo) + ")."],
-      { conta: S.tendencia.map(x => mesCurto(x.mes) + ": R$ " + n0(x.margem) + " − R$ " + n0(S.custoFixo) + " = " + (x.lucro < 0 ? "−" : "") + "R$ " + n0(Math.abs(x.lucro))).join(" · "), tudoClicavel: true });
+    explicar(g, "Lucro mês a mês", ["Mesma conta do lucro: o que sobrou da venda de cada mês menos as contas fixas de hoje (R$ " + moeda(S.custoFixo) + ").", "A ajuda extra só entra no mês do topo."],
+      { conta: S.tendencia.map(x => mesCurto(x.mes) + ": R$ " + n0(x.margem) + " − R$ " + n0(S.custoFixo) + (x.extra ? " − R$ " + n0(x.extra) : "") + " = " + (x.lucro < 0 ? "−" : "") + "R$ " + n0(Math.abs(x.lucro))).join(" · "), tudoClicavel: true });
     sdTexto(t, "Com as contas fixas de hoje. Venda: " + S.tendencia.map(x => mesCurto(x.mes).toLowerCase() + " R$ " + n0(x.bruto)).join(" · ") + ".", "nota");
     box.appendChild(t);
   }
@@ -418,14 +434,24 @@ function montarSaude(){
     sdLinha(c, "Freela: pague até", reais(N.recomendado) + " por noite", "bom", ["Valor recomendado para o freela", ["Deixa 30% do que a noite rende para a casa."], "R$ " + moeda(N.porNoite) + " × 70% = R$ " + moeda(N.recomendado)]);
     sdLinha(c, "Freela de R$ " + moeda(N.freela) + " deixa", reais(N.sobraFreela) + " por noite", N.sobraFreela < 0 ? "alerta" : "bom",
       ["Freela de hoje", ["O valor combinado com a última freela."], "R$ " + moeda(N.porNoite) + " − R$ " + moeda(N.freela) + " = " + reais(N.sobraFreela)]);
-    sdLinha(c, "Freela extra (além de quem já cobre)", S.diariasCabem + (S.diariasCabem === 1 ? " noite por mês" : " noites por mês"), S.diariasCabem < 2 ? "alerta" : "",
-      ["Freela extra", ["Para ajuda além de quem já cobre a noite, o freela sai inteiro do lucro."], "Lucro R$ " + moeda(S.cabe) + " ÷ R$ " + moeda(N.freela) + " = " + S.diariasCabem]);
+    const B = S.bolsa;
+    const mProx = mesLongo(mesSeguinte(S.mes)).split(" ")[0].toLowerCase();
+    sdLinha(c, "Bolsa de ajuda extra de " + mProx, reais(B.total) + " · " + B.noites + (B.noites === 1 ? " noite" : " noites"), B.noites < 2 ? "alerta" : "bom",
+      ["Bolsa de ajuda extra", ["Para Eliana e freelas além de quem cobre a noite e o domingo.", "É " + pct(B.fatia) + " do que sobrou em " + M + " antes da ajuda extra; o resto fica de lucro.", "O saldo do mês, dia a dia, está em Quem veio no ateliê."],
+       reais(B.antesExtra) + " × " + pct(B.fatia) + " = " + reais(B.total) + " ÷ R$ " + moeda(N.freela) + " = " + B.noites + (B.noites === 1 ? " noite" : " noites")]);
+    if(S.vendaPorDiaria){
+      const V = S.vendaPorDiaria;
+      sdLinha(c, "Para pagar 1 diária de R$ " + moeda(V.valor), reais(V.venda) + " de venda" + (V.doces ? " · " + V.doces + " doces" : ""), null,
+        ["Venda que paga uma diária", ["De cada R$ 100 vendidos, sobram R$ " + moeda(S.margemPct * 100) + " depois de app, imposto e ingrediente. É disso que sai a diária.",
+          "Em doces: cada doce deixa R$ " + moeda(S.contribUn) + "."],
+         "R$ " + moeda(V.valor) + " ÷ " + pct(S.margemPct) + " = " + reais(V.venda) + " de venda" + (V.doces ? " · R$ " + moeda(V.valor) + " ÷ R$ " + moeda(S.contribUn) + " = " + V.doces + " doces" : "")]);
+    }
     if(S.proxFreela){
       const X = S.proxFreela;
       sdLinha(c, "Para mais 1 noite de freela", "+" + X.doces + (X.doces === 1 ? " doce por dia" : " doces por dia"), null,
-        ["Mais uma noite de freela", ["Quanto a venda precisa subir para pagar a " + X.noite + "ª noite do mês sem tirar do lucro.",
-          "Cada doce a mais por dia deixa R$ " + moeda(S.doceMes) + " no mês (R$ " + moeda(S.contribUn) + " × 30)."],
-         X.noite + " × R$ " + moeda(N.freela) + " − lucro " + reais(S.lucro) + " = faltam R$ " + moeda(X.falta) + " ÷ R$ " + moeda(S.doceMes) + " = " + X.doces + (X.doces === 1 ? " doce" : " doces") + " por dia"]);
+        ["Mais uma noite de freela", ["Quanto a venda precisa subir para a bolsa pagar a " + X.noite + "ª noite do mês.",
+          "Metade do que a venda a mais deixa vai para a bolsa. Cada doce a mais por dia deixa R$ " + moeda(S.doceMes) + " no mês (R$ " + moeda(S.contribUn) + " × 30)."],
+         "Faltam R$ " + moeda(X.faltaBolsa) + " na bolsa = R$ " + moeda(X.falta) + " de sobra ÷ R$ " + moeda(S.doceMes) + " = " + X.doces + (X.doces === 1 ? " doce" : " doces") + " por dia"]);
     }
     sdTexto(c, "A noite precisa de 1 pessoa. Quem cobre se paga até " + reais(N.teto) + " por noite.", "nota");
     box.appendChild(c);
