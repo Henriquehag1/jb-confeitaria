@@ -99,14 +99,15 @@ test("equipe: sem pendências, sem cartão de abertura, subtítulo de contagem",
   semErros(a); await a.fechar();
 });
 
-test("equipe: abertura da Jessica escondida, fechamento liberado, lembrete depois das 22h", async () => {
+test("equipe: no lugar da abertura da Jessica, repor a geladeira; fechamento liberado, lembrete depois das 22h", async () => {
   const hoje = hojeSP("2026-09-08T01:30:00Z");   // 22:30 em SP de 07/09
   const a = await abrir("uYas", {
     agora: "2026-09-08T01:30:00Z",
     db: db => { db.jb_contagem.push({ id: 5, data: hoje, momento: "abertura", registrado_por: "uJes", nome_responsavel: "Jessica", criado_em: hoje + "T18:00:00Z" });
                 db.jb_contagem_item.push({ contagem_id: 5, produto_id: 1, qtd: 10 }); return db; }
   });
-  assert.equal(await a.visivel("btnAbertura"), false);
+  assert.equal(await a.visivel("btnAbertura"), true);
+  assert.equal(await a.texto("#btnAbertura .t"), "Repor a geladeira");
   assert.equal(await a.page.evaluate(() => document.getElementById("btnFechamento").disabled), false);
   assert.match(await a.texto("#homeMsg"), /Hora de fechar o turno/);
   semErros(a); await a.fechar();

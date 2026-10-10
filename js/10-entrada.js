@@ -185,11 +185,17 @@ async function carregarHome(){
      equipe, para não haver confusão com o fechamento. Só volta se a própria
      pessoa tiver registrado a abertura daquele dia, para ela poder corrigir. */
   const aberturaMinha = !!ab && ab.registrado_por === EU.user_id;
-  const escondeAb = turnoDeOntem || (!gestor && !aberturaMinha);
+  /* Repor é de quem estiver na loja: depois que a Jessica sai, quem coloca produto
+     na geladeira também soma ali, senão o fechamento fica maior do que entrou. */
+  const reporEquipe = !gestor && !!ab && !fe && !aberturaMinha && !turnoDeOntem;
+  const escondeAb = turnoDeOntem || (!gestor && !aberturaMinha && !reporEquipe);
 
-  bAb.className = "big" + (ab ? " done" : "") + (escondeAb ? " hide" : "");
-  bAb.querySelector(".t").textContent = ab ? "Turno aberto ✓" : "Abertura de turno";
-  bAb.querySelector(".s").textContent = ab
+  bAb.className = "big" + (ab && !reporEquipe ? " done" : "") + (escondeAb ? " hide" : "");
+  bAb.querySelector(".t").textContent = reporEquipe ? "Repor a geladeira"
+    : (ab ? "Turno aberto ✓" : "Abertura de turno");
+  bAb.querySelector(".s").textContent = reporEquipe
+    ? "Colocou produto na geladeira? Toque e some o que você colocou."
+    : ab
     ? "Registrado por " + ab.nome_responsavel + " às " + horaDe(ab.criado_em) + ". Repôs alguma coisa? Toque para somar."
     : "Conte o que está na geladeira ao abrir a loja";
 

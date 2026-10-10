@@ -16,6 +16,7 @@ async function abrirContagem(momento, modo){
   BASE = {};
   ONTEM = {};
   MODO = "contar";
+  SO_REPOR = false;
 
   if(!PRODUTOS_OK || !PRODUTOS.length){
     /* Sem a lista de itens a contagem abriria vazia e salvaria zeros. Melhor parar aqui. */
@@ -31,9 +32,11 @@ async function abrirContagem(momento, modo){
   /* A Jessica abre a loja, conta o que deixou pronto e, durante o dia, vai repondo.
      Por isso reabrir a abertura cai no modo repor: ela digita só o que está colocando
      agora e o app soma com o que já estava. Corrigir a contagem é o outro botão. */
-  if(existente && momento === "abertura") MODO = modo === "contar" ? "contar" : "repor";
+  /* Quem não abriu o turno (a equipe, à noite) só repõe: não enxerga nem corrige a contagem da Jessica. */
+  SO_REPOR = !!existente && momento === "abertura" && EU.papel !== "gestor" && existente.registrado_por !== EU.user_id;
+  if(existente && momento === "abertura") MODO = (modo === "contar" && !SO_REPOR) ? "contar" : "repor";
   const rascunho = localStorage.getItem(rascunhoKey());
-  if(existente){
+  if(existente && !SO_REPOR){
     const { data, error } = await sb.from("jb_contagem_item").select("produto_id,qtd").eq("contagem_id", existente.id);
     if(error){
       /* Corrigir sem enxergar o que já foi salvo gravaria zeros por cima dos números reais. */
@@ -87,6 +90,7 @@ async function abrirContagem(momento, modo){
   aviso("countMsg",
     MODO === "repor"
       ? (recuperado ? "Recuperei a reposição que você não tinha conseguido enviar."
+                    : SO_REPOR ? "Digite só o que você está colocando na geladeira agora."
                     : "Digite só o que você está colocando na geladeira agora. O app soma com o que já estava.")
     : existente ? (recuperado ? "Recuperei a correção que você não tinha conseguido enviar."
                               : "Você está corrigindo uma contagem já salva. O número é o total que fica na geladeira.")
@@ -128,7 +132,7 @@ async function montarLista(){
   $("countProg").classList.toggle("hide", EDIT_LISTA);
   $("countBarra").classList.toggle("hide", EDIT_LISTA || repor);
   /* Os dois modos só existem quando a contagem de abertura já foi salva. */
-  const temModos = MOMENTO === "abertura" && !!(CONTAGEM_HOJE && CONTAGEM_HOJE.abertura) && !EDIT_LISTA;
+  const temModos = MOMENTO === "abertura" && !!(CONTAGEM_HOJE && CONTAGEM_HOJE.abertura) && !EDIT_LISTA && !SO_REPOR;
   $("countModos").classList.toggle("hide", !temModos);
   $("btnModoRepor").setAttribute("aria-pressed", String(repor));
   $("btnModoContar").setAttribute("aria-pressed", String(!repor));
@@ -160,7 +164,7 @@ async function montarLista(){
     const temNaGeladeira = BASE[p.id] || 0;
     const veioDeOntem = ONTEM[p.id];
     let base = null;
-    if(repor || veioDeOntem !== undefined){
+    if((repor && !SO_REPOR) || (!repor && veioDeOntem !== undefined)){
       base = document.createElement("span");
       base.className = "base";
       nome.appendChild(base);
@@ -291,14 +295,29 @@ async function salvar(){
   }
 
   try{
+    if(repor){
+      /* Repondo vai só o que entrou agora; o banco soma ao que já estava e guarda
+         quem repôs, quanto e a que horas. Serve para a Jessica e para a equipe à noite. */
+      const entrou = LISTA.filter(p => VALORES[p.id] > 0)
+                          .map(p => ({ produto_id: p.id, qtd: Math.min(999, VALORES[p.id]) }));
+      const { data: naGeladeira, error } = await sb.rpc("jb_repor", { p_data: diaDoTurno(), p_itens: entrou });
+      if(error) throw error;
+      localStorage.removeItem(rascunhoKey());
+      const quantos = entrou.length;
+      const unid = entrou.reduce((s,i) => s + i.qtd, 0);
+      await carregarHome();
+      aviso("homeMsg", SO_REPOR
+        ? "Reposição registrada: " + unid + (unid === 1 ? " unidade" : " unidades") + " na geladeira."
+        : "Reposição somada: " + quantos + (quantos === 1 ? " item" : " itens") +
+          ". A geladeira agora tem " + naGeladeira + (naGeladeira === 1 ? " item." : " itens."), "ok");
+      btn.disabled = false; btn.textContent = "Salvar contagem";
+      return;
+    }
     /* Cabeçalho e itens vão juntos, numa transação no banco. Se a rede cair no meio,
        nada fica pela metade, e tentar de novo funciona. */
     /* Repondo: o que vai para o banco é o total, o que já estava mais o que entrou agora.
        Assim a conta do turno continua certa (deixei menos sobrou é o que saiu). */
-    const itens = LISTA.map(p => ({
-      produto_id: p.id,
-      qtd: repor ? Math.min(999, (BASE[p.id] || 0) + (VALORES[p.id] || 0)) : (VALORES[p.id] || 0)
-    }));
+    const itens = LISTA.map(p => ({ produto_id: p.id, qtd: VALORES[p.id] || 0 }));
     const { data: id, error } = await sb.rpc("jb_salvar_contagem",
       { p_data: diaDoTurno(), p_momento: MOMENTO, p_itens: itens });
     if(error) throw error;
@@ -312,13 +331,6 @@ async function salvar(){
          porque comparam com a contagem da Jessica, e são coisa de gestor. */
       if(EU.papel === "gestor") await mostrarResultado(diaDoTurno());
       else await mostrarFeito(diaDoTurno());
-    }
-    else if(repor){
-      const quantos = LISTA.filter(p => VALORES[p.id] > 0).length;
-      const naGeladeira = itens.reduce((s,i) => s + i.qtd, 0);
-      await carregarHome();
-      aviso("homeMsg", "Reposição somada: " + quantos + (quantos === 1 ? " item" : " itens") +
-        ". A geladeira agora tem " + naGeladeira + (naGeladeira === 1 ? " item." : " itens."), "ok");
     }
     else {
       const conf = conferenciaComOntem();
@@ -402,10 +414,11 @@ function ordemDoRanking(a, b){
 
 async function mostrarResultado(dia){
   RES_DIA = dia;
-  const [{ data }, adendos, perdas] = await Promise.all([
+  const [{ data }, adendos, perdas, entradas] = await Promise.all([
     sb.from("jb_saidas").select("*").eq("data", dia).order("ordem"),
     listarAdendos(dia),
-    listarPerdas(dia)
+    listarPerdas(dia),
+    listarEntradas(dia)
   ]);
   const linhas = data || [];
   /* O que ficou na geladeira agora: a sobra contada no fechamento menos o que
@@ -579,6 +592,19 @@ async function mostrarResultado(dia){
     box.appendChild(bloco);
   }
 
+  /* As reposições do dia, com hora e quem fez. A que o app somou sozinho no fechamento
+     aparece separada: ninguém registrou na hora, então vale um olhar. */
+  const blocoEntradas = blocoDeEntradas(entradas, linhas);
+  if(blocoEntradas) box.appendChild(blocoEntradas);
+  if(entradas.some(e => e.tipo === "reposicao_no_fechamento")){
+    const w = document.createElement("div");
+    w.className = "msg warn";
+    w.textContent = "No fechamento sobrou mais do que tinha entrado em alguns itens. O app somou a diferença "
+      + "como reposição para a conta fechar (veja em Reposições do dia). Se não houve reposição, "
+      + "foi erro de contagem no fechamento: corrija a contagem.";
+    box.prepend(w);
+  }
+
   if(negativos.length){
     const w = document.createElement("div");
     w.className = "msg warn";
@@ -597,6 +623,56 @@ async function mostrarResultado(dia){
    O adendo nunca mexe na contagem já salva: entra linha nova.
    ============================================================ */
 let AD = {};   // produto_id -> quantidade que saiu depois
+
+/* Reposições registradas no dia (pela Jessica, pela equipe ou somadas no fechamento). */
+async function listarEntradas(dia){
+  if(!EU || EU.papel !== "gestor") return [];
+  try {
+    const { data } = await sb.from("jb_contagem_mov")
+      .select("produto_id,antes,depois,tipo,nome,criado_em")
+      .eq("data", dia).eq("momento", "abertura")
+      .in("tipo", ["reposicao", "reposicao_no_fechamento", "acerto"])
+      .order("criado_em");
+    return data || [];
+  } catch(e){ return []; }
+}
+
+/* Agrupa por momento: cada toque em "Somar à geladeira" vira uma linha com hora, quem e o que entrou. */
+function blocoDeEntradas(entradas, linhas){
+  if(!entradas || !entradas.length) return null;
+  const nomeDe = {};
+  (linhas || []).forEach(l => nomeDe[l.produto_id] = l.produto);
+  PRODUTOS.forEach(p => { if(!nomeDe[p.id]) nomeDe[p.id] = p.nome; });
+  const grupos = [];
+  entradas.forEach(e => {
+    const qtd = (e.depois || 0) - (e.antes || 0);
+    if(qtd <= 0) return;
+    const chave = e.tipo + "|" + e.nome + "|" + String(e.criado_em).slice(0,16);
+    let g = grupos.find(x => x.chave === chave);
+    if(!g){ g = { chave, tipo: e.tipo, nome: e.nome, em: e.criado_em, itens: [] }; grupos.push(g); }
+    g.itens.push((nomeDe[e.produto_id] || "Item") + " +" + qtd);
+  });
+  if(!grupos.length) return null;
+  const bloco = document.createElement("div");
+  bloco.className = "adja";
+  const h = document.createElement("h3");
+  h.textContent = "Reposições do dia";
+  bloco.appendChild(h);
+  grupos.forEach(g => {
+    const d = document.createElement("div");
+    d.className = "ad-linha" + (g.tipo === "reposicao" ? "" : " auto");
+    const quem = g.tipo === "reposicao" ? horaDe(g.em) + " · " + g.nome
+               : g.tipo === "acerto" ? "Acerto feito depois"
+               : "No fechamento · somado pelo app";
+    const q = document.createElement("b");
+    q.textContent = quem;
+    const t = document.createElement("span");
+    t.textContent = " " + g.itens.join(", ");
+    d.append(q, t);
+    bloco.appendChild(d);
+  });
+  return bloco;
+}
 
 async function listarAdendos(dia){
   try{

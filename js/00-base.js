@@ -15,7 +15,7 @@ const LOGINS = [
 ];
 
 const TZ = "America/Sao_Paulo";
-const VERSAO = "2026-10-09h";   // aparece no login e no pé da Home, para saber qual versão cada celular tem
+const VERSAO = "2026-10-10a";   // aparece no login e no pé da Home, para saber qual versão cada celular tem
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
   auth: { persistSession: true, autoRefreshToken: true }
 });
@@ -194,6 +194,7 @@ let MOMENTO = null;
 let MODO = "contar";      // "contar" = o número total na geladeira · "repor" = só o que está entrando agora
 let VALORES = {};
 let BASE = {};            // no modo repor, o que já estava contado em cada item
+let SO_REPOR = false;     // equipe repondo a geladeira aberta pela Jessica: só soma, não vê os totais
 let ONTEM = {};           // na abertura, o que ficou na geladeira no fechamento de ontem
 let LISTA = [];           // os itens desta contagem (quase sempre PRODUTOS)
 let CONTAGEM_HOJE = {};
