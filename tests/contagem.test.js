@@ -193,11 +193,12 @@ test("reposição durante o dia soma na geladeira em vez de trocar o número", a
   assert.match(await a.page.evaluate(() => $("btnSalvar").textContent), /Somar à geladeira/);
 
   await a.page.click("#btnSalvar"); await a.espera(600);
-  const salva = (await a.log("rpc")).filter(r => r[1] === "jb_salvar_contagem");
+  const salva = (await a.log("rpc")).filter(r => r[1] === "jb_repor");
   assert.equal(salva.length, 1);
-  assert.equal(salva[0][2].p_momento, "abertura");
-  assert.deepEqual(salva[0][2].p_itens, [{ produto_id: 1, qtd: 15 }, { produto_id: 2, qtd: 20 }, { produto_id: 3, qtd: 6 }]);
+  assert.deepEqual(salva[0][2].p_itens, [{ produto_id: 1, qtd: 5 }], "vai só o que entrou; o banco soma e registra quem repôs");
+  assert.equal((await a.log("rpc")).filter(r => r[1] === "jb_salvar_contagem").length, 0);
   assert.equal((await a.db("jb_contagem")).length, 1, "não criou contagem nova");
+  assert.equal((await a.db("jb_contagem_item")).find(i => i.produto_id === 1).qtd, 15);
   assert.equal(await a.tela(), "scHome");
   assert.match(await a.texto("#homeMsg"), /Reposição somada: 1 item\. A geladeira agora tem 41 itens\./);
 
@@ -437,5 +438,42 @@ test("turno ainda aberto mantém a ordem da geladeira, porque ninguém sabe o qu
   await a.page.evaluate(async () => { await mostrarResultado(hojeSP()); }); await a.espera(500);
   const nomes = await a.page.evaluate(() => [...document.querySelectorAll("#resBox .tres tbody tr .txt")].map(e => e.childNodes[0].textContent.trim()));
   assert.deepEqual(nomes, ["Brownie Brigadeiro", "Bolo Gelado Supreme", "Pudim"]);
+  semErros(a); await a.fechar();
+});
+
+test("equipe à noite repõe a geladeira aberta pela Jessica: só soma, sem ver nem corrigir a contagem", async () => {
+  const hoje = hojeSP();
+  const a = await abrir("uYas", { db: db => comAbertura(db, hoje) });
+  assert.equal(await a.visivel("btnAbertura"), true);
+  assert.equal(await a.texto("#btnAbertura .t"), "Repor a geladeira");
+  await a.page.click("#btnAbertura"); await a.espera(400);
+  assert.equal(await a.tela(), "scCount");
+  assert.equal(await a.page.evaluate(() => MODO), "repor");
+  assert.equal(await a.visivel("countModos"), false, "a equipe não tem o botão de corrigir a contagem");
+  assert.equal(await a.page.evaluate(() => document.querySelectorAll("#countList .item .base").length), 0,
+    "não mostra os totais da Jessica");
+  await a.page.locator("#countList .step input").nth(2).fill("4"); await a.espera(150);
+  await a.page.click("#btnSalvar"); await a.espera(600);
+  const salva = (await a.log("rpc")).filter(r => r[1] === "jb_repor");
+  assert.deepEqual(salva[0][2].p_itens, [{ produto_id: 3, qtd: 4 }]);
+  assert.equal((await a.db("jb_contagem_item")).find(i => i.contagem_id === 5 && i.produto_id === 3).qtd, 10);
+  assert.match(await a.texto("#homeMsg"), /Reposição registrada: 4 unidades na geladeira\./);
+  semErros(a); await a.fechar();
+});
+
+test("fechamento com sobra maior do que entrou: o app soma como reposição e mostra no resultado", async () => {
+  const hoje = hojeSP();
+  const a = await abrir("uJes", { db: db => comAbertura(db, hoje), confirmar: true });   // abertura: 10, 20, 6
+  await a.page.evaluate(() => abrirContagem("fechamento")); await a.espera(400);
+  const inputs = a.page.locator("#countList .step input");
+  await inputs.nth(0).fill("4"); await inputs.nth(1).fill("25"); await inputs.nth(2).fill("6"); await a.espera(150);
+  await a.page.click("#btnSalvar"); await a.espera(800);
+  assert.equal(await a.tela(), "scRes");
+  const ab = (await a.db("jb_contagem_item")).find(i => i.contagem_id === 5 && i.produto_id === 2);
+  assert.equal(ab.qtd, 25, "a abertura subiu para a sobra: a diferença virou reposição");
+  assert.match(await a.texto("#resBox"), /Reposições do dia/);
+  assert.match(await a.texto("#resBox"), /No fechamento · somado pelo app/);
+  assert.match(await a.texto("#resBox"), /\+5/);
+  assert.match(await a.texto("#resBox .msg.warn"), /somou a diferença/);
   semErros(a); await a.fechar();
 });

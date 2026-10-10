@@ -480,6 +480,7 @@ ${agora ? "window.__AGORA=" + JSON.stringify(agora) + ";" : ""}
                       "jb_kpi_mes","jb_kpi_destino","jb_dia_vendas","jb_encomenda","jb_bolo_opcao","jb_ocorrencia","jb_conta","jb_falta","jb_freela","jb_banco_horas","jb_imposto_regra","jb_parametro","jb_contador_mes","jb_cartao_fatura"];
     if(soGestor.includes(t) && !gestor()) return [];
     if(t === "jb_dia_trabalhado" && !gestor()) return (DB[t]||[]).filter(r => r.user_id === window.__UID);
+    if(t === "jb_contagem_mov" && !gestor()) return [];
     if(t === "jb_adendo" && !gestor()) return (DB[t]||[]).filter(r => r.registrado_por === window.__UID);
     if(t === "jb_usuario" && !gestor()) return (DB[t]||[]).filter(r => r.user_id === window.__UID);
     return (DB[t] || []).slice();
@@ -568,7 +569,37 @@ ${agora ? "window.__AGORA=" + JSON.stringify(agora) + ";" : ""}
         const ex = DB.jb_contagem_item.find(x => x.contagem_id === c.id && x.produto_id === it.produto_id);
         if(ex) ex.qtd = it.qtd; else DB.jb_contagem_item.push({ contagem_id:c.id, produto_id:it.produto_id, qtd:it.qtd });
       });
+      /* No fechamento, sobra maior que a abertura vira reposição somada pelo banco. */
+      if(args.p_momento === "fechamento"){
+        const ab = DB.jb_contagem.find(x => x.data === args.p_data && x.momento === "abertura");
+        if(ab){
+          DB.jb_contagem_item.filter(x => x.contagem_id === c.id).forEach(f => {
+            const ia = DB.jb_contagem_item.find(x => x.contagem_id === ab.id && x.produto_id === f.produto_id);
+            const antes = ia ? ia.qtd : 0;
+            if(f.qtd > antes){
+              if(ia) ia.qtd = f.qtd; else DB.jb_contagem_item.push({ contagem_id:ab.id, produto_id:f.produto_id, qtd:f.qtd });
+              (DB.jb_contagem_mov = DB.jb_contagem_mov || []).push({ id: nextId("jb_contagem_mov"), data:args.p_data, momento:"abertura",
+                produto_id:f.produto_id, antes, depois:f.qtd, tipo:"reposicao_no_fechamento", nome:u.nome, criado_em:new Date().toISOString() });
+            }
+          });
+        }
+      }
       return { data:c.id, error:null };
+    }
+    if(nome === "jb_repor"){
+      const u = eu(); if(!u) return { data:null, error:{ message:"sem acesso", code:"42501" } };
+      const ab = DB.jb_contagem.find(x => x.data === args.p_data && x.momento === "abertura");
+      if(!ab) return { data:null, error:{ message:"turno ainda nao aberto" } };
+      (args.p_itens || []).forEach(it => {
+        if(!(it.qtd > 0)) return;
+        const ex = DB.jb_contagem_item.find(x => x.contagem_id === ab.id && x.produto_id === it.produto_id);
+        const antes = ex ? ex.qtd : 0;
+        if(ex) ex.qtd = Math.min(999, ex.qtd + it.qtd); else DB.jb_contagem_item.push({ contagem_id:ab.id, produto_id:it.produto_id, qtd:it.qtd });
+        (DB.jb_contagem_mov = DB.jb_contagem_mov || []).push({ id: nextId("jb_contagem_mov"), data:args.p_data, momento:"abertura",
+          produto_id:it.produto_id, antes, depois:Math.min(999, antes + it.qtd), tipo:"reposicao", nome:u.nome, criado_em:new Date().toISOString() });
+      });
+      ab.atualizado_em = new Date().toISOString();
+      return { data: DB.jb_contagem_item.filter(x => x.contagem_id === ab.id).reduce((s,x) => s + x.qtd, 0), error:null };
     }
     if(nome === "jb_salvar_ficha"){
       if(!gestor()) return { data:null, error:{ message:"so gestor", code:"42501" } };
