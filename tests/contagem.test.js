@@ -441,23 +441,10 @@ test("turno ainda aberto mantém a ordem da geladeira, porque ninguém sabe o qu
   semErros(a); await a.fechar();
 });
 
-test("equipe à noite repõe a geladeira aberta pela Jessica: só soma, sem ver nem corrigir a contagem", async () => {
+test("equipe não vê nem consegue repor a geladeira aberta pela Jessica", async () => {
   const hoje = hojeSP();
   const a = await abrir("uYas", { db: db => comAbertura(db, hoje) });
-  assert.equal(await a.visivel("btnAbertura"), true);
-  assert.equal(await a.texto("#btnAbertura .t"), "Repor a geladeira");
-  await a.page.click("#btnAbertura"); await a.espera(400);
-  assert.equal(await a.tela(), "scCount");
-  assert.equal(await a.page.evaluate(() => MODO), "repor");
-  assert.equal(await a.visivel("countModos"), false, "a equipe não tem o botão de corrigir a contagem");
-  assert.equal(await a.page.evaluate(() => document.querySelectorAll("#countList .item .base").length), 0,
-    "não mostra os totais da Jessica");
-  await a.page.locator("#countList .step input").nth(2).fill("4"); await a.espera(150);
-  await a.page.click("#btnSalvar"); await a.espera(600);
-  const salva = (await a.log("rpc")).filter(r => r[1] === "jb_repor");
-  assert.deepEqual(salva[0][2].p_itens, [{ produto_id: 3, qtd: 4 }]);
-  assert.equal((await a.db("jb_contagem_item")).find(i => i.contagem_id === 5 && i.produto_id === 3).qtd, 10);
-  assert.match(await a.texto("#homeMsg"), /Reposição registrada: 4 unidades na geladeira\./);
+  assert.equal(await a.visivel("btnAbertura"), false, "reposição é só dos donos");
   semErros(a); await a.fechar();
 });
 

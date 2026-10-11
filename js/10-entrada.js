@@ -100,10 +100,11 @@ async function carregarHome(){
   $("agora").textContent = horaSP();
 
   const conta   = EU.papel === "gestor" || EU.papel === "equipe";
-  const produz  = EU.papel === "gestor" || EU.papel === "producao";
 
   ["btnAbertura","btnFechamento","btnHist"].forEach(b => $(b).classList.toggle("hide", !conta));
-  $("btnProducao").classList.toggle("hide", !produz);
+  /* Todos veem "O que fazer hoje": o plano pode passar tarefa para a produção e para a
+     equipe da noite. Cada um só recebe o que é para o seu papel, e a receita só abre
+     para a equipe quando a tarefa foi passada para ela (o banco garante). */
   $("btnProducao").className = "big" + (conta ? " ghost" : "");
   $("btnProducao").querySelector(".t").textContent =
     EU.papel === "gestor" ? "Plano de produção" : "O que fazer hoje";
@@ -185,17 +186,14 @@ async function carregarHome(){
      equipe, para não haver confusão com o fechamento. Só volta se a própria
      pessoa tiver registrado a abertura daquele dia, para ela poder corrigir. */
   const aberturaMinha = !!ab && ab.registrado_por === EU.user_id;
-  /* Repor é de quem estiver na loja: depois que a Jessica sai, quem coloca produto
-     na geladeira também soma ali, senão o fechamento fica maior do que entrou. */
-  const reporEquipe = !gestor && !!ab && !fe && !aberturaMinha && !turnoDeOntem;
-  const escondeAb = turnoDeOntem || (!gestor && !aberturaMinha && !reporEquipe);
+  /* Repor e abrir o turno é dos donos. A equipe só vê o cartão se ela mesma abriu
+     o turno (domingo), para poder corrigir. A reposição que ninguém registrou o
+     banco soma sozinho no fechamento. */
+  const escondeAb = turnoDeOntem || (!gestor && !aberturaMinha);
 
-  bAb.className = "big" + (ab && !reporEquipe ? " done" : "") + (escondeAb ? " hide" : "");
-  bAb.querySelector(".t").textContent = reporEquipe ? "Repor a geladeira"
-    : (ab ? "Turno aberto ✓" : "Abertura de turno");
-  bAb.querySelector(".s").textContent = reporEquipe
-    ? "Colocou produto na geladeira? Toque e some o que você colocou."
-    : ab
+  bAb.className = "big" + (ab ? " done" : "") + (escondeAb ? " hide" : "");
+  bAb.querySelector(".t").textContent = ab ? "Turno aberto ✓" : "Abertura de turno";
+  bAb.querySelector(".s").textContent = ab
     ? "Registrado por " + ab.nome_responsavel + " às " + horaDe(ab.criado_em) + ". Repôs alguma coisa? Toque para somar."
     : "Conte o que está na geladeira ao abrir a loja";
 
