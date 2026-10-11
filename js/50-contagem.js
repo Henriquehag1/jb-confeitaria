@@ -16,7 +16,6 @@ async function abrirContagem(momento, modo){
   BASE = {};
   ONTEM = {};
   MODO = "contar";
-  SO_REPOR = false;
 
   if(!PRODUTOS_OK || !PRODUTOS.length){
     /* Sem a lista de itens a contagem abriria vazia e salvaria zeros. Melhor parar aqui. */
@@ -32,11 +31,9 @@ async function abrirContagem(momento, modo){
   /* A Jessica abre a loja, conta o que deixou pronto e, durante o dia, vai repondo.
      Por isso reabrir a abertura cai no modo repor: ela digita só o que está colocando
      agora e o app soma com o que já estava. Corrigir a contagem é o outro botão. */
-  /* Quem não abriu o turno (a equipe, à noite) só repõe: não enxerga nem corrige a contagem da Jessica. */
-  SO_REPOR = !!existente && momento === "abertura" && EU.papel !== "gestor" && existente.registrado_por !== EU.user_id;
-  if(existente && momento === "abertura") MODO = (modo === "contar" && !SO_REPOR) ? "contar" : "repor";
+  if(existente && momento === "abertura") MODO = modo === "contar" ? "contar" : "repor";
   const rascunho = localStorage.getItem(rascunhoKey());
-  if(existente && !SO_REPOR){
+  if(existente){
     const { data, error } = await sb.from("jb_contagem_item").select("produto_id,qtd").eq("contagem_id", existente.id);
     if(error){
       /* Corrigir sem enxergar o que já foi salvo gravaria zeros por cima dos números reais. */
@@ -90,7 +87,6 @@ async function abrirContagem(momento, modo){
   aviso("countMsg",
     MODO === "repor"
       ? (recuperado ? "Recuperei a reposição que você não tinha conseguido enviar."
-                    : SO_REPOR ? "Digite só o que você está colocando na geladeira agora."
                     : "Digite só o que você está colocando na geladeira agora. O app soma com o que já estava.")
     : existente ? (recuperado ? "Recuperei a correção que você não tinha conseguido enviar."
                               : "Você está corrigindo uma contagem já salva. O número é o total que fica na geladeira.")
@@ -132,7 +128,7 @@ async function montarLista(){
   $("countProg").classList.toggle("hide", EDIT_LISTA);
   $("countBarra").classList.toggle("hide", EDIT_LISTA || repor);
   /* Os dois modos só existem quando a contagem de abertura já foi salva. */
-  const temModos = MOMENTO === "abertura" && !!(CONTAGEM_HOJE && CONTAGEM_HOJE.abertura) && !EDIT_LISTA && !SO_REPOR;
+  const temModos = MOMENTO === "abertura" && !!(CONTAGEM_HOJE && CONTAGEM_HOJE.abertura) && !EDIT_LISTA;
   $("countModos").classList.toggle("hide", !temModos);
   $("btnModoRepor").setAttribute("aria-pressed", String(repor));
   $("btnModoContar").setAttribute("aria-pressed", String(!repor));
@@ -164,7 +160,7 @@ async function montarLista(){
     const temNaGeladeira = BASE[p.id] || 0;
     const veioDeOntem = ONTEM[p.id];
     let base = null;
-    if((repor && !SO_REPOR) || (!repor && veioDeOntem !== undefined)){
+    if(repor || veioDeOntem !== undefined){
       base = document.createElement("span");
       base.className = "base";
       nome.appendChild(base);
@@ -297,26 +293,21 @@ async function salvar(){
   try{
     if(repor){
       /* Repondo vai só o que entrou agora; o banco soma ao que já estava e guarda
-         quem repôs, quanto e a que horas. Serve para a Jessica e para a equipe à noite. */
+         quem repôs, quanto e a que horas. */
       const entrou = LISTA.filter(p => VALORES[p.id] > 0)
                           .map(p => ({ produto_id: p.id, qtd: Math.min(999, VALORES[p.id]) }));
       const { data: naGeladeira, error } = await sb.rpc("jb_repor", { p_data: diaDoTurno(), p_itens: entrou });
       if(error) throw error;
       localStorage.removeItem(rascunhoKey());
       const quantos = entrou.length;
-      const unid = entrou.reduce((s,i) => s + i.qtd, 0);
       await carregarHome();
-      aviso("homeMsg", SO_REPOR
-        ? "Reposição registrada: " + unid + (unid === 1 ? " unidade" : " unidades") + " na geladeira."
-        : "Reposição somada: " + quantos + (quantos === 1 ? " item" : " itens") +
+      aviso("homeMsg", "Reposição somada: " + quantos + (quantos === 1 ? " item" : " itens") +
           ". A geladeira agora tem " + naGeladeira + (naGeladeira === 1 ? " item." : " itens."), "ok");
       btn.disabled = false; btn.textContent = "Salvar contagem";
       return;
     }
     /* Cabeçalho e itens vão juntos, numa transação no banco. Se a rede cair no meio,
        nada fica pela metade, e tentar de novo funciona. */
-    /* Repondo: o que vai para o banco é o total, o que já estava mais o que entrou agora.
-       Assim a conta do turno continua certa (deixei menos sobrou é o que saiu). */
     const itens = LISTA.map(p => ({ produto_id: p.id, qtd: VALORES[p.id] || 0 }));
     const { data: id, error } = await sb.rpc("jb_salvar_contagem",
       { p_data: diaDoTurno(), p_momento: MOMENTO, p_itens: itens });
