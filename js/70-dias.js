@@ -55,12 +55,38 @@ async function avisarPendencias(){
     : (n === 1 ? "1 dia esperando você confirmar" : n + " dias esperando você confirmar") + (txBolsa ? " · " + txBolsa : "");
 }
 
-/* ---------- o botão "Cheguei" da Eliana e da Yasmin ----------
-   A hora quem grava é o banco (jb_cheguei), no primeiro toque do dia, e ela não
+/* ---------- o ponto da Eliana e da Yasmin: "Cheguei" e "Saí" ----------
+   A hora quem grava é o banco (jb_cheguei e jb_sai), no primeiro toque, e ela não
    muda mais pelo celular da funcionária. Quem corrige é o gestor, no Quem veio.
-   De madrugada o botão some: é o fim do turno de ontem, não uma chegada. */
+   O turno da noite passa da meia noite: até as 6h da manhã o cartão ainda é o de
+   ontem, então dá para registrar a saída de madrugada; a chegada, não. */
 function horaCurta(ts){
   return new Intl.DateTimeFormat("pt-BR",{timeZone:TZ,hour:"2-digit",minute:"2-digit"}).format(new Date(ts));
+}
+function diaDoTurnoSP(){
+  const h = hojeSP();
+  if(horaSPnum() >= 6) return h;
+  const d = new Date(h + "T12:00:00Z"); d.setUTCDate(d.getUTCDate() - 1);
+  return d.toISOString().slice(0,10);
+}
+function iconeRelogio(){
+  const ic = document.createElement("span");
+  ic.className = "ic"; ic.setAttribute("aria-hidden","true");
+  ic.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.6"/><path d="M12 7.4V12l3 2"/></svg>';
+  return ic;
+}
+function cartaoPonto(id, titulo, sub, feito){
+  const b = document.createElement("button");
+  b.type = "button";
+  b.id = id;
+  b.className = "big" + (feito ? " done" : "");
+  if(feito) b.setAttribute("aria-disabled","true");
+  const tx = document.createElement("span"); tx.className = "tx";
+  const t = document.createElement("span"); t.className = "t"; t.textContent = titulo;
+  const s = document.createElement("span"); s.className = "s"; s.textContent = sub;
+  tx.appendChild(t); tx.appendChild(s);
+  b.appendChild(iconeRelogio()); b.appendChild(tx);
+  return b;
 }
 
 async function montarCheguei(){
@@ -68,53 +94,74 @@ async function montarCheguei(){
   box.innerHTML = "";
   if(!EU || EU.papel === "gestor") return;
 
-  const hoje = hojeSP();
-  let reg = null, entrada = null;
+  const dia = diaDoTurnoSP();
+  let ponto = null, entrada = null, saidaPrev = null;
   try {
     const [d, e] = await Promise.all([
-      sb.rpc("jb_minha_chegada_hoje"),   // só a hora de hoje; atraso e dias passados ficam com o gestor
-      sb.from("jb_escala").select("dia_semana,entrada,inicio,fim").eq("dia_semana", diaDaSemana(hoje))
+      sb.rpc("jb_meu_ponto"),   // só o turno atual dela; atraso e dias passados ficam com o gestor
+      sb.from("jb_escala").select("dia_semana,entrada,saida,inicio,fim").eq("dia_semana", diaDaSemana(dia))
     ]);
     if(d.error) return;
-    reg = d.data ? { data: hoje, chegada: d.data } : null;
-    const vig = (e.data || []).filter(x => x.inicio <= hoje && (!x.fim || x.fim >= hoje))
+    ponto = (Array.isArray(d.data) ? d.data[0] : d.data) || null;
+    const vig = (e.data || []).filter(x => x.inicio <= dia && (!x.fim || x.fim >= dia))
                               .sort((a,b) => a.inicio < b.inicio ? 1 : -1)[0];
-    if(vig) entrada = String(vig.entrada).slice(0,5);
+    if(vig){ entrada = String(vig.entrada).slice(0,5); if(vig.saida) saidaPrev = String(vig.saida).slice(0,5); }
   } catch(e){ return; }
 
-  const chegou = reg && reg.chegada;
-  if(!chegou && horaSPnum() < 6) return;
+  const chegou = ponto && ponto.chegada;
+  const saiu = ponto && ponto.saida;
+  const madrugada = horaSPnum() < 6;
 
-  const b = document.createElement("button");
-  b.type = "button";
-  b.id = "btnCheguei";
-  const ic = document.createElement("span");
-  ic.className = "ic"; ic.setAttribute("aria-hidden","true");
-  ic.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.6"/><path d="M12 7.4V12l3 2"/></svg>';
-  const tx = document.createElement("span"); tx.className = "tx";
-  const t = document.createElement("span"); t.className = "t";
-  const sub = document.createElement("span"); sub.className = "s";
-  tx.appendChild(t); tx.appendChild(sub);
-  b.appendChild(ic); b.appendChild(tx);
-
-  if(chegou){
-    b.className = "big done";
-    b.setAttribute("aria-disabled","true");
-    t.textContent = "Chegada às " + horaCurta(chegou);
-    sub.textContent = "Registrada. Se estiver errada, fale com a Jessica.";
-  } else {
-    b.className = "big";
-    t.textContent = "Cheguei";
-    sub.textContent = entrada
+  // 1) ainda não chegou: o cartão é o Cheguei (de madrugada não aparece)
+  if(!chegou && !saiu){
+    if(madrugada) return;
+    const b = cartaoPonto("btnCheguei", "Cheguei", entrada
       ? "Toque assim que chegar. Sua entrada hoje é às " + entrada + "."
-      : "Toque assim que chegar no ateliê.";
+      : "Toque assim que chegar no ateliê.", false);
     b.onclick = travar(b, async () => {
       const { data, error } = await sb.rpc("jb_cheguei");
       if(error || !data){ toast("Não consegui registrar agora. Tente de novo.", "err"); return; }
       toast("Chegada registrada às " + horaCurta(data));
       await montarCheguei();
     });
+    box.appendChild(b);
+    return;
   }
+
+  // 2) já saiu: um cartão só, com as duas horas
+  if(saiu){
+    box.appendChild(cartaoPonto("btnSai",
+      (chegou ? "Chegada às " + horaCurta(chegou) + " · " : "") + "saída às " + horaCurta(saiu),
+      "Registradas. Se alguma hora estiver errada, fale com a Jessica.", true));
+    return;
+  }
+
+  // 3) chegou e ainda não saiu: a chegada fica registrada e o cartão cheio vira o Saí
+  const ok = document.createElement("p");
+  ok.className = "ponto-ok";
+  ok.id = "pontoChegada";
+  ok.textContent = "Chegada às " + horaCurta(chegou) + ", registrada.";
+  box.appendChild(ok);
+
+  const subSai = saidaPrev ? "Toque quando for embora. Sua saída é às " + saidaPrev + "." : "Toque quando for embora.";
+  const b = cartaoPonto("btnSai", "Saí", subSai, false);
+  let armado = 0;
+  b.onclick = travar(b, async () => {
+    // dois toques: um toque sem querer não fecha o turno
+    if(Date.now() - armado > 5000){
+      armado = Date.now();
+      b.classList.add("confirmar");
+      b.querySelector(".t").textContent = "Confirmar saída";
+      b.querySelector(".s").textContent = "Toque de novo para registrar a saída agora.";
+      setTimeout(() => { if(armado && Date.now() - armado >= 5000 && b.isConnected){ armado = 0; b.classList.remove("confirmar"); b.querySelector(".t").textContent = "Saí"; b.querySelector(".s").textContent = subSai; } }, 5100);
+      return;
+    }
+    armado = 0;
+    const { data, error } = await sb.rpc("jb_sai");
+    if(error || !data){ toast("Não consegui registrar agora. Tente de novo.", "err"); return; }
+    toast("Saída registrada às " + horaCurta(data));
+    await montarCheguei();
+  });
   box.appendChild(b);
 }
 
@@ -184,7 +231,7 @@ async function abrirDias(){
       .lte("inicio", fim).or("fim.is.null,fim.gte." + ini),
     sb.from("jb_dia_trabalhado").select("id,user_id,data,turno,status").gte("data", ini).lte("data", fim),
     sb.from("jb_pessoal_mes").select("*").eq("mes", ini),
-    sb.from("jb_atraso_dia").select("id,user_id,data,chegada,chegada_origem,hora_chegada,entrada_prevista,atraso_min")
+    sb.from("jb_atraso_dia").select("id,user_id,data,chegada,chegada_origem,hora_chegada,entrada_prevista,atraso_min,saida,saida_origem,hora_saida,saida_prevista,saiu_antes_min,minutos_no_atelie")
       .gte("data", ini).lte("data", fim),
     sb.from("jb_ocorrencia").select("id,user_id,mes,texto,resolvida").eq("mes", ini).eq("resolvida", false),
     sb.from("jb_dia_pago").select("id,user_id,data,pago_em").gte("data", ini).lte("data", fim)
@@ -262,7 +309,7 @@ async function alternarDia(userId, iso){
 
 async function recarregarAtrasos(){
   const { data, error } = await sb.from("jb_atraso_dia")
-    .select("id,user_id,data,chegada,chegada_origem,hora_chegada,entrada_prevista,atraso_min")
+    .select("id,user_id,data,chegada,chegada_origem,hora_chegada,entrada_prevista,atraso_min,saida,saida_origem,hora_saida,saida_prevista,saiu_antes_min,minutos_no_atelie")
     .gte("data", DIAS_MES).lte("data", ultimoDia(DIAS_MES));
   if(!error) ATRASOS = data || [];
 }
@@ -281,6 +328,27 @@ async function salvarChegada(diaId, iso, hhmm){
   toast(hhmm ? "Chegada às " + hhmm + " salva" : "Hora apagada");
   await recarregarAtrasos();
   montarCalendarioDias();
+}
+
+/* Saída digitada pelo gestor. O turno da noite passa da meia noite: hora antes das 6h é do dia seguinte. */
+function saidaISO(iso, hhmm){
+  if(hhmm >= "06:00") return iso + "T" + hhmm + ":00-03:00";
+  const d = new Date(iso + "T12:00:00Z"); d.setUTCDate(d.getUTCDate() + 1);
+  return d.toISOString().slice(0,10) + "T" + hhmm + ":00-03:00";
+}
+async function salvarSaida(diaId, iso, hhmm){
+  const campos = hhmm
+    ? { saida: saidaISO(iso, hhmm), saida_origem: "gestor", saida_por: EU.user_id }
+    : { saida: null, saida_origem: null, saida_por: null };
+  const { error } = await sb.from("jb_dia_trabalhado").update(campos).eq("id", diaId);
+  if(error){ aviso("diasMsg","Não consegui salvar a hora agora.","err"); return; }
+  toast(hhmm ? "Saída às " + hhmm + " salva" : "Hora de saída apagada");
+  await recarregarAtrasos();
+  montarCalendarioDias();
+}
+function horasTx(min){
+  const h = Math.floor(min / 60), m = min % 60;
+  return h ? h + "h" + (m ? String(m).padStart(2,"0") : "") : m + " min";
 }
 
 async function resolverLembrete(id){
@@ -477,7 +545,7 @@ function blocoChegadas(uid){
 
   const det = document.createElement("details");
   const sm = document.createElement("summary");
-  sm.textContent = "Ver chegadas dia a dia";
+  sm.textContent = "Ver chegadas e saídas dia a dia";
   det.appendChild(sm);
 
   dias.forEach(d => {
@@ -498,6 +566,14 @@ function blocoChegadas(uid){
         (a.chegada_origem === "gestor" ? " · anotado por vocês" : "");
     } else {
       info.textContent = "sem hora de chegada";
+    }
+    if(a.saida){
+      info.textContent += " · saiu " + a.hora_saida +
+        (a.saiu_antes_min >= 5 ? " (" + minutosTx(a.saiu_antes_min) + " antes das " + a.saida_prevista + ")" : "") +
+        (a.minutos_no_atelie ? " · " + horasTx(a.minutos_no_atelie) + " no ateliê" : "") +
+        (a.saida_origem === "gestor" ? " · saída anotada por vocês" : "");
+    } else if(a.chegada){
+      info.textContent += " · sem hora de saída";
     }
     ln.appendChild(info);
 
@@ -533,6 +609,27 @@ function blocoChegadas(uid){
       inp.focus();
     };
     ln.appendChild(ed);
+
+    const es = document.createElement("button");
+    es.type = "button";
+    es.className = "ch-ed ch-ed-saida";
+    es.textContent = a.saida ? "corrigir saída" : "anotar saída";
+    es.setAttribute("aria-label", (a.saida ? "Corrigir" : "Anotar") + " a hora de saída de " + dataCurta(d.data));
+    es.onclick = () => {
+      if(ln.querySelector("form")) return;
+      const f = document.createElement("form");
+      f.className = "ch-form";
+      const inp = document.createElement("input");
+      inp.type = "time"; inp.value = a.hora_saida || ""; inp.required = false;
+      inp.setAttribute("aria-label", "Hora de saída");
+      const ok = document.createElement("button");
+      ok.type = "submit"; ok.textContent = "Salvar";
+      f.appendChild(inp); f.appendChild(ok);
+      f.onsubmit = travarForm(ok, async ev => { await salvarSaida(d.id, d.data, inp.value); });
+      ln.appendChild(f);
+      inp.focus();
+    };
+    ln.appendChild(es);
     det.appendChild(ln);
   });
   wrap.appendChild(det);

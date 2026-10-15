@@ -20,11 +20,12 @@ test("Yasmin: Cheguei grava a hora uma vez só e não mostra atraso para ela", a
   const dia = (await a.db("jb_dia_trabalhado")).find(d => d.user_id === "uYas" && d.data === "2026-09-30");
   assert.equal(dia.chegada, new Date(QUA_1852).toISOString());
   assert.equal(dia.chegada_origem, "app");
-  assert.match(await a.texto("#btnCheguei"), /Chegada às 18:52/);
+  assert.match(await a.texto("#cardCheguei"), /Chegada às 18:52/);
   assert.doesNotMatch(await a.texto("#cardCheguei"), /atras|min/i, "ela não vê minutos de atraso");
 
-  // um segundo toque não chama o banco de novo
-  await a.page.click("#btnCheguei", { force: true }); await a.espera(300);
+  // depois da chegada o Cheguei some (não dá para tocar de novo) e o cartão vira o Saí
+  assert.equal(await a.page.evaluate(() => !!document.getElementById("btnCheguei")), false);
+  assert.ok(await a.visivel("btnSai"));
   const chamadas = (await a.log("rpc")).filter(l => l[1] === "jb_cheguei");
   assert.equal(chamadas.length, 1);
   semErros(a); await a.fechar();
@@ -42,7 +43,7 @@ test("Eliana: botão com a entrada das 9h numa quinta", async () => {
   assert.ok(await a.visivel("btnCheguei"));
   assert.match(await a.texto("#btnCheguei"), /às 09:00/);
   await a.page.click("#btnCheguei"); await a.espera(400);
-  assert.match(await a.texto("#btnCheguei"), /Chegada às 09:12/);
+  assert.match(await a.texto("#cardCheguei"), /Chegada às 09:12/);
   semErros(a); await a.fechar();
 });
 
@@ -144,7 +145,7 @@ test("Yasmin não lê atraso nem chegadas de outros dias; vê só a chegada de h
     db: db => { db.jb_dia_trabalhado = [
       { id: 1, user_id: "uYas", data: "2026-09-27", turno: "noite", status: "confirmado", origem: "auto", chegada: "2026-09-27T14:30:00-03:00", chegada_origem: "gestor" },
       { id: 2, user_id: "uYas", data: "2026-09-30", turno: "noite", status: "sugerido", origem: "auto", chegada: "2026-09-30T21:52:00Z", chegada_origem: "app" } ]; } });
-  assert.match(await a.texto("#btnCheguei"), /Chegada às 18:52/);
+  assert.match(await a.texto("#cardCheguei"), /Chegada às 18:52/);
   const r = await a.page.evaluate(async () => ({
     atraso: (await sb.from("jb_atraso_dia").select("*")).data,
     rpc: (await sb.rpc("jb_minha_chegada_hoje")).data
@@ -226,5 +227,71 @@ test("equipe não lê quais dias foram pagos", async () => {
   const linhas = await a.page.evaluate(async () => (await sb.from("jb_dia_pago").select("*")).data);
   assert.deepEqual(linhas, []);
   assert.doesNotMatch(await a.page.locator("body").innerText(), /pago/i);
+  semErros(a); await a.fechar();
+});
+
+
+/* ---------- saída (15/10/2026) ---------- */
+test("Yasmin: Saí pede dois toques, grava a hora uma vez e mostra as duas horas", async () => {
+  const a = await abrir("uYas", { agora: "2026-10-15T02:05:00Z",   // quarta 14/10, 23:05 em São Paulo
+    db: db => { db.jb_dia_trabalhado = [
+      { id: 7, user_id: "uYas", data: "2026-10-14", turno: "noite", status: "sugerido", origem: "auto", chegada: "2026-10-14T21:52:00Z", chegada_origem: "app" } ]; } });
+  assert.match(await a.texto("#cardCheguei"), /Chegada às 18:52/);
+  assert.match(await a.texto("#btnSai"), /Saí/);
+  assert.match(await a.texto("#btnSai"), /saída é às 23:00/);
+
+  await a.page.click("#btnSai"); await a.espera(250);
+  assert.match(await a.texto("#btnSai"), /Confirmar saída/);
+  assert.equal((await a.log("rpc")).filter(l => l[1] === "jb_sai").length, 0, "o primeiro toque não grava");
+
+  await a.page.click("#btnSai"); await a.espera(400);
+  const d = (await a.db("jb_dia_trabalhado")).find(x => x.id === 7);
+  assert.equal(d.saida, "2026-10-15T02:05:00.000Z");
+  assert.equal(d.saida_origem, "app");
+  assert.match(await a.texto("#cardCheguei"), /Chegada às 18:52 · saída às 23:05/);
+  assert.equal((await a.log("rpc")).filter(l => l[1] === "jb_sai").length, 1);
+  semErros(a); await a.fechar();
+});
+
+test("de madrugada o Saí ainda é do turno de ontem; sem chegada, nada aparece", async () => {
+  const a = await abrir("uYas", { agora: "2026-10-15T03:20:00Z",   // 00:20 de quinta em São Paulo
+    db: db => { db.jb_dia_trabalhado = [
+      { id: 8, user_id: "uYas", data: "2026-10-14", turno: "noite", status: "sugerido", origem: "auto", chegada: "2026-10-14T21:40:00Z", chegada_origem: "app" } ]; } });
+  assert.ok(await a.visivel("btnSai"));
+  await a.page.click("#btnSai"); await a.espera(200);
+  await a.page.click("#btnSai"); await a.espera(400);
+  const d = (await a.db("jb_dia_trabalhado")).find(x => x.id === 8);
+  assert.equal(d.saida, "2026-10-15T03:20:00.000Z", "a saída das 00:20 fica no dia 14");
+  assert.equal((await a.db("jb_dia_trabalhado")).filter(x => x.user_id === "uYas" && x.saida).length, 1, "a saída não vai para um dia novo");
+  semErros(a); await a.fechar();
+
+  const b = await abrir("uYas", { agora: "2026-10-15T03:20:00Z" });
+  assert.equal(await b.page.evaluate(() => document.getElementById("cardCheguei").children.length), 0);
+  semErros(b); await b.fechar();
+});
+
+test("gestor: vê a saída e o tempo no ateliê, e corrige a saída depois da meia noite", async () => {
+  const a = await abrir("uJes", { agora: "2026-10-15T15:00:00Z",
+    db: db => { db.jb_dia_trabalhado = [
+      { id: 9, user_id: "uYas", data: "2026-10-13", turno: "noite", status: "confirmado", origem: "auto",
+        chegada: "2026-10-13T19:25:00Z", chegada_origem: "app", saida: "2026-10-14T01:38:00Z", saida_origem: "app" },   // ter 16:25 até 22:38
+      { id: 10, user_id: "uYas", data: "2026-10-14", turno: "noite", status: "sugerido", origem: "auto",
+        chegada: "2026-10-14T21:52:00Z", chegada_origem: "app" } ]; } });
+  await a.page.click("#btnDias"); await a.espera(500);
+  await a.page.evaluate(() => [...document.querySelectorAll(".chegadas summary")].forEach(s => s.click())); await a.espera(200);
+  const txt = await a.page.locator("body").innerText();
+  assert.match(txt, /saiu 22:38/);
+  assert.match(txt, /22 min antes das 23:00/);
+  assert.match(txt, /6h13 no ateliê/);
+  assert.match(txt, /sem hora de saída/);
+
+  // anotar a saída do dia 14 como 00:20 grava no dia seguinte
+  const ln = a.page.locator(".ch-ln", { hasText: "sem hora de saída" }).first();
+  await ln.locator(".ch-ed-saida").click(); await a.espera(150);
+  await ln.locator("input[type=time]").fill("00:20");
+  await ln.locator("form button[type=submit]").click(); await a.espera(500);
+  const d = (await a.db("jb_dia_trabalhado")).find(x => x.id === 10);
+  assert.equal(d.saida, "2026-10-15T00:20:00-03:00");
+  assert.equal(d.saida_origem, "gestor");
   semErros(a); await a.fechar();
 });
