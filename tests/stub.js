@@ -438,7 +438,11 @@ ${agora ? "window.__AGORA=" + JSON.stringify(agora) + ";" : ""}
       const u = DB.jb_usuario.find(x => x.user_id === d.user_id) || {};
       return { id: d.id, user_id: d.user_id, nome: u.nome, data: d.data, status: d.status, chegada: d.chegada || null,
                chegada_origem: d.chegada_origem || null, hora_chegada: d.chegada ? horaSP(d.chegada) : null,
-               entrada_prevista: e ? e.entrada.slice(0,5) : null, atraso_min: atraso };
+               entrada_prevista: e ? e.entrada.slice(0,5) : null, atraso_min: atraso,
+               saida: d.saida || null, saida_origem: d.saida_origem || null, hora_saida: d.saida ? horaSP(d.saida) : null,
+               saida_prevista: e && e.saida ? e.saida.slice(0,5) : null,
+               saiu_antes_min: (d.saida && e && e.saida) ? Math.max(0, Math.floor((Date.parse(d.data + "T" + e.saida + "-03:00") - Date.parse(d.saida)) / 60000)) : null,
+               minutos_no_atelie: (d.chegada && d.saida && Date.parse(d.saida) > Date.parse(d.chegada)) ? Math.floor((Date.parse(d.saida) - Date.parse(d.chegada)) / 60000) : null };
     });
   }
 
@@ -623,6 +627,25 @@ ${agora ? "window.__AGORA=" + JSON.stringify(agora) + ";" : ""}
       const u = eu(); if(!u) return { data:null, error:null };
       const d = DB.jb_dia_trabalhado.find(x => x.user_id === u.user_id && x.data === hojeSP());
       return { data: (d && d.chegada) || null, error:null };
+    }
+    /* dia do turno: de madrugada (antes das 6h) ainda é o turno de ontem */
+    const diaDoTurno = () => {
+      const ag = window.__AGORA ? new Date(window.__AGORA) : new Date();
+      const h = Number(new Intl.DateTimeFormat("en-US",{timeZone:"America/Sao_Paulo",hour:"numeric",hourCycle:"h23"}).format(ag));
+      return new Intl.DateTimeFormat("en-CA",{timeZone:"America/Sao_Paulo",year:"numeric",month:"2-digit",day:"2-digit"}).format(h < 6 ? new Date(ag.getTime() - 86400000) : ag);
+    };
+    if(nome === "jb_meu_ponto"){
+      const u = eu(); if(!u) return { data:[], error:null };
+      const d = DB.jb_dia_trabalhado.find(x => x.user_id === u.user_id && x.data === diaDoTurno());
+      return { data: d ? [{ data:d.data, chegada:d.chegada || null, saida:d.saida || null }] : [], error:null };
+    }
+    if(nome === "jb_sai"){
+      const u = eu(); if(!u || u.papel === "gestor") return { data:null, error:null };
+      const dia = diaDoTurno();
+      let d = DB.jb_dia_trabalhado.find(x => x.user_id === u.user_id && x.data === dia);
+      if(!d){ d = { id: nextId("jb_dia_trabalhado"), user_id:u.user_id, data:dia, turno:"noite", status:"sugerido", origem:"auto" }; DB.jb_dia_trabalhado.push(d); }
+      if(!d.saida){ d.saida = (window.__AGORA ? new Date(window.__AGORA) : new Date()).toISOString(); d.saida_origem = "app"; d.saida_por = u.user_id; }
+      return { data:d.saida, error:null };
     }
     if(nome === "jb_cheguei"){
       const u = eu(); if(!u || u.papel === "gestor") return { data:null, error:null };
