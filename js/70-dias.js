@@ -767,6 +767,7 @@ function montarCalendarioDias(){
     bloco.appendChild(blocoSugeridos(uid));
     if(ac && ac.regime === "semanal") bloco.appendChild(blocoFaltas(uid, ac));
     bloco.appendChild(blocoPagamento(uid, ac));
+    if(ac && ac.regime === "semanal") bloco.appendChild(blocoRelatorio(uid, ac));
     bloco.appendChild(blocoChegadas(uid));
     box.appendChild(bloco);
   });

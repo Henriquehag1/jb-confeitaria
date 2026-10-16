@@ -252,3 +252,80 @@ test("banco negativo: atrasos aparecem devendo, com etiqueta em Ver chegadas e a
   assert.match(await c.texto('#contasLista .enc.conta[data-id="41"] .conta-banco'), /Banco de horas: devendo 1h40/);
   semErros(c); await c.fechar();
 });
+
+/* ===== Resumo do pagamento para enviar (só gestor) ===== */
+const comQuinzena = db => {
+  db.jb_conta.push({ id: 41, tipo: "fixa", descricao: "Funcionária do ateliê, quinzena do dia 18", competencia: "2026-10-01", vencimento: "2026-10-18", valor: 1700,
+    codigo_barras: null, documento: null, boleto_path: null, comprovante_path: null, pago_em: null, valor_pago: null, pago_por: null, nf_conta_fixa_id: 54,
+    obs: null, arquivada: false, equipe_user_id: "uYas", periodo_ini: "2026-10-03", periodo_fim: "2026-10-17" });
+  db.jb_falta = [
+    { id: 1, user_id: "uYas", data: "2026-10-08", entrada: "16:30:00", saida: "23:00:00", horas: 6.5, desconta: true, valor_desconto: 137.55, banco_min: 0, motivo: "Médico", cancelada: false },
+    { id: 4, user_id: "uYas", data: "2026-10-06", entrada: "18:00:00", saida: "23:00:00", horas: 5, desconta: true, valor_desconto: 89.04, banco_min: 45, motivo: null, cancelada: false },
+    { id: 2, user_id: "uYas", data: "2026-09-27", entrada: "16:30:00", saida: "23:00:00", horas: 8, desconta: true, valor_desconto: 169.29, banco_min: 0, cancelada: false },
+    { id: 3, user_id: "uYas", data: "2026-10-10", entrada: "16:30:00", saida: "23:00:00", horas: 5, desconta: true, valor_desconto: 105.81, banco_min: 0, cancelada: true }
+  ];
+  db.jb_banco_horas = [{ id: 1, user_id: "uYas", data: "2026-10-04", minutos: -25, motivo: "Atraso", origem: "chegada", falta_id: null, cancelado: false }];
+  db.jb_dia_trabalhado = ["2026-10-03", "2026-10-04", "2026-10-05", "2026-10-07"].map((d, i) =>
+    ({ id: 60 + i, user_id: "uYas", data: d, turno: "noite", status: "confirmado", origem: "gestor" }));
+};
+
+test("resumo do pagamento: período a pagar, faltas com dia e horário, total e valor a receber, pronto para copiar", async () => {
+  for(const uid of ["uHen", "uJes"]){
+    const a = await abrirDiasDe(uid, comQuinzena);
+    const rel = bloco("Yasmin") + " .eq-rel";
+    assert.equal(await a.page.locator(rel).count(), 1, "o gestor vê o resumo");
+    assert.equal(await a.page.locator(bloco("Eliana") + " .eq-rel").count(), 0, "diarista não tem resumo");
+    await a.page.locator(rel + " summary").click(); await a.espera(500);
+    assert.equal(await a.page.inputValue("#eqRelPeriodo-uYas"), "2026-10-03|2026-10-17", "abre na quinzena a pagar");
+    const t = await a.page.inputValue("#eqRelTexto-uYas");
+    assert.match(t, /^Oi, Yasmin! Segue o resumo do seu pagamento de 03\/10 a 17\/10\./);
+    assert.match(t, /Dias trabalhados no período: 4\./);
+    assert.match(t, /Valor do período: R\$ 1\.700,00\./);
+    assert.match(t, /• Falta em 06\/10 \(ter\), 18:00 às 23:00, 5h \(45 min compensadas com o banco de horas\): R\$ 89,04/);
+    assert.match(t, /• Falta em 08\/10 \(qui\), 16:30 às 23:00, 6h30: R\$ 137,55/);
+    assert.ok(t.indexOf("06/10") < t.indexOf("08/10"), "em ordem de data");
+    assert.match(t, /Total de descontos: R\$ 226,59\./);
+    assert.match(t, /Valor a receber: R\$ 1\.473,41\./);
+    assert.doesNotMatch(t, /27\/09|10\/10/, "fora do período e cancelada não entram");
+    assert.doesNotMatch(t, /Médico/, "o motivo da falta não vai na mensagem");
+    assert.doesNotMatch(t, /Banco de horas:/, "banco só se marcar");
+    assert.doesNotMatch(t, / [–—-] /, "sem travessão");
+
+    await a.page.check("#eqRelBanco-uYas"); await a.espera(200);
+    const t2 = await a.page.inputValue("#eqRelTexto-uYas");
+    assert.match(t2, /Banco de horas: faltam 25 min para compensar \(ainda não descontado\)\./);
+    assert.match(t2, /• 04\/10 \(dom\): −25 min, Atraso/);
+
+    await a.page.evaluate(() => { window.__copiado = null; navigator.clipboard.writeText = async s => { window.__copiado = s; }; });
+    await a.page.click("#eqRelCopiar-uYas"); await a.espera(200);
+    assert.equal(await a.page.evaluate(() => window.__copiado), t2);
+    semErros(a); await a.fechar();
+  }
+});
+
+test("resumo do pagamento: outras datas sem conta lançada mostram só os descontos", async () => {
+  const a = await abrirDiasDe("uHen", comQuinzena);
+  const rel = bloco("Yasmin") + " .eq-rel";
+  await a.page.locator(rel + " summary").click(); await a.espera(500);
+  await a.page.fill("#eqRelDe-uYas", "2026-09-20");
+  await a.page.fill("#eqRelAte-uYas", "2026-09-30"); await a.page.locator("#eqRelAte-uYas").dispatchEvent("change"); await a.espera(500);
+  const t = await a.page.inputValue("#eqRelTexto-uYas");
+  assert.match(t, /de 20\/09 a 30\/09/);
+  assert.match(t, /Desconto:\n• Falta em 27\/09 \(dom\), 16:30 às 23:00, 8h: R\$ 169,29/);
+  assert.doesNotMatch(t, /Valor a receber/);
+  assert.match(await a.page.locator(rel).innerText(), /Não há conta a pagar lançada/);
+  semErros(a); await a.fechar();
+});
+
+test("Yasmin não tem o resumo do pagamento nem lê o que ele usa", async () => {
+  const a = await abrir("uYas", { agora: AGORA, db: db => { comQuinzena(db); return db; } });
+  assert.equal(await a.page.locator(".eq-rel").count(), 0);
+  assert.equal(await a.visivel("btnDias"), false);
+  const r = await a.page.evaluate(async () => ({
+    conta: (await sb.from("jb_conta").select("*").eq("equipe_user_id", "uYas")).data.length,
+    falta: (await sb.from("jb_falta").select("*")).data.length,
+    banco: (await sb.from("jb_banco_horas").select("*")).data.length
+  }));
+  assert.deepEqual(r, { conta: 0, falta: 0, banco: 0 });
+  semErros(a); await a.fechar();
+});

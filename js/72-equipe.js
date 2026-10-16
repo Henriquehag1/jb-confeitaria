@@ -588,3 +588,192 @@ function botaoChegouAntes(uid, d, antes){
   el.onclick = travar(el, () => salvarBanco(uid, d.data, antes, "Chegou " + antes + " min antes da entrada", "chegada"));
   return el;
 }
+
+/* ============================================================
+   RESUMO DO PAGAMENTO PARA ENVIAR (só gestor)
+   Monta uma mensagem com o valor do período, as faltas descontadas (dia, horário,
+   horas e valor) e, se quiser, o banco de horas. Nada é gravado: a mensagem nasce
+   na tela de quem paga, a partir de tabelas que só o gestor lê (jb_conta, jb_falta,
+   jb_banco_horas), e vai para a área de transferência para colar no WhatsApp.
+   ============================================================ */
+const REL_ABERTO = {};   // por pessoa: o resumo fica aberto entre uma ação e outra
+const REL_ESTADO = {};   // por pessoa: período escolhido e opções
+
+const DOW_LONGO = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
+const relDia = iso => diaCurto(iso) + " (" + DOW_LONGO[diaDaSemana(iso)] + ")";
+const relReais = v => "R$ " + moeda(v);
+
+/* quinzena que contém o dia: 1 a 15 ou 16 ao fim do mês */
+function relQuinzena(iso){
+  const [a, m, d] = iso.split("-").map(Number);
+  const mm = String(m).padStart(2, "0");
+  return d <= 15 ? { ini: a + "-" + mm + "-01", fim: a + "-" + mm + "-15" }
+                 : { ini: a + "-" + mm + "-16", fim: ultimoDia(a + "-" + mm + "-01") };
+}
+
+/* texto da mensagem, a partir dos dados já carregados (função pura, testável) */
+function relMensagem(p){
+  const linhas = [];
+  linhas.push("Oi, " + p.nome + "! Segue o resumo do seu pagamento de " + diaCurto(p.ini) + " a " + diaCurto(p.fim) + ".");
+  linhas.push("");
+  if(p.dias) linhas.push("Dias trabalhados no período: " + p.dias + ".");
+  if(p.valor != null) linhas.push("Valor do período: " + relReais(p.valor) + (p.semanas ? " (" + p.semanas + (p.semanas === 1 ? " semana" : " semanas") + ")" : "") + ".");
+  const desc = p.faltas.filter(f => f.desconta && Number(f.valor_desconto) > 0);
+  const total = Math.round(desc.reduce((s, f) => s + Number(f.valor_desconto), 0) * 100) / 100;
+  linhas.push("");
+  if(desc.length){
+    linhas.push(desc.length === 1 ? "Desconto:" : "Descontos:");
+    desc.forEach(f => {
+      linhas.push("• Falta em " + relDia(f.data)
+        + (f.entrada && f.saida ? ", " + eqHHMM(f.entrada) + " às " + eqHHMM(f.saida) : "")
+        + ", " + eqHorasTx(Number(f.horas))
+        + (Number(f.banco_min) ? " (" + eqMinTx(Number(f.banco_min)) + " compensadas com o banco de horas)" : "")
+        + ": " + relReais(Number(f.valor_desconto)));
+    });
+    if(desc.length > 1) linhas.push("Total de descontos: " + relReais(total) + ".");
+  } else {
+    linhas.push("Sem descontos neste período.");
+  }
+  const compensadas = p.faltas.filter(f => !(f.desconta && Number(f.valor_desconto) > 0) && Number(f.banco_min) > 0);
+  compensadas.forEach(f => linhas.push("• Falta em " + relDia(f.data) + " compensada com " + eqMinTx(Number(f.banco_min)) + " do banco de horas, sem desconto."));
+  if(p.valor != null){
+    linhas.push("");
+    linhas.push("Valor a receber: " + relReais(Math.max(0, Math.round((p.valor - total) * 100) / 100)) + ".");
+  }
+  if(p.banco){
+    linhas.push("");
+    const s = p.banco.saldo;
+    linhas.push("Banco de horas: " + (s > 0 ? "você tem " + eqMinTx(s) + " a seu favor." : s < 0 ? "faltam " + eqMinTx(s) + " para compensar (ainda não descontado)." : "zerado."));
+    p.banco.itens.forEach(b => linhas.push("• " + relDia(b.data) + ": " + (b.minutos > 0 ? "+" : "−") + eqMinTx(Number(b.minutos)) + (b.motivo ? ", " + b.motivo : "")));
+  }
+  linhas.push("");
+  linhas.push("Qualquer dúvida, é só falar com a gente.");
+  return linhas.join("\n");
+}
+
+/* o período de pagamento que contém o dia: segue a cadência da última conta da equipe
+   (ex.: de 14 em 14 dias a partir de 01/10); sem conta lançada, a quinzena do mês */
+function relPeriodoDe(iso, contas){
+  const base = (contas || []).filter(c => c.periodo_ini && c.periodo_fim).sort((a, b) => a.periodo_ini < b.periodo_ini ? 1 : -1)[0];
+  if(!base) return relQuinzena(iso);
+  const dia = 864e5, t0 = Date.parse(base.periodo_ini), L = Math.round((Date.parse(base.periodo_fim) - t0) / dia) + 1;
+  const k = Math.floor((Date.parse(iso) - t0) / dia / L);
+  const ini = new Date(t0 + k * L * dia).toISOString().slice(0, 10);
+  const fim = new Date(t0 + ((k + 1) * L - 1) * dia).toISOString().slice(0, 10);
+  return { ini, fim };
+}
+
+async function relCarregar(uid, ac){
+  const st = REL_ESTADO[uid];
+  const [ct, fa, dt] = await Promise.all([
+    sb.from("jb_conta").select("id,descricao,valor,periodo_ini,periodo_fim,pago_em,arquivada").eq("equipe_user_id", uid)
+      .order("periodo_ini", { ascending: false }).limit(12),
+    sb.from("jb_falta").select("data,entrada,saida,horas,desconta,valor_desconto,banco_min").eq("user_id", uid).eq("cancelada", false)
+      .gte("data", st.ini).lte("data", st.fim).order("data"),
+    sb.from("jb_dia_trabalhado").select("data,status").eq("user_id", uid).eq("status", "confirmado").gte("data", st.ini).lte("data", st.fim)
+  ]);
+  st.contas = ((ct && !ct.error && ct.data) || []).filter(c => c.periodo_ini && c.periodo_fim && !c.arquivada);
+  st.faltas = (fa && !fa.error && fa.data) || [];
+  st.dias = (dt && !dt.error && dt.data) ? dt.data.length : null;
+  st.erro = !!((ct && ct.error) || (fa && fa.error));
+  // valor: a conta da equipe daquele período; sem conta, o combinado da semana vezes as semanas
+  const conta = st.contas.find(c => c.periodo_ini === st.ini && c.periodo_fim === st.fim);
+  const dias = Math.round((Date.parse(st.fim) - Date.parse(st.ini)) / 864e5) + 1;
+  st.semanas = dias % 7 === 0 ? dias / 7 : null;
+  st.valor = conta && conta.valor != null ? Number(conta.valor)
+           : (ac && ac.regime === "semanal" && ac.valor != null && st.semanas ? Number(ac.valor) * st.semanas : null);
+}
+
+function blocoRelatorio(uid, ac){
+  const wrap = document.createElement("div");
+  wrap.className = "eq-rel"; wrap.id = "eqRel-" + uid;
+  const det = document.createElement("details");
+  det.open = !!REL_ABERTO[uid];
+  const sm = document.createElement("summary");
+  sm.textContent = "Resumo do pagamento para enviar";
+  det.appendChild(sm);
+  const corpo = document.createElement("div");
+  corpo.className = "eq-form eq-rel-corpo";
+  det.appendChild(corpo);
+  wrap.appendChild(det);
+
+  const desenhar = () => {
+    const st = REL_ESTADO[uid];
+    corpo.innerHTML = "";
+    const nota = document.createElement("p"); nota.className = "eq-rel-nota";
+    nota.textContent = "Só vocês veem isto. Escolha o período, confira o texto e copie para mandar no WhatsApp dela.";
+    corpo.appendChild(nota);
+
+    // período: as quinzenas que já viraram conta a pagar, mais a quinzena atual
+    const sel = document.createElement("select"); sel.id = "eqRelPeriodo-" + uid; sel.setAttribute("aria-label", "Período do pagamento");
+    const ops = [];
+    (st.contas || []).forEach(c => ops.push({ ini: c.periodo_ini, fim: c.periodo_fim, rot: diaCurto(c.periodo_ini) + " a " + diaCurto(c.periodo_fim) + (c.pago_em ? " · pago" : " · a pagar") }));
+    const q = relPeriodoDe(hojeSP(), st.contas);
+    if(!ops.some(o => o.ini === q.ini && o.fim === q.fim)) ops.push({ ini: q.ini, fim: q.fim, rot: diaCurto(q.ini) + " a " + diaCurto(q.fim) + " · período atual" });
+    if(!ops.some(o => o.ini === st.ini && o.fim === st.fim)) ops.unshift({ ini: st.ini, fim: st.fim, rot: diaCurto(st.ini) + " a " + diaCurto(st.fim) + " · escolhido" });
+    ops.forEach(o => { const op = document.createElement("option"); op.value = o.ini + "|" + o.fim; op.textContent = o.rot; op.selected = o.ini === st.ini && o.fim === st.fim; sel.appendChild(op); });
+    const mudar = async (i, f) => { if(!i || !f || f < i) return; st.ini = i; st.fim = f; await relCarregar(uid, ac); desenhar(); };
+    sel.onchange = () => { const [i, f] = sel.value.split("|"); mudar(i, f); };
+    corpo.appendChild(campo("Período", sel));
+
+    // outras datas, para um acerto fora da cadência
+    const de = document.createElement("input"); de.type = "date"; de.id = "eqRelDe-" + uid; de.value = st.ini;
+    const ate = document.createElement("input"); ate.type = "date"; ate.id = "eqRelAte-" + uid; ate.value = st.fim;
+    de.onchange = ate.onchange = () => mudar(de.value, ate.value);
+    const datas = document.createElement("div"); datas.className = "eq-rel-datas";
+    datas.append(campo("De", de), campo("Até", ate));
+    corpo.appendChild(datas);
+    if(st.valor == null){
+      const av = document.createElement("p"); av.className = "eq-rel-nota";
+      av.textContent = "Não há conta a pagar lançada para estas datas, então a mensagem mostra só os descontos, sem o valor a receber.";
+      corpo.appendChild(av);
+    }
+
+    const lb = document.createElement("label"); lb.className = "eq-rel-op";
+    const ck = document.createElement("input"); ck.type = "checkbox"; ck.id = "eqRelBanco-" + uid; ck.checked = !!st.comBanco;
+    ck.onchange = () => { st.comBanco = ck.checked; desenhar(); };
+    lb.append(ck, document.createTextNode(" Incluir o banco de horas"));
+    corpo.appendChild(lb);
+
+    if(st.erro){ const e = document.createElement("p"); e.className = "msg err"; e.textContent = "Não consegui ler as faltas agora. Tente de novo."; corpo.appendChild(e); return; }
+
+    const meus = BANCO.filter(b => b.user_id === uid);
+    const texto = relMensagem({
+      nome: eqNome(uid), ini: st.ini, fim: st.fim, dias: st.dias, valor: st.valor, semanas: st.semanas, faltas: st.faltas || [],
+      banco: st.comBanco ? { saldo: eqSaldo(BANCO, uid), itens: meus.filter(b => b.data >= st.ini && b.data <= st.fim).sort((a, b) => a.data < b.data ? -1 : 1) } : null
+    });
+    const ta = document.createElement("textarea");
+    ta.id = "eqRelTexto-" + uid; ta.className = "eq-rel-texto"; ta.rows = Math.min(22, texto.split("\n").length + 3); ta.value = texto;
+    ta.setAttribute("aria-label", "Mensagem para enviar");
+    corpo.appendChild(ta);
+
+    const bt = document.createElement("button"); bt.type = "button"; bt.className = "eq-rel-copiar"; bt.id = "eqRelCopiar-" + uid; bt.textContent = "Copiar mensagem";
+    bt.onclick = async () => {
+      let ok = false;
+      try { await navigator.clipboard.writeText(ta.value); ok = true; } catch(e){}
+      if(!ok){ ta.focus(); ta.select(); try { ok = document.execCommand("copy"); } catch(e){} }
+      toast(ok ? "Mensagem copiada. Cole no WhatsApp dela." : "Não deu para copiar sozinho: o texto ficou selecionado, copie e cole.");
+    };
+    corpo.appendChild(bt);
+  };
+
+  det.ontoggle = async () => {
+    REL_ABERTO[uid] = det.open;
+    if(!det.open) return;
+    if(!REL_ESTADO[uid]){
+      const q = relQuinzena(hojeSP());
+      REL_ESTADO[uid] = { ini: q.ini, fim: q.fim, comBanco: false };
+      await relCarregar(uid, ac);
+      // começa na conta a pagar mais antiga em aberto; sem ela, no período atual
+      const st = REL_ESTADO[uid];
+      const abertas = st.contas.filter(c => !c.pago_em).sort((a, b) => a.periodo_ini < b.periodo_ini ? -1 : 1);
+      const alvo = abertas[0] ? { ini: abertas[0].periodo_ini, fim: abertas[0].periodo_fim } : relPeriodoDe(hojeSP(), st.contas);
+      if(alvo.ini !== st.ini || alvo.fim !== st.fim){ st.ini = alvo.ini; st.fim = alvo.fim; await relCarregar(uid, ac); }
+    } else {
+      await relCarregar(uid, ac);
+    }
+    desenhar();
+  };
+  if(det.open && REL_ESTADO[uid]) desenhar();
+  return wrap;
+}
