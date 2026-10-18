@@ -206,3 +206,58 @@ test("Yasmin não vê nem libera acesso de freela", async () => {
   assert.deepEqual(r, [0, true]);
   semErros(a); await a.fechar();
 });
+
+test("liberar com valor combinado já registra a diária e a conta a pagar (só gestor)", async () => {
+  const a = await abrir("uJes", { agora: AGORA });
+  await a.page.click("#btnDias"); await a.espera(500);
+  await a.page.click("#frAcAbre"); await a.espera(150);
+  await a.page.fill("#frAcNome", "Ana");
+  await a.page.fill("#frAcValor", "120");
+  await a.page.fill("#frAcEnt", "18:00");
+  await a.page.fill("#frAcSai", "23:00");
+  await a.page.selectOption("#frAcLugar", "uYas");
+  await a.page.click("#frAcSalvar"); await a.espera(600);
+  const ac = await a.db("jb_freela_acesso");
+  const fr = await a.db("jb_freela");
+  assert.equal(fr.length, 1);
+  assert.deepEqual([fr[0].nome, fr[0].data, fr[0].valor, fr[0].entrada, fr[0].saida, fr[0].no_lugar_de, fr[0].acesso_id], ["Ana", HOJE, 120, "18:00", "23:00", "uYas", ac[0].id]);
+  const conta = (await a.db("jb_conta")).find(c => c.id === fr[0].conta_id);
+  assert.equal(conta.valor, 120); assert.equal(conta.tipo, "equipe");
+  assert.match(conta.descricao, /^Freela Ana, 08\/10 no lugar de /);
+  assert.match(await a.texto("#frAcReg"), /Diária de R\$ 120,00 registrada/);
+  assert.ok((await a.page.inputValue("#frAcTexto")).includes(ac[0].codigo));
+  assert.ok(!/120/.test(await a.page.inputValue("#frAcTexto")), "o valor não vai na mensagem para ela");
+
+  // liberar de novo para a mesma pessoa no mesmo dia não lança outra diária
+  await a.page.locator("#frAcesso button", { hasText: "Pronto" }).click(); await a.espera(200);
+  await a.page.click("#frAcAbre"); await a.espera(150);
+  assert.match(await a.texto("#frAcJaTem"), /já está registrada/);
+  await a.page.click("#frAcSalvar"); await a.espera(500);
+  assert.equal((await a.db("jb_freela")).length, 1);
+  semErros(a); await a.fechar();
+});
+
+test("liberar sem valor só libera o acesso; valor estranho é recusado", async () => {
+  const a = await abrir("uHen", { agora: AGORA });
+  await a.page.click("#btnDias"); await a.espera(500);
+  await a.page.click("#frAcAbre"); await a.espera(150);
+  await a.page.fill("#frAcNome", "Bia");
+  await a.page.fill("#frAcValor", "abc");
+  await a.page.click("#frAcSalvar"); await a.espera(300);
+  assert.match(await a.texto("#frAcErr"), /Confira o valor/);
+  assert.equal(((await a.db("jb_freela_acesso")) || []).length, 0, "nada liberado com valor errado");
+  await a.page.fill("#frAcValor", "");
+  await a.page.click("#frAcSalvar"); await a.espera(500);
+  assert.equal((await a.db("jb_freela_acesso")).length, 1);
+  assert.equal(((await a.db("jb_freela")) || []).length, 0);
+  assert.match(await a.texto("#frAcReg"), /use Registrar freela/);
+  semErros(a); await a.fechar();
+});
+
+test("celular de alguém da equipe usado no teste: quando o acesso acaba, volta para a conta normal", async () => {
+  const a = await abrir("uHen", { ...freelaLogada({ encerrado_em: "2026-10-08T22:00:00Z" }), semSessao: false });
+  assert.equal(await a.tela(), "scHome");
+  assert.equal(await a.page.evaluate(() => EU.nome), "Henrique");
+  assert.equal(await a.page.evaluate(() => localStorage.getItem("jb_freela_token")), null);
+  semErros(a); await a.fechar();
+});

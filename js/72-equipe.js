@@ -14,6 +14,7 @@ let BANCO = [];          // jb_banco_horas de todo o tempo (não cancelados): o 
 let FR_AC = null;        // liberação de freela em vigor (jb_freela_acesso) ou null; undefined = não deu para ler
 let FR_AC_FORM = null;   // formulário de liberar aberto: { nome, ate }
 let FR_AC_MSG = null;    // mensagem pronta depois de liberar
+let FR_AC_REG = "";      // o que aconteceu com a diária ao liberar
 const APP_LINK = "https://henriquehag1.github.io/jb-confeitaria/";
 
 /* ============================================================
@@ -396,6 +397,7 @@ function blocoFreelaAcesso(){
 
   if(FR_AC_MSG){
     const p = document.createElement("p"); p.className = "fr-ac-ok"; p.textContent = "Liberado. O código só aparece agora: mande esta mensagem para ela.";
+    if(FR_AC_REG){ const r = document.createElement("p"); r.className = "nota"; r.id = "frAcReg"; r.textContent = FR_AC_REG; box.appendChild(r); }
     const ta = document.createElement("textarea"); ta.id = "frAcTexto"; ta.className = "eq-rel-texto"; ta.rows = 10; ta.value = FR_AC_MSG;
     ta.setAttribute("aria-label", "Mensagem para a freela");
     const bt = document.createElement("button"); bt.type = "button"; bt.className = "eq-rel-copiar"; bt.id = "frAcCopiar"; bt.textContent = "Copiar mensagem";
@@ -406,7 +408,7 @@ function blocoFreelaAcesso(){
       toast(ok ? "Mensagem copiada. Cole no WhatsApp dela." : "Não deu para copiar sozinho: o texto ficou selecionado, copie e cole.");
     };
     const fim = document.createElement("button"); fim.type = "button"; fim.className = "sec"; fim.textContent = "Pronto";
-    fim.onclick = () => { FR_AC_MSG = null; montarCalendarioDias(); };
+    fim.onclick = () => { FR_AC_MSG = null; FR_AC_REG = ""; montarCalendarioDias(); };
     const acs = document.createElement("div"); acs.className = "enc-acoes"; acs.append(bt, fim);
     box.append(p, ta, acs);
     return box;
@@ -430,7 +432,7 @@ function blocoFreelaAcesso(){
   b.textContent = FR_AC ? "Liberar de novo" : "Liberar acesso";
   b.onclick = () => {
     const ops = frAcOpcoes();
-    FR_AC_FORM = { nome: FR_AC ? FR_AC.nome : "", op: "turno", ops };
+    FR_AC_FORM = { nome: FR_AC ? FR_AC.nome : "", op: "turno", ops, valor: "", entrada: "", saida: "", no_lugar_de: "" };
     EQ_CANCELA = null; montarCalendarioDias();
   };
   acs.appendChild(b);
@@ -458,6 +460,35 @@ function formFreelaAcesso(){
   sel.onchange = () => { st.op = sel.value; };
   f.appendChild(campo("Vale até", sel));
 
+  /* A diária vai junto: com o valor preenchido, o app já registra a freela do dia
+     e lança a conta a pagar, como em "Registrar freela". Só o gestor vê esta parte. */
+  const jaTem = frDiariaDoDia(st.nome);
+  const tit = document.createElement("p"); tit.className = "fr-ac-sub"; tit.textContent = "Diária combinada";
+  f.appendChild(tit);
+  if(jaTem){
+    const p = document.createElement("p"); p.className = "nota"; p.id = "frAcJaTem";
+    p.textContent = "A diária de " + jaTem.nome + " de " + dataCurta(jaTem.data) + " já está registrada (R$ " + moeda(Number(jaTem.valor)) + "). Não vou lançar outra.";
+    f.appendChild(p);
+  } else {
+    const l1 = document.createElement("div"); l1.className = "eq-linha";
+    l1.append(
+      campo("Valor combinado (R$)", entrada("text", st.valor, v => { st.valor = v; }, { id: "frAcValor", inputmode: "decimal", placeholder: "ex.: 120" })),
+      campo("Das", entrada("time", st.entrada, v => { st.entrada = v; }, { id: "frAcEnt" })),
+      campo("Até", entrada("time", st.saida, v => { st.saida = v; }, { id: "frAcSai" }))
+    );
+    const lugar = document.createElement("select"); lugar.id = "frAcLugar";
+    const o0 = document.createElement("option"); o0.value = ""; o0.textContent = "Ninguém, foi ajuda extra"; lugar.appendChild(o0);
+    const pessoas = [];
+    (ACORDOS || []).forEach(a => { if(!pessoas.includes(a.user_id)) pessoas.push(a.user_id); });
+    pessoas.forEach(u => { const o = document.createElement("option"); o.value = u; o.textContent = eqNome(u); lugar.appendChild(o); });
+    lugar.value = st.no_lugar_de || "";
+    lugar.onchange = () => { st.no_lugar_de = lugar.value; };
+    f.append(l1, campo("No lugar de", lugar));
+    const nv = document.createElement("p"); nv.className = "nota";
+    nv.textContent = "Com o valor, a diária de " + dataCurta(diaDoTurnoSP()) + " entra em Quem veio e em Contas a pagar. Sem valor, libero só o acesso e a diária você registra depois.";
+    f.appendChild(nv);
+  }
+
   const nota = document.createElement("p"); nota.className = "nota";
   nota.textContent = "O app gera um código de 6 números para ela entrar pelo botão Freela. Ela só fecha o turno e anota o que saiu depois: nada de valores, dias ou histórico.";
   f.appendChild(nota);
@@ -472,15 +503,38 @@ function formFreelaAcesso(){
   return f;
 }
 
+/* a diária desta pessoa no dia do turno, se já foi lançada */
+function frDiariaDoDia(nome){
+  const n = (nome || "").trim().toLowerCase();
+  if(!n) return null;
+  const dia = diaDoTurnoSP();
+  return FREELAS.find(f => f.data === dia && (f.nome || "").trim().toLowerCase() === n) || null;
+}
+
 async function liberarFreelaAcesso(){
   const st = FR_AC_FORM;
   const nome = (st.nome || "").trim().replace(/\s+/g, " ");
   if(!nome){ aviso("frAcErr", "Escreva o nome da freela.", "err"); return; }
+  const jaTem = frDiariaDoDia(nome);
+  const temValor = !jaTem && String(st.valor || "").trim() !== "";
+  const valor = temValor ? numBR(st.valor) : null;
+  if(temValor && (valor == null || !(valor > 0) || valor > 2000)){ aviso("frAcErr", "Confira o valor combinado.", "err"); return; }
+  if(temValor && (!!st.entrada !== !!st.saida)){ aviso("frAcErr", "Preencha o horário de começo e de fim, ou deixe os dois em branco.", "err"); return; }
   const op = st.ops.find(o => o.id === st.op) || st.ops[0];
   const { data, error } = await sb.rpc("jb_freela_liberar", { p_nome: nome, p_ate: op.ate });
   if(error || !data || !data.codigo){ aviso("frAcErr", "Não consegui liberar agora. Confira a internet e tente de novo.", "err"); return; }
+  let registro = jaTem ? "ja" : "";
+  if(temValor){
+    const ok = await criarFreela({ nome, data: diaDoTurnoSP(), entrada: st.entrada || "", saida: st.saida || "", valor,
+                                   no_lugar_de: st.no_lugar_de || null, obs: "Liberada com código no app.", acesso_id: data.id });
+    registro = ok ? "ok" : "falhou";
+  }
   FR_AC_FORM = null;
   FR_AC_MSG = frAcMensagem(nome, op.ate, data.codigo);
+  FR_AC_REG = registro === "ok" ? "Diária de R$ " + moeda(valor) + " registrada e lançada em Contas a pagar."
+            : registro === "falhou" ? "O acesso foi liberado, mas não consegui registrar a diária. Use Registrar freela."
+            : registro === "ja" ? "A diária dela de hoje já estava registrada, não lancei outra."
+            : "Diária não registrada: quando souber o valor, use Registrar freela.";
   await recarregarEquipe();
 }
 
@@ -506,7 +560,8 @@ async function criarFreela(fr){
   if(ec || !c) return false;
   const { error } = await sb.from("jb_freela").insert({
     nome: fr.nome, data: fr.data, entrada: fr.entrada || null, saida: fr.saida || null, valor: fr.valor,
-    no_lugar_de: fr.no_lugar_de || null, falta_id: fr.falta_id || null, conta_id: c.id, obs: fr.obs || null, cancelada: false, criado_por: EU.user_id
+    no_lugar_de: fr.no_lugar_de || null, falta_id: fr.falta_id || null, conta_id: c.id, obs: fr.obs || null, cancelada: false, criado_por: EU.user_id,
+    ...(fr.acesso_id ? { acesso_id: fr.acesso_id } : {})
   });
   if(error){
     await sb.from("jb_conta").update({ arquivada: true }).eq("id", c.id);

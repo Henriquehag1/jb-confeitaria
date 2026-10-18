@@ -118,10 +118,15 @@ async function iniciarFreela(token){
   return true;
 }
 
-function fimDoAcessoFreela(){
+async function fimDoAcessoFreela(){
   guardarTokenFreela("");
   sb = SB_REAL;
   EU = null;
+  /* celular de alguém da equipe que foi usado para um teste: volta para a conta normal */
+  try {
+    const { data } = await SB_REAL.auth.getSession();
+    if(data && data.session){ toast("O acesso de freela terminou."); await iniciar(); return; }
+  } catch(e){}
   montarLogin(); show("scLogin");
   erroLogin("Seu acesso de freela terminou. Se ainda precisar, peça para a Jessica liberar de novo.");
 }
