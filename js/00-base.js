@@ -16,7 +16,7 @@ const LOGINS = [
 ];
 
 const TZ = "America/Sao_Paulo";
-const VERSAO = "2026-10-18b";   // aparece no login e no pé da Home, para saber qual versão cada celular tem
+const VERSAO = "2026-10-18c";   // aparece no login e no pé da Home, para saber qual versão cada celular tem
 const SB_REAL = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
   auth: { persistSession: true, autoRefreshToken: true }
 });
@@ -198,6 +198,11 @@ let MODO = "contar";      // "contar" = o número total na geladeira · "repor" 
 let VALORES = {};
 let BASE = {};            // no modo repor, o que já estava contado em cada item
 let ONTEM = {};           // na abertura, o que ficou na geladeira no fechamento de ontem
+/* Itens que congelam (jb_produto.congela) têm dois números: expositora e freezer.
+   VALORES continua sendo o total de cada item; EXPO e FREEZER guardam as duas partes. */
+let EXPO = {};
+let FREEZER = {};
+let ONTEM_FZ = {};        // quanto do que ficou ontem estava no freezer
 let LISTA = [];           // os itens desta contagem (quase sempre PRODUTOS)
 let CONTAGEM_HOJE = {};
 let TURNO_DIA = null;   // o dia do turno em que o app está, quase sempre hoje

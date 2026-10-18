@@ -94,7 +94,7 @@ async function iniciar(){
   }
   EU = u;
 
-  const { data: p, error: ep } = await sb.from("jb_produto_app").select("id,nome,ordem,foto_url").eq("ativo", true).order("ordem");
+  const { data: p, error: ep } = await sb.from("jb_produto_app").select("id,nome,ordem,foto_url,congela").eq("ativo", true).order("ordem");
   PRODUTOS = p || [];
   PRODUTOS_OK = !ep;
 
@@ -251,6 +251,7 @@ async function carregarHome(){
   $("btnContas").classList.toggle("hide", EU.papel !== "gestor");
   $("btnSaude").classList.toggle("hide", EU.papel !== "gestor");
   $("btnContador").classList.toggle("hide", EU.papel !== "gestor");
+  await montarFreezerHome(gestor);
   if(gestor){
     const sd = await resumoSaudeHome().catch(() => null);
     $("saudePonto").className = "sd-ponto" + (sd ? " tom-" + sd.veredito.tom : "");
@@ -439,4 +440,28 @@ function horaSPnum(){
    O lembrete de fechar o turno chega às 22h. */
 function horaDoLembrete(){
   return 22;
+}
+
+/* O que está no freezer, pela última contagem do turno (fechamento, senão abertura). */
+async function montarFreezerHome(gestor){
+  const box = $("cardFreezer");
+  if(!box) return;
+  box.innerHTML = "";
+  const c = CONTAGEM_HOJE.fechamento || CONTAGEM_HOJE.abertura;
+  if(!gestor || !c || !PRODUTOS.some(p => p.congela)) return;
+  const { data, error } = await sb.from("jb_contagem_item").select("produto_id,qtd,qtd_freezer").eq("contagem_id", c.id);
+  if(error) return;
+  const nomes = {}; PRODUTOS.forEach(p => { nomes[p.id] = p.nome; });
+  const linhas = (data || []).filter(i => (i.qtd_freezer || 0) > 0)
+    .sort((a, b) => b.qtd_freezer - a.qtd_freezer)
+    .map(i => i.qtd_freezer + " " + (nomes[i.produto_id] || "item"));
+  if(!linhas.length) return;
+  const total = (data || []).reduce((s, i) => s + (i.qtd_freezer || 0), 0);
+  const card = document.createElement("div"); card.className = "freezer-card"; card.id = "freezerCard";
+  const h = document.createElement("h4"); h.textContent = "No freezer · " + total;
+  const p = document.createElement("p"); p.textContent = linhas.join(", ");
+  const s = document.createElement("p"); s.className = "s";
+  s.textContent = "Pela contagem " + (c.momento === "fechamento" ? "do fechamento" : "da abertura") + " às " + horaDe(c.criado_em) + ".";
+  card.append(h, p, s);
+  box.appendChild(card);
 }

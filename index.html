@@ -9,8 +9,8 @@
 
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#F8F0EA">
-<link rel="icon" href="icon-192.png?v=2026-10-18b" type="image/png">
-<link rel="apple-touch-icon" href="icon-180.png?v=2026-10-18b">
+<link rel="icon" href="icon-192.png?v=2026-10-18c" type="image/png">
+<link rel="apple-touch-icon" href="icon-180.png?v=2026-10-18c">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -263,6 +263,18 @@ button{font-family:inherit;font-size:inherit;cursor:pointer;}
 .item.filled{border-left-color:var(--coral);}
 .item .nome{flex:1;min-width:0;font-size:.95rem;font-weight:400;line-height:1.28;}
 .step{display:flex;align-items:center;gap:6px;flex:0 0 auto;}
+/* itens que congelam: expositora e freezer lado a lado, embaixo do nome */
+.item.dois{flex-wrap:wrap;}
+.item.dois .locais{flex-basis:100%;display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.item.dois .local{display:flex;flex-direction:column;gap:4px;min-width:0;}
+.item.dois .rot{font-size:.72rem;letter-spacing:.04em;text-transform:uppercase;color:var(--tinta-3);font-weight:500;}
+.item.dois .step input{width:48px;}
+.item.dois .step button{width:34px;}
+.item .total{display:block;font-size:.74rem;color:var(--tinta-2);font-weight:500;margin-top:2px;}
+.freezer-card{margin:8px 0 0;padding:12px 14px;border-radius:14px;background:var(--creme);border:1px solid var(--linha);text-transform:none;letter-spacing:normal;font-family:var(--sans,inherit);}
+.freezer-card h4{margin:0 0 4px;font-size:.8rem;letter-spacing:.06em;text-transform:uppercase;color:var(--tinta-3);font-weight:600;}
+.freezer-card p{margin:0;font-size:.9rem;color:var(--tinta);line-height:1.45;text-transform:none;letter-spacing:normal;font-weight:400;}
+.freezer-card p.s{font-size:.76rem;color:var(--tinta-3);margin-top:4px;}
 .step button{
   width:38px;height:38px;border-radius:11px;border:1px solid var(--linha-2);
   background:var(--creme);color:var(--tinta-2);font-size:1.15rem;font-weight:500;line-height:1;
@@ -1499,7 +1511,7 @@ h1,h2,h3.t,.wordmark,.top .marca b,.datebar .d,.big .t,.navbar .t,
   <!-- ================= LOGIN ================= -->
   <section id="scLogin" class="login hide">
     <div class="mark">
-      <img class="marca-jb" src="marca-jb.png?v=2026-10-18b" alt="Jessica Ballassa Confeitaria" width="210" height="191">
+      <img class="marca-jb" src="marca-jb.png?v=2026-10-18c" alt="Jessica Ballassa Confeitaria" width="210" height="191">
       <p class="slogan">aqui tem amor<span class="pt">.</span></p>
       <div class="versao" id="loginVersao"></div>
     </div>
@@ -1516,7 +1528,7 @@ h1,h2,h3.t,.wordmark,.top .marca b,.datebar .d,.big .t,.navbar .t,
   <section id="scHome" class="hide">
     <div class="top">
       <div class="marca">
-        <img class="selo" src="selo-192.png?v=2026-10-18b" alt="" width="34" height="34">
+        <img class="selo" src="selo-192.png?v=2026-10-18c" alt="" width="34" height="34">
         <div><b>Jessica Ballassa</b><span id="homeSub">Ateliê</span></div>
       </div>
       <button class="recarregar" id="homeRecarregar" type="button" aria-label="Atualizar" title="Atualizar">&#8635;</button>
@@ -1540,6 +1552,7 @@ h1,h2,h3.t,.wordmark,.top .marca b,.datebar .d,.big .t,.navbar .t,
       <span class="tx"><span class="t">Fechando o turno</span><span class="s">Conte o que sobrou no fim da noite</span></span>
       <span class="seta" aria-hidden="true">&#8250;</span>
     </button>
+    <div id="cardFreezer"></div>
     <button class="big ghost hide" id="btnPerda">
       <span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6.9h16"/><path d="M9.5 6.9V5.1A1.2 1.2 0 0 1 10.7 3.9h2.6a1.2 1.2 0 0 1 1.2 1.2v1.8"/><path d="M6.6 6.9l.8 12.2A1.9 1.9 0 0 0 9.3 20.9h5.4a1.9 1.9 0 0 0 1.9-1.8l.8-12.2"/></svg></span>
       <span class="tx"><span class="t">Perda e descarte</span><span class="s">O que foi jogado fora ou saiu sem vender</span></span>
@@ -1882,24 +1895,24 @@ h1,h2,h3.t,.wordmark,.top .marca b,.datebar .d,.big .t,.navbar .t,
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.116.0/dist/umd/supabase.min.js"></script>
-<script src="js/00-base.js?v=2026-10-18b"></script>
-<script src="js/10-entrada.js?v=2026-10-18b"></script>
-<script src="js/12-freela.js?v=2026-10-18b"></script>
-<script src="js/20-custos.js?v=2026-10-18b"></script>
-<script src="js/25-promo.js?v=2026-10-18b"></script>
-<script src="js/30-mes.js?v=2026-10-18b"></script>
-<script src="js/35-saude.js?v=2026-10-18b"></script>
-<script src="js/40-producao.js?v=2026-10-18b"></script>
-<script src="js/50-contagem.js?v=2026-10-18b"></script>
-<script src="js/60-afazeres.js?v=2026-10-18b"></script>
-<script src="js/70-dias.js?v=2026-10-18b"></script>
-<script src="js/72-equipe.js?v=2026-10-18b"></script>
-<script src="js/74-bolsa.js?v=2026-10-18b"></script>
-<script src="js/76-conferencia.js?v=2026-10-18b"></script>
-<script src="js/80-estoque.js?v=2026-10-18b"></script>
-<script src="js/85-encomendas.js?v=2026-10-18b"></script>
-<script src="js/88-contas.js?v=2026-10-18b"></script>
-<script src="js/89-contador.js?v=2026-10-18b"></script>
-<script src="js/90-ligacoes.js?v=2026-10-18b"></script>
+<script src="js/00-base.js?v=2026-10-18c"></script>
+<script src="js/10-entrada.js?v=2026-10-18c"></script>
+<script src="js/12-freela.js?v=2026-10-18c"></script>
+<script src="js/20-custos.js?v=2026-10-18c"></script>
+<script src="js/25-promo.js?v=2026-10-18c"></script>
+<script src="js/30-mes.js?v=2026-10-18c"></script>
+<script src="js/35-saude.js?v=2026-10-18c"></script>
+<script src="js/40-producao.js?v=2026-10-18c"></script>
+<script src="js/50-contagem.js?v=2026-10-18c"></script>
+<script src="js/60-afazeres.js?v=2026-10-18c"></script>
+<script src="js/70-dias.js?v=2026-10-18c"></script>
+<script src="js/72-equipe.js?v=2026-10-18c"></script>
+<script src="js/74-bolsa.js?v=2026-10-18c"></script>
+<script src="js/76-conferencia.js?v=2026-10-18c"></script>
+<script src="js/80-estoque.js?v=2026-10-18c"></script>
+<script src="js/85-encomendas.js?v=2026-10-18c"></script>
+<script src="js/88-contas.js?v=2026-10-18c"></script>
+<script src="js/89-contador.js?v=2026-10-18c"></script>
+<script src="js/90-ligacoes.js?v=2026-10-18c"></script>
 </body>
 </html>

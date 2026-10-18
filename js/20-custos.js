@@ -59,7 +59,7 @@ async function listarGeladeira(){
 
 async function editorDaLista(box, alvoMsg, aoMudar){
   box.innerHTML = "<p class='tip'>Carregando...</p>";
-  const { data, error } = await sb.from("jb_produto_app").select("id,nome,ordem,ativo,foto_url").order("ordem");
+  const { data, error } = await sb.from("jb_produto_app").select("id,nome,ordem,ativo,foto_url,congela").order("ordem");
   if(error){ box.innerHTML=""; aviso(alvoMsg,"Não consegui carregar a lista agora.","err"); return; }
   const itens = data || [];
   box.innerHTML = "";
@@ -121,7 +121,18 @@ async function editorDaLista(box, alvoMsg, aoMudar){
       await recarregarProdutos();
       aoMudar();
     });
-    bot.append(bSobe, bDesce, bAtivo);
+    /* item que também fica no freezer: a contagem pede expositora e freezer */
+    const bFz = document.createElement("button");
+    bFz.type = "button"; bFz.className = "rm"; bFz.dataset.congela = p.id;
+    bFz.textContent = p.congela ? "❄ tem freezer: sim" : "❄ tem freezer: não";
+    bFz.onclick = travar(bFz, async () => {
+      const { error } = await sb.from("jb_produto").update({ congela: !p.congela }).eq("id", p.id);
+      if(error){ aviso(alvoMsg,"Não consegui mudar esse item.","err"); return; }
+      aviso(alvoMsg, p.nome + (p.congela ? " volta a ter um número só." : " passa a ter expositora e freezer na contagem."), "ok");
+      await recarregarProdutos();
+      aoMudar();
+    });
+    bot.append(bSobe, bDesce, bAtivo, bFz);
     row.append(top, bot);
     box.appendChild(row);
   });
@@ -158,7 +169,7 @@ async function editorDaLista(box, alvoMsg, aoMudar){
 }
 
 async function recarregarProdutos(){
-  const { data, error } = await sb.from("jb_produto_app").select("id,nome,ordem,foto_url").eq("ativo", true).order("ordem");
+  const { data, error } = await sb.from("jb_produto_app").select("id,nome,ordem,foto_url,congela").eq("ativo", true).order("ordem");
   if(error){ PRODUTOS_OK = false; return; }
   PRODUTOS = data || [];
   PRODUTOS_OK = true;
