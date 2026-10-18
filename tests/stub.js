@@ -211,7 +211,7 @@ ${agora ? "window.__AGORA=" + JSON.stringify(agora) + ";" : ""}
   function viewProdutoApp(){
     return DB.jb_produto.map(p => {
       const f = DB.jb_ficha.find(x => x.produto_id === p.id);
-      return { id:p.id, nome:p.nome, ordem:p.ordem, ativo:p.ativo, foto_url: p.foto_url || (f && f.foto_url) || null };
+      return { id:p.id, nome:p.nome, ordem:p.ordem, ativo:p.ativo, foto_url: p.foto_url || (f && f.foto_url) || null, congela: !!p.congela };
     });
   }
   function itensVisiveis(){
@@ -578,7 +578,7 @@ ${agora ? "window.__AGORA=" + JSON.stringify(agora) + ";" : ""}
       const hoje = hojeSP(), ontem = diaMais(hoje, -1);
       const cs = DB.jb_contagem.filter(c => c.data === hoje || c.data === ontem);
       return { data:{ ok:true, id:a.id, nome:a.nome, valido_ate:a.valido_ate,
-        produtos: DB.jb_produto.filter(p => p.ativo).sort((x, y) => x.ordem - y.ordem).map(p => ({ id:p.id, nome:p.nome, ordem:p.ordem, ativo:p.ativo, foto_url:p.foto_url || null })),
+        produtos: DB.jb_produto.filter(p => p.ativo).sort((x, y) => x.ordem - y.ordem).map(p => ({ id:p.id, nome:p.nome, ordem:p.ordem, ativo:p.ativo, foto_url:p.foto_url || null, congela: !!p.congela })),
         contagens: cs.map(c => ({ id:c.id, data:c.data, momento:c.momento, registrado_por: c.freela_id === a.id ? "freela:" + a.id : null, nome_responsavel:c.nome_responsavel, criado_em:c.criado_em })),
         itens: DB.jb_contagem_item.filter(i => cs.some(c => c.id === i.contagem_id && c.freela_id === a.id)).map(i => ({ ...i })),
         adendos: (DB.jb_adendo || []).filter(d => d.freela_id === a.id).map(d => ({ ...d, registrado_por: "freela:" + a.id }))
@@ -599,7 +599,8 @@ ${agora ? "window.__AGORA=" + JSON.stringify(agora) + ";" : ""}
                     criado_em: new Date(agoraMs()).toISOString(), atualizado_em: new Date(agoraMs()).toISOString() }; DB.jb_contagem.push(c); }
       (args.p_itens || []).forEach(it => {
         const ex = DB.jb_contagem_item.find(x => x.contagem_id === c.id && x.produto_id === it.produto_id);
-        if(ex) ex.qtd = it.qtd; else DB.jb_contagem_item.push({ contagem_id:c.id, produto_id:it.produto_id, qtd:it.qtd });
+        const fz = Math.min(it.qtd, it.qtd_freezer || 0);
+        if(ex){ ex.qtd = it.qtd; ex.qtd_freezer = fz; } else DB.jb_contagem_item.push({ contagem_id:c.id, produto_id:it.produto_id, qtd:it.qtd, qtd_freezer: fz });
       });
       return { data:c.id, error:null };
     }
@@ -642,8 +643,9 @@ ${agora ? "window.__AGORA=" + JSON.stringify(agora) + ";" : ""}
         DB.jb_contagem.push(c);
       }
       (args.p_itens || []).forEach(it => {
+        const fz = Math.min(it.qtd, it.qtd_freezer || 0);
         const ex = DB.jb_contagem_item.find(x => x.contagem_id === c.id && x.produto_id === it.produto_id);
-        if(ex) ex.qtd = it.qtd; else DB.jb_contagem_item.push({ contagem_id:c.id, produto_id:it.produto_id, qtd:it.qtd });
+        if(ex){ ex.qtd = it.qtd; ex.qtd_freezer = fz; } else DB.jb_contagem_item.push({ contagem_id:c.id, produto_id:it.produto_id, qtd:it.qtd, qtd_freezer: fz });
       });
       /* No fechamento, sobra maior que a abertura vira reposição somada pelo banco. */
       if(args.p_momento === "fechamento"){

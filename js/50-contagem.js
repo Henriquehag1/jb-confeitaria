@@ -15,6 +15,7 @@ async function abrirContagem(momento, modo){
   VALORES = {};
   BASE = {};
   ONTEM = {};
+  EXPO = {}; FREEZER = {}; ONTEM_FZ = {};
   MODO = "contar";
 
   if(!PRODUTOS_OK || !PRODUTOS.length){
@@ -34,7 +35,7 @@ async function abrirContagem(momento, modo){
   if(existente && momento === "abertura") MODO = modo === "contar" ? "contar" : "repor";
   const rascunho = localStorage.getItem(rascunhoKey());
   if(existente){
-    const { data, error } = await sb.from("jb_contagem_item").select("produto_id,qtd").eq("contagem_id", existente.id);
+    const { data, error } = await sb.from("jb_contagem_item").select("produto_id,qtd,qtd_freezer").eq("contagem_id", existente.id);
     if(error){
       /* Corrigir sem enxergar o que já foi salvo gravaria zeros por cima dos números reais. */
       aviso("homeMsg","Não consegui abrir a contagem salva agora. Tente de novo quando o sinal voltar.","err");
@@ -42,16 +43,23 @@ async function abrirContagem(momento, modo){
       return;
     }
     (data || []).forEach(i => BASE[i.produto_id] = i.qtd);
-    if(MODO !== "repor") VALORES = { ...BASE };
+    if(MODO !== "repor"){
+      VALORES = { ...BASE };
+      (data || []).forEach(i => {
+        if(!congela(i.produto_id)) return;
+        FREEZER[i.produto_id] = i.qtd_freezer || 0;
+        EXPO[i.produto_id] = i.qtd - (i.qtd_freezer || 0);
+      });
+    }
     /* Se ficou um rascunho não enviado, ele vale mais que o banco. */
     if(rascunho){
       try {
         const r = JSON.parse(rascunho);
-        if(r && Object.keys(r).length){ VALORES = r; }
+        if(r && Object.keys(r).length){ VALORES = r; lerRascunhoFreezer(); }
       } catch(e){}
     }
   } else if(rascunho){
-    try { VALORES = JSON.parse(rascunho); } catch(e){}
+    try { VALORES = JSON.parse(rascunho); lerRascunhoFreezer(); } catch(e){}
   }
 
   /* A lista desta contagem. No fechamento do gestor, um item tirado da geladeira
@@ -62,7 +70,7 @@ async function abrirContagem(momento, modo){
       const { data: ab } = await sb.from("jb_contagem_item").select("produto_id").eq("contagem_id", CONTAGEM_HOJE.abertura.id);
       const faltam = (ab || []).map(i => i.produto_id).filter(id => !PRODUTOS.some(p => p.id === id));
       if(faltam.length){
-        const { data: ex } = await sb.from("jb_produto_app").select("id,nome,ordem,foto_url").in("id", faltam);
+        const { data: ex } = await sb.from("jb_produto_app").select("id,nome,ordem,foto_url,congela").in("id", faltam);
         (ex || []).forEach(p => LISTA.push({ ...p, nome: p.nome + " (saiu da lista hoje)" }));
       }
     } catch(e){}
@@ -79,6 +87,15 @@ async function abrirContagem(momento, modo){
         if(l.fechado && l.sobrou !== null && l.sobrou !== undefined)
           ONTEM[l.produto_id] = Math.max(0, l.sobrou - (l.depois || 0));
       });
+      /* quanto do que ficou ontem estava no freezer */
+      if(LISTA.some(p => p.congela)){
+        const { data: fo } = await sb.from("jb_contagem").select("id").eq("data", diaAntesDoTurno()).eq("momento", "fechamento").maybeSingle();
+        if(fo){
+          const { data: it } = await sb.from("jb_contagem_item").select("produto_id,qtd_freezer").eq("contagem_id", fo.id);
+          (it || []).forEach(i => { if(congela(i.produto_id) && ONTEM[i.produto_id] !== undefined)
+            ONTEM_FZ[i.produto_id] = Math.min(ONTEM[i.produto_id], i.qtd_freezer || 0); });
+        }
+      }
     } catch(e){}
   }
 
@@ -181,6 +198,48 @@ async function montarLista(){
         + (dif > 0 ? ", entraram " + dif : dif < 0 ? ", faltam " + (-dif) : "");
     };
 
+    if(p.congela && !repor){
+      row.classList.add("dois");
+      const locais = document.createElement("div"); locais.className = "locais";
+      const tot = document.createElement("span"); tot.className = "total";
+      const pintarTotal = () => {
+        tot.textContent = VALORES[p.id] === undefined ? "" : "total " + VALORES[p.id];
+      };
+      const parte = (rotulo, mapa, sufixo) => {
+        const box = document.createElement("div"); box.className = "local";
+        const lb = document.createElement("span"); lb.className = "rot"; lb.textContent = rotulo;
+        const st = document.createElement("div"); st.className = "step";
+        const m = document.createElement("button"); m.type = "button"; m.textContent = "−"; m.setAttribute("aria-label", "Menos um " + p.nome + " " + sufixo);
+        const i = document.createElement("input");
+        i.type = "tel"; i.inputMode = "numeric"; i.maxLength = 3; i.dataset.local = sufixo;
+        i.setAttribute("aria-label", p.nome + " " + sufixo);
+        if(mapa()[p.id] !== undefined) i.value = mapa()[p.id];
+        else if(ONTEM[p.id] !== undefined) i.placeholder = String(sufixo === "freezer" ? freezerDe(p.id) : expoDe(p.id));
+        const ma = document.createElement("button"); ma.type = "button"; ma.textContent = "+"; ma.setAttribute("aria-label", "Mais um " + p.nome + " " + sufixo);
+        const mudou = () => { recalcularTotal(p.id); salvarRascunho(); pintarBase(); pintarTotal(); pintar(); };
+        const set = v => { v = Math.max(0, Math.min(999, v)); i.value = v; mapa()[p.id] = v; mudou(); };
+        const atual = () => i.value === "" ? (sufixo === "freezer" ? freezerDe(p.id) : expoDe(p.id)) : (parseInt(i.value, 10) || 0);
+        m.onclick = () => set(atual() - 1);
+        ma.onclick = () => set(atual() + 1);
+        i.oninput = () => {
+          i.value = i.value.replace(/\D/g, "").slice(0, 3);
+          if(i.value === "") delete mapa()[p.id]; else mapa()[p.id] = parseInt(i.value, 10);
+          mudou();
+        };
+        i.onfocus = () => i.select();
+        i.onkeydown = e => { if(e.key === "Enter"){ e.preventDefault(); proximoCampo(i); } };
+        st.append(m, i, ma);
+        box.append(lb, st);
+        return box;
+      };
+      locais.append(parte("Expositora", () => EXPO, "expositora"), parte("Freezer", () => FREEZER, "freezer"));
+      nome.appendChild(tot);
+      row.appendChild(locais);
+      box.appendChild(row);
+      pintarBase(); pintarTotal();
+      return;
+    }
+
     const step = document.createElement("div");
     step.className = "step";
 
@@ -219,7 +278,52 @@ async function montarLista(){
 }
 
 function salvarRascunho(){
-  try { localStorage.setItem(rascunhoKey(), JSON.stringify(VALORES)); } catch(e){}
+  try {
+    localStorage.setItem(rascunhoKey(), JSON.stringify(VALORES));
+    localStorage.setItem(rascunhoKey() + "_fz", JSON.stringify({ e: EXPO, f: FREEZER }));
+  } catch(e){}
+}
+function lerRascunhoFreezer(){
+  try {
+    const r = JSON.parse(localStorage.getItem(rascunhoKey() + "_fz") || "null");
+    if(r){ EXPO = r.e || {}; FREEZER = r.f || {}; }
+  } catch(e){}
+}
+function limparRascunho(){
+  try { localStorage.removeItem(rascunhoKey()); localStorage.removeItem(rascunhoKey() + "_fz"); } catch(e){}
+}
+
+/* ---------- expositora e freezer ---------- */
+function congela(pid){
+  const p = (LISTA.length ? LISTA : PRODUTOS).find(x => x.id === Number(pid));
+  return !!(p && p.congela);
+}
+/* em branco, cada parte vale o que ficou ontem (na conferência da abertura) ou zero */
+function freezerDe(pid){
+  if(FREEZER[pid] !== undefined) return FREEZER[pid];
+  return ONTEM[pid] !== undefined ? (ONTEM_FZ[pid] || 0) : 0;
+}
+function expoDe(pid){
+  if(EXPO[pid] !== undefined) return EXPO[pid];
+  return ONTEM[pid] !== undefined ? Math.max(0, ONTEM[pid] - (ONTEM_FZ[pid] || 0)) : 0;
+}
+/* Fora da conferência da abertura, item que congela só está contado com as duas partes:
+   freezer esquecido em branco viraria "vendeu tudo" no fechamento. */
+function metadeEmBranco(pid){
+  if(!congela(pid) || MODO === "repor") return false;
+  const conferindo = MOMENTO === "abertura" && Object.keys(ONTEM).length > 0;
+  if(conferindo) return false;
+  return (EXPO[pid] === undefined) !== (FREEZER[pid] === undefined);
+}
+function recalcularTotal(pid){
+  if(EXPO[pid] === undefined && FREEZER[pid] === undefined){ delete VALORES[pid]; return; }
+  VALORES[pid] = Math.min(999, expoDe(pid) + freezerDe(pid));
+}
+/* o que vai para o banco: o total e quanto dele está no freezer */
+function itemParaSalvar(p){
+  const qtd = VALORES[p.id] || 0;
+  if(!p.congela) return { produto_id: p.id, qtd };
+  return { produto_id: p.id, qtd, qtd_freezer: Math.min(qtd, freezerDe(p.id)) };
 }
 
 /* Enter no teclado numérico pula para o próximo item; no último, vai para o botão de salvar. */
@@ -237,7 +341,7 @@ function pintar(){
   let n = 0;
   document.querySelectorAll("#countList .item").forEach(row => {
     const pid = Number(row.dataset.pid);
-    const ok = repor ? (VALORES[pid] > 0) : (VALORES[pid] !== undefined);
+    const ok = repor ? (VALORES[pid] > 0) : (VALORES[pid] !== undefined && !metadeEmBranco(pid));
     row.classList.toggle("filled", ok);
     if(ok) n++;
   });
@@ -274,6 +378,13 @@ async function salvar(){
   const repor = MODO === "repor";
   btn.disabled = true; btn.textContent = "Salvando...";
 
+  const metades = repor ? [] : LISTA.filter(p => VALORES[p.id] !== undefined && metadeEmBranco(p.id));
+  if(metades.length){
+    const ok = confirm(metades.map(p => p.nome + " (" + (EXPO[p.id] === undefined ? "expositora" : "freezer") + ")").join(", ")
+      + (metades.length === 1 ? " ficou" : " ficaram") + " em branco e vai contar como zero. Salvar assim?");
+    if(!ok){ btn.disabled = false; btn.textContent = rotulo; return; }
+    metades.forEach(p => { if(EXPO[p.id] === undefined) EXPO[p.id] = 0; if(FREEZER[p.id] === undefined) FREEZER[p.id] = 0; recalcularTotal(p.id); });
+  }
   const faltam = repor ? [] : LISTA.filter(p => VALORES[p.id] === undefined);
   if(faltam.length){
     /* Na abertura, item não contado não pode virar zero: o que ficou ontem continua
@@ -298,7 +409,7 @@ async function salvar(){
                           .map(p => ({ produto_id: p.id, qtd: Math.min(999, VALORES[p.id]) }));
       const { data: naGeladeira, error } = await sb.rpc("jb_repor", { p_data: diaDoTurno(), p_itens: entrou });
       if(error) throw error;
-      localStorage.removeItem(rascunhoKey());
+      limparRascunho();
       const quantos = entrou.length;
       await carregarHome();
       aviso("homeMsg", "Reposição somada: " + quantos + (quantos === 1 ? " item" : " itens") +
@@ -308,14 +419,14 @@ async function salvar(){
     }
     /* Cabeçalho e itens vão juntos, numa transação no banco. Se a rede cair no meio,
        nada fica pela metade, e tentar de novo funciona. */
-    const itens = LISTA.map(p => ({ produto_id: p.id, qtd: VALORES[p.id] || 0 }));
+    const itens = LISTA.map(itemParaSalvar);
     const { data: id, error } = await sb.rpc("jb_salvar_contagem",
       { p_data: diaDoTurno(), p_momento: MOMENTO, p_itens: itens });
     if(error) throw error;
     CONTAGEM_HOJE[MOMENTO] = CONTAGEM_HOJE[MOMENTO] || { id, data: diaDoTurno(), momento: MOMENTO,
       registrado_por: EU.user_id, nome_responsavel: EU.nome, criado_em: new Date().toISOString() };
 
-    localStorage.removeItem(rascunhoKey());
+    limparRascunho();
 
     if(MOMENTO === "fechamento"){
       /* A equipe vê só a confirmação. Os números do que saiu só existem
