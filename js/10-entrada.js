@@ -17,13 +17,18 @@ function montarLogin(){
     b.onclick = () => {
       escolhido = l;
       [...box.children].forEach(c => c.setAttribute("aria-pressed", String(c === b)));
+      $("pin").placeholder = l.freela ? "Código" : "PIN";
+      $("pin").setAttribute("aria-label", l.freela ? "Código de 6 números que a Jessica mandou" : "PIN");
+      $("loginTip").textContent = l.freela
+        ? "Digite o código de 6 números que a Jessica mandou. Ele vale só neste celular e só até a hora combinada."
+        : "Digite uma vez e o celular guarda. Da próxima vez já abre direto.";
       $("pin").focus();
     };
     box.appendChild(b);
   });
   const ultimo = localStorage.getItem("jb_ultimo");
   if(ultimo){
-    const i = LOGINS.findIndex(l => l.email === ultimo);
+    const i = LOGINS.findIndex(l => l.email && l.email === ultimo);
     if(i >= 0) box.children[i].click();
   }
 }
@@ -32,9 +37,15 @@ async function entrar(){
   const pin = $("pin").value.trim();
   $("loginErr").classList.add("hide");
   if(!escolhido){ erroLogin("Toque no seu nome primeiro."); return; }
-  if(pin.length < 6){ erroLogin("O PIN tem 6 números."); return; }
+  if(pin.length < 6){ erroLogin(escolhido.freela ? "O código tem 6 números." : "O PIN tem 6 números."); return; }
   $("btnEntrar").disabled = true;
   $("btnEntrar").textContent = "...";
+  if(escolhido.freela){
+    await entrarFreela(pin);
+    $("btnEntrar").disabled = false;
+    $("btnEntrar").textContent = "Entrar";
+    return;
+  }
   const { error } = await sb.auth.signInWithPassword({ email: escolhido.email, password: pin });
   $("btnEntrar").disabled = false;
   $("btnEntrar").textContent = "Entrar";
@@ -59,6 +70,10 @@ function erroLogin(t){ const e = $("loginErr"); e.textContent = t; e.classList.r
    CARGA
    ============================================================ */
 async function iniciar(){
+  /* Neste celular tem um acesso de freela guardado: ele vale mais que a sessão normal. */
+  const tk = lerTokenFreela();
+  if(tk && await iniciarFreela(tk)) return;
+  sb = SB_REAL;
   const { data: { session } } = await sb.auth.getSession();
   if(!session){ montarLogin(); show("scLogin"); return; }
 
@@ -78,25 +93,6 @@ async function iniciar(){
     return;
   }
   EU = u;
-
-  /* Freela: a conta é uma só para todas. Ela só vale dentro da janela que a Jessica
-     ou o Henrique liberaram, e só no primeiro celular que entrar nessa janela. */
-  if(u.papel === "freela"){
-    const { data: fe, error: ef } = await sb.rpc("jb_freela_eu");
-    if(ef){
-      montarLogin(); show("scLogin");
-      erroLogin("Sem conexão agora. Confira o sinal e toque em Entrar de novo.");
-      return;
-    }
-    const acesso = Array.isArray(fe) ? fe[0] : fe;
-    if(!acesso || !acesso.nome){
-      await sb.auth.signOut();
-      montarLogin(); show("scLogin");
-      erroLogin("O acesso de freela não está liberado agora, ou já está em uso em outro celular. Peça para a Jessica liberar no JB OS.");
-      return;
-    }
-    EU = { ...u, nome: acesso.nome + " (freela)", apelido: acesso.nome, freela_ate: acesso.valido_ate };
-  }
 
   const { data: p, error: ep } = await sb.from("jb_produto_app").select("id,nome,ordem,foto_url").eq("ativo", true).order("ordem");
   PRODUTOS = p || [];

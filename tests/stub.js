@@ -13,8 +13,7 @@ const USUARIOS = {
   uJes: { user_id: "uJes", nome: "Jessica", papel: "gestor",   ativo: true },
   uHen: { user_id: "uHen", nome: "Henrique", papel: "gestor",  ativo: true },
   uYas: { user_id: "uYas", nome: "Yasmin",  papel: "equipe",   ativo: true },
-  uEli: { user_id: "uEli", nome: "Eliana",  papel: "producao", ativo: true },
-  uFre: { user_id: "uFre", nome: "Freela",  papel: "freela",   ativo: true }
+  uEli: { user_id: "uEli", nome: "Eliana",  papel: "producao", ativo: true }
 };
 
 /* Base pequena e coerente: 3 produtos, 2 fichas, 1 sub-receita, 4 canais. */
@@ -198,15 +197,12 @@ ${agora ? "window.__AGORA=" + JSON.stringify(agora) + ";" : ""}
   const DB = window.__DB;
   const eu = () => DB.jb_usuario.find(u => u.user_id === window.__UID) || null;
   const gestor = () => { const u = eu(); return !!(u && u.ativo && u.papel === "gestor"); };
-  /* freela: a conta só vale dentro da janela liberada e na sessão (celular) que pegou a janela */
-  window.__SID = DB.__sid || "sessA";
+  const membro = () => { const u = eu(); return !!(u && u.ativo); };
+  /* freela: entra por código, recebe um token, e só fala com as funções jb_freela_* */
   const agoraMs = () => window.__AGORA ? Date.parse(window.__AGORA) : Date.now();
   const frAberta = () => (DB.jb_freela_acesso || []).filter(a => !a.encerrado_em && Date.parse(a.valido_de) <= agoraMs() && agoraMs() < Date.parse(a.valido_ate))
                                                      .sort((a, b) => b.id - a.id)[0] || null;
-  const frVigente = () => { const a = frAberta(); return a && a.sessao && a.sessao === window.__SID ? a : null; };
-  const freela = () => { const u = eu(); return !!(u && u.papel === "freela"); };
-  const membro = () => { const u = eu(); return !!(u && u.ativo && (u.papel !== "freela" || frVigente())); };
-  const nomeResp = u => u.papel === "freela" ? ((frVigente() || {}).nome || "Freela") + " (freela)" : u.nome;
+  const frPorToken = tk => { const a = frAberta(); return a && tk && a.token === tk ? a : null; };
   const hojeSP = () => new Intl.DateTimeFormat("en-CA",{timeZone:"America/Sao_Paulo",year:"numeric",month:"2-digit",day:"2-digit"}).format(window.__AGORA ? new Date(window.__AGORA) : new Date());
   const nextId = t => Math.max(0, ...(DB[t]||[]).map(r => Number(r.id)||0)) + 1;
   const diaMais = (iso, n) => { const d = new Date(iso + "T12:00:00Z"); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0,10); };
@@ -456,9 +452,6 @@ ${agora ? "window.__AGORA=" + JSON.stringify(agora) + ";" : ""}
   }
 
   function tabela(t){
-    // fora da janela a conta de freela não lê nada (trava geral do banco)
-    if(freela() && !membro()) return t === "jb_usuario" ? (DB[t]||[]).filter(r => r.user_id === window.__UID) : [];
-    if(freela() && t === "jb_producao_item") return [];
     // resultado pronto de uma view, para o teste controlar o número (só gestor lê)
     if(DB["__" + t]) return gestor() ? DB["__" + t].map(x => ({ ...x })) : [];
     if(t === "jb_imposto_estimado" && DB.jb_imposto_regra){
@@ -527,7 +520,7 @@ ${agora ? "window.__AGORA=" + JSON.stringify(agora) + ";" : ""}
             return Promise.resolve({ data:null, error:{ message:"duplicate key value violates unique constraint", code:"23505" } });
           }
         }
-        const feitas = arr.map(x => { const row = { ...x }; if(freela() && "nome_responsavel" in row) row.nome_responsavel = nomeResp(eu()); if(!("id" in row) && t !== "jb_contagem_item" && t !== "jb_preco" && t !== "jb_faturamento" && t !== "jb_ficha_item" && t !== "jb_subreceita_item") row.id = nextId(t); if(!row.criado_em) row.criado_em = new Date().toISOString(); (DB[t] = DB[t] || []).push(row); return row; });
+        const feitas = arr.map(x => { const row = { ...x }; if(!("id" in row) && t !== "jb_contagem_item" && t !== "jb_preco" && t !== "jb_faturamento" && t !== "jb_ficha_item" && t !== "jb_subreceita_item") row.id = nextId(t); if(!row.criado_em) row.criado_em = new Date().toISOString(); (DB[t] = DB[t] || []).push(row); return row; });
         window.__LOG.push(["insert", t, arr]);
         const p = Promise.resolve({ data:feitas, error:null });
         p.select = () => ({ single: async () => ({ data:feitas[0], error:null }), maybeSingle: async () => ({ data:feitas[0], error:null }) });
@@ -570,12 +563,53 @@ ${agora ? "window.__AGORA=" + JSON.stringify(agora) + ";" : ""}
   async function rpc(nome, args){
     window.__LOG.push(["rpc", nome, args]);
     if(window.__FALHA && window.__FALHA["rpc:" + nome]) return { data:null, error:{ message:"rede caiu (teste)" } };
-    if(nome === "jb_freela_eu"){
-      if(!freela()) return { data:[], error:null };
+    if(nome === "jb_freela_entrar"){
       const a = frAberta();
-      if(a && !a.sessao){ a.sessao = window.__SID; a.sessao_em = new Date(agoraMs()).toISOString(); }
-      const v = frVigente();
-      return { data: v ? [{ nome: v.nome, valido_ate: v.valido_ate }] : [], error:null };
+      if(!a) return { data:{ ok:false, motivo:"fechado" }, error:null };
+      if(a.erros >= 5) return { data:{ ok:false, motivo:"bloqueado" }, error:null };
+      if(String(args.p_codigo) !== a.codigo){ a.erros = (a.erros || 0) + 1; return { data:{ ok:false, motivo: a.erros >= 5 ? "bloqueado" : "codigo" }, error:null }; }
+      if(a.token) return { data:{ ok:false, motivo:"em_uso" }, error:null };
+      a.token = "tok" + "x".repeat(40) + a.id; a.token_em = new Date(agoraMs()).toISOString();
+      return { data:{ ok:true, token:a.token, nome:a.nome, valido_ate:a.valido_ate }, error:null };
+    }
+    if(nome === "jb_freela_dados"){
+      const a = frPorToken(args.p_token);
+      if(!a) return { data:{ ok:false }, error:null };
+      const hoje = hojeSP(), ontem = diaMais(hoje, -1);
+      const cs = DB.jb_contagem.filter(c => c.data === hoje || c.data === ontem);
+      return { data:{ ok:true, id:a.id, nome:a.nome, valido_ate:a.valido_ate,
+        produtos: DB.jb_produto.filter(p => p.ativo).sort((x, y) => x.ordem - y.ordem).map(p => ({ id:p.id, nome:p.nome, ordem:p.ordem, ativo:p.ativo, foto_url:p.foto_url || null })),
+        contagens: cs.map(c => ({ id:c.id, data:c.data, momento:c.momento, registrado_por: c.freela_id === a.id ? "freela:" + a.id : null, nome_responsavel:c.nome_responsavel, criado_em:c.criado_em })),
+        itens: DB.jb_contagem_item.filter(i => cs.some(c => c.id === i.contagem_id && c.freela_id === a.id)).map(i => ({ ...i })),
+        adendos: (DB.jb_adendo || []).filter(d => d.freela_id === a.id).map(d => ({ ...d, registrado_por: "freela:" + a.id }))
+      }, error:null };
+    }
+    if(nome === "jb_freela_salvar"){
+      const a = frPorToken(args.p_token);
+      if(!a) return { data:null, error:{ message:"sem acesso", code:"42501" } };
+      if(args.p_momento !== "fechamento") return { data:null, error:{ message:"so fechamento", code:"42501" } };
+      const hoje = hojeSP();
+      if(args.p_data !== hoje && args.p_data !== diaMais(hoje, -1)) return { data:null, error:{ message:"fora do dia", code:"42501" } };
+      const ab = DB.jb_contagem.find(x => x.data === args.p_data && x.momento === "abertura");
+      if(!ab) return { data:null, error:{ message:"turno ainda nao aberto" } };
+      let c = DB.jb_contagem.find(x => x.data === args.p_data && x.momento === "fechamento");
+      if(c && c.freela_id !== a.id) return { data:null, error:{ message:"turno ja fechado", code:"42501" } };
+      const nomeF = a.nome + " (freela)";
+      if(!c){ c = { id: nextId("jb_contagem"), data: args.p_data, momento: "fechamento", registrado_por: a.criado_por, nome_responsavel: nomeF, freela_id: a.id,
+                    criado_em: new Date(agoraMs()).toISOString(), atualizado_em: new Date(agoraMs()).toISOString() }; DB.jb_contagem.push(c); }
+      (args.p_itens || []).forEach(it => {
+        const ex = DB.jb_contagem_item.find(x => x.contagem_id === c.id && x.produto_id === it.produto_id);
+        if(ex) ex.qtd = it.qtd; else DB.jb_contagem_item.push({ contagem_id:c.id, produto_id:it.produto_id, qtd:it.qtd });
+      });
+      return { data:c.id, error:null };
+    }
+    if(nome === "jb_freela_adendo"){
+      const a = frPorToken(args.p_token);
+      if(!a) return { data:null, error:{ message:"sem acesso", code:"42501" } };
+      DB.jb_adendo = DB.jb_adendo || [];
+      (args.p_linhas || []).forEach(l => DB.jb_adendo.push({ id: nextId("jb_adendo"), data:l.data, produto_id:l.produto_id ?? null, qtd:l.qtd || 0, texto:l.texto || null,
+        registrado_por: a.criado_por, nome_responsavel: a.nome + " (freela)", freela_id: a.id, criado_em: new Date(agoraMs()).toISOString() }));
+      return { data:(args.p_linhas || []).length, error:null };
     }
     if(nome === "jb_freela_liberar"){
       if(!gestor()) return { data:null, error:{ message:"so gestor", code:"42501" } };
@@ -586,9 +620,10 @@ ${agora ? "window.__AGORA=" + JSON.stringify(agora) + ";" : ""}
       DB.jb_freela_acesso = DB.jb_freela_acesso || [];
       DB.jb_freela_acesso.filter(a => !a.encerrado_em).forEach(a => { a.encerrado_em = new Date(agoraMs()).toISOString(); a.encerrado_por = window.__UID; });
       const id = nextId("jb_freela_acesso");
-      DB.jb_freela_acesso.push({ id, nome: n, valido_de: new Date(agoraMs()).toISOString(), valido_ate: new Date(ate).toISOString(), sessao: null, sessao_em: null,
+      const codigo = String(100000 + id * 7919 % 900000);
+      DB.jb_freela_acesso.push({ id, nome: n, valido_de: new Date(agoraMs()).toISOString(), valido_ate: new Date(ate).toISOString(), codigo, erros: 0, token: null, token_em: null,
                                  criado_por: window.__UID, criado_em: new Date(agoraMs()).toISOString(), encerrado_em: null, encerrado_por: null });
-      return { data:id, error:null };
+      return { data:{ id, codigo }, error:null };
     }
     if(nome === "jb_freela_encerrar"){
       if(!gestor()) return { data:null, error:{ message:"so gestor", code:"42501" } };
@@ -601,9 +636,9 @@ ${agora ? "window.__AGORA=" + JSON.stringify(agora) + ";" : ""}
       if(c){
         const podeEditar = gestor() || (c.registrado_por === window.__UID && c.data === hojeSP());
         if(!podeEditar) return { data:null, error:{ message:"new row violates row-level security policy", code:"42501" } };
-        c.atualizado_em = new Date().toISOString(); c.nome_responsavel = nomeResp(u);
+        c.atualizado_em = new Date().toISOString(); c.nome_responsavel = u.nome;
       } else {
-        c = { id: nextId("jb_contagem"), data: args.p_data, momento: args.p_momento, registrado_por: window.__UID, nome_responsavel: nomeResp(u), criado_em: new Date().toISOString(), atualizado_em: new Date().toISOString() };
+        c = { id: nextId("jb_contagem"), data: args.p_data, momento: args.p_momento, registrado_por: window.__UID, nome_responsavel: u.nome, criado_em: new Date().toISOString(), atualizado_em: new Date().toISOString() };
         DB.jb_contagem.push(c);
       }
       (args.p_itens || []).forEach(it => {

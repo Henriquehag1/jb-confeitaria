@@ -12,10 +12,11 @@ async function navegador(){
   return browser;
 }
 
-/* opts: { db: (db) => db, agora: "2026-09-08T03:10:00Z", falha: { tabela: true }, semSessao: true } */
+/* opts: { db: (db) => db, agora: "2026-09-08T03:10:00Z", falha: { tabela: true }, semSessao: true, storage: { chave: "valor" } } */
 async function abrir(uid, opts = {}){
   const b = await navegador();
   const ctx = await b.newContext({ viewport: { width: 390, height: 900 }, deviceScaleFactor: 1 });
+  if(opts.storage) await ctx.addInitScript(st => { for(const k in st) localStorage.setItem(k, st[k]); }, opts.storage);
   const page = await ctx.newPage();
   const erros = [];
   page.on("pageerror", e => erros.push("PAGEERROR: " + e.message));

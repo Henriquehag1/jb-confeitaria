@@ -12,14 +12,16 @@ const LOGINS = [
   { nome: "Yasmin",   email: "delivery@jbconfeitaria.app" },
   { nome: "Eliana",   email: "producao@jbconfeitaria.app" },
   { nome: "Henrique", email: "henrique@jbconfeitaria.app" },
-  { nome: "Freela",   email: "freela@jbconfeitaria.app"   }
+  { nome: "Freela",   freela: true }
 ];
 
 const TZ = "America/Sao_Paulo";
 const VERSAO = "2026-10-18a";   // aparece no login e no pé da Home, para saber qual versão cada celular tem
-const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+const SB_REAL = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
   auth: { persistSession: true, autoRefreshToken: true }
 });
+/* No modo freela o "sb" vira um cliente que só fala com as funções da freela (js/12-freela.js). */
+let sb = SB_REAL;
 
 /* ============================================================
    UTILITÁRIOS

@@ -42,7 +42,7 @@ sb.auth.onAuthStateChange((evento) => {
 $("btnEntrar").onclick = entrar;
 $("pin").addEventListener("keydown", e => { if(e.key === "Enter") entrar(); });
 $("btnSair").onclick = async () => {
-  if(!confirm("Sair do app?\n\nPara entrar de novo vai precisar do PIN.")) return;
+  if(!confirm("Sair do app?\n\nPara entrar de novo vai precisar " + (EU && EU.papel === "freela" ? "de um código novo." : "do PIN."))) return;
   await sb.auth.signOut(); montarLogin(); show("scLogin");
 };
 $("btnAbertura").onclick = () => abrirContagem("abertura");

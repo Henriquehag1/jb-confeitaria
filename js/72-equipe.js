@@ -354,11 +354,11 @@ function botaoCancelar(chave, rotulo, fn, verbo){
 
 /* ============================================================
    ACESSO AO APP PARA FREELA
-   A conta "Freela" é uma só. Ela só entra dentro da janela que o gestor libera aqui,
-   e só no primeiro celular que abrir o app nessa janela (o banco confere).
+   A freela não tem conta: o gestor libera aqui, o banco gera um código de 6 números,
+   e o primeiro celular que digitar o código fica com o acesso até a hora escolhida.
    ============================================================ */
 async function carregarFreelaAcesso(){
-  const r = await sb.from("jb_freela_acesso").select("id,nome,valido_de,valido_ate,sessao_em,encerrado_em")
+  const r = await sb.from("jb_freela_acesso").select("id,nome,valido_de,valido_ate,erros,token_em,encerrado_em")
     .is("encerrado_em", null).gte("valido_ate", agora().toISOString()).order("id", { ascending: false }).limit(1);
   FR_AC = (r && !r.error) ? ((r.data || [])[0] || null) : undefined;
 }
@@ -375,12 +375,12 @@ function frAcOpcoes(){
   ];
 }
 
-function frAcMensagem(nome, ate){
+function frAcMensagem(nome, ate, codigo){
   return "Oi, " + nome + "! Liberei o app da JB para você fechar a geladeira e fazer a contagem.\n\n" +
     "1. Abra " + APP_LINK + "\n" +
     "2. Toque em Freela\n" +
-    "3. Digite o PIN de 6 números que eu te passei\n\n" +
-    "Seu acesso vale até " + quandoAte(ate) + ". Entre pelo seu celular: o primeiro celular que entrar fica com o acesso.\n\n" +
+    "3. Digite o código " + codigo + "\n\n" +
+    "Seu acesso vale até " + quandoAte(ate) + ". Entre pelo seu celular: o código funciona em um celular só.\n\n" +
     "Qualquer dúvida me chama. Obrigada!";
 }
 
@@ -395,7 +395,7 @@ function blocoFreelaAcesso(){
   }
 
   if(FR_AC_MSG){
-    const p = document.createElement("p"); p.className = "fr-ac-ok"; p.textContent = "Liberado. Mande esta mensagem para ela:";
+    const p = document.createElement("p"); p.className = "fr-ac-ok"; p.textContent = "Liberado. O código só aparece agora: mande esta mensagem para ela.";
     const ta = document.createElement("textarea"); ta.id = "frAcTexto"; ta.className = "eq-rel-texto"; ta.rows = 10; ta.value = FR_AC_MSG;
     ta.setAttribute("aria-label", "Mensagem para a freela");
     const bt = document.createElement("button"); bt.type = "button"; bt.className = "eq-rel-copiar"; bt.id = "frAcCopiar"; bt.textContent = "Copiar mensagem";
@@ -403,7 +403,7 @@ function blocoFreelaAcesso(){
       let ok = false;
       try { await navigator.clipboard.writeText(ta.value); ok = true; } catch(e){}
       if(!ok){ ta.focus(); ta.select(); try { ok = document.execCommand("copy"); } catch(e){} }
-      toast(ok ? "Mensagem copiada. Mande junto o PIN da conta Freela." : "Não deu para copiar sozinho: o texto ficou selecionado, copie e cole.");
+      toast(ok ? "Mensagem copiada. Cole no WhatsApp dela." : "Não deu para copiar sozinho: o texto ficou selecionado, copie e cole.");
     };
     const fim = document.createElement("button"); fim.type = "button"; fim.className = "sec"; fim.textContent = "Pronto";
     fim.onclick = () => { FR_AC_MSG = null; montarCalendarioDias(); };
@@ -417,8 +417,9 @@ function blocoFreelaAcesso(){
   const sub = document.createElement("p"); sub.className = "sub"; sub.id = "frAcStatus";
   if(FR_AC){
     sub.textContent = FR_AC.nome + " pode entrar até " + quandoAte(FR_AC.valido_ate) + ". " +
-      (FR_AC.sessao_em ? "Já entrou num celular às " + eqHHMM(new Intl.DateTimeFormat("pt-BR",{timeZone:TZ,hour:"2-digit",minute:"2-digit"}).format(new Date(FR_AC.sessao_em))) + "."
-                       : "Ainda ninguém entrou.");
+      (FR_AC.token_em ? "Já entrou num celular às " + new Intl.DateTimeFormat("pt-BR",{timeZone:TZ,hour:"2-digit",minute:"2-digit"}).format(new Date(FR_AC.token_em)) + "."
+       : FR_AC.erros >= 5 ? "O código foi bloqueado depois de 5 tentativas erradas. Libere de novo para gerar outro."
+       : "Ainda ninguém entrou.");
   } else {
     sub.textContent = "Ninguém liberado agora. Libere quando uma freela for fechar a geladeira e fazer a contagem.";
   }
@@ -437,7 +438,7 @@ function blocoFreelaAcesso(){
   box.appendChild(acs);
   if(FR_AC){
     const n = document.createElement("p"); n.className = "nota";
-    n.textContent = "Entrou no celular errado? Toque em Liberar de novo: o celular antigo sai e o próximo que entrar fica com o acesso.";
+    n.textContent = "Perdeu a mensagem ou entrou no celular errado? Toque em Liberar de novo: sai um código novo e o celular antigo perde o acesso.";
     box.appendChild(n);
   }
   return box;
@@ -458,7 +459,7 @@ function formFreelaAcesso(){
   f.appendChild(campo("Vale até", sel));
 
   const nota = document.createElement("p"); nota.className = "nota";
-  nota.textContent = "Ela entra com o botão Freela e o PIN da conta Freela. Só a contagem do turno aparece para ela: nada de valores, dias ou histórico.";
+  nota.textContent = "O app gera um código de 6 números para ela entrar pelo botão Freela. Ela só fecha o turno e anota o que saiu depois: nada de valores, dias ou histórico.";
   f.appendChild(nota);
 
   const err = document.createElement("div"); err.id = "frAcErr"; f.appendChild(err);
@@ -476,10 +477,10 @@ async function liberarFreelaAcesso(){
   const nome = (st.nome || "").trim().replace(/\s+/g, " ");
   if(!nome){ aviso("frAcErr", "Escreva o nome da freela.", "err"); return; }
   const op = st.ops.find(o => o.id === st.op) || st.ops[0];
-  const { error } = await sb.rpc("jb_freela_liberar", { p_nome: nome, p_ate: op.ate });
-  if(error){ aviso("frAcErr", "Não consegui liberar agora. Confira a internet e tente de novo.", "err"); return; }
+  const { data, error } = await sb.rpc("jb_freela_liberar", { p_nome: nome, p_ate: op.ate });
+  if(error || !data || !data.codigo){ aviso("frAcErr", "Não consegui liberar agora. Confira a internet e tente de novo.", "err"); return; }
   FR_AC_FORM = null;
-  FR_AC_MSG = frAcMensagem(nome, op.ate);
+  FR_AC_MSG = frAcMensagem(nome, op.ate, data.codigo);
   await recarregarEquipe();
 }
 
