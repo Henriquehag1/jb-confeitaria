@@ -599,8 +599,7 @@ ${agora ? "window.__AGORA=" + JSON.stringify(agora) + ";" : ""}
                     criado_em: new Date(agoraMs()).toISOString(), atualizado_em: new Date(agoraMs()).toISOString() }; DB.jb_contagem.push(c); }
       (args.p_itens || []).forEach(it => {
         const ex = DB.jb_contagem_item.find(x => x.contagem_id === c.id && x.produto_id === it.produto_id);
-        const fz = Math.min(it.qtd, it.qtd_freezer || 0);
-        if(ex){ ex.qtd = it.qtd; ex.qtd_freezer = fz; } else DB.jb_contagem_item.push({ contagem_id:c.id, produto_id:it.produto_id, qtd:it.qtd, qtd_freezer: fz });
+        if(ex) ex.qtd = it.qtd; else DB.jb_contagem_item.push({ contagem_id:c.id, produto_id:it.produto_id, qtd:it.qtd, freezer: 0 });
       });
       return { data:c.id, error:null };
     }
@@ -643,9 +642,9 @@ ${agora ? "window.__AGORA=" + JSON.stringify(agora) + ";" : ""}
         DB.jb_contagem.push(c);
       }
       (args.p_itens || []).forEach(it => {
-        const fz = Math.min(it.qtd, it.qtd_freezer || 0);
-        const ex = DB.jb_contagem_item.find(x => x.contagem_id === c.id && x.produto_id === it.produto_id);
-        if(ex){ ex.qtd = it.qtd; ex.qtd_freezer = fz; } else DB.jb_contagem_item.push({ contagem_id:c.id, produto_id:it.produto_id, qtd:it.qtd, qtd_freezer: fz });
+        let ex = DB.jb_contagem_item.find(x => x.contagem_id === c.id && x.produto_id === it.produto_id);
+        if(ex) ex.qtd = it.qtd; else { ex = { contagem_id:c.id, produto_id:it.produto_id, qtd:it.qtd, freezer: 0 }; DB.jb_contagem_item.push(ex); }
+        if(gestor() && "freezer" in it){ ex.freezer = it.freezer; c.freezer_contado = true; }
       });
       /* No fechamento, sobra maior que a abertura vira reposição somada pelo banco. */
       if(args.p_momento === "fechamento"){
@@ -672,7 +671,8 @@ ${agora ? "window.__AGORA=" + JSON.stringify(agora) + ";" : ""}
         if(!(it.qtd > 0)) return;
         const ex = DB.jb_contagem_item.find(x => x.contagem_id === ab.id && x.produto_id === it.produto_id);
         const antes = ex ? ex.qtd : 0;
-        if(ex) ex.qtd = Math.min(999, ex.qtd + it.qtd); else DB.jb_contagem_item.push({ contagem_id:ab.id, produto_id:it.produto_id, qtd:it.qtd });
+        if(ex) ex.qtd = Math.min(999, ex.qtd + it.qtd); else DB.jb_contagem_item.push({ contagem_id:ab.id, produto_id:it.produto_id, qtd:it.qtd, freezer: 0 });
+        if(it.do_freezer && gestor()){ const r = DB.jb_contagem_item.find(x => x.contagem_id === ab.id && x.produto_id === it.produto_id); r.freezer = Math.max(0, (r.freezer || 0) - it.qtd); }
         (DB.jb_contagem_mov = DB.jb_contagem_mov || []).push({ id: nextId("jb_contagem_mov"), data:args.p_data, momento:"abertura",
           produto_id:it.produto_id, antes, depois:Math.min(999, antes + it.qtd), tipo:"reposicao", nome:u.nome, criado_em:new Date().toISOString() });
       });

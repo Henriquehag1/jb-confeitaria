@@ -442,26 +442,27 @@ function horaDoLembrete(){
   return 22;
 }
 
-/* O que está no freezer, pela última contagem do turno (fechamento, senão abertura). */
+/* O que está no freezer, pela última contagem em que a Jessica ou o Henrique contaram o freezer. */
 async function montarFreezerHome(gestor){
   const box = $("cardFreezer");
   if(!box) return;
   box.innerHTML = "";
-  const c = CONTAGEM_HOJE.fechamento || CONTAGEM_HOJE.abertura;
-  if(!gestor || !c || !PRODUTOS.some(p => p.congela)) return;
-  const { data, error } = await sb.from("jb_contagem_item").select("produto_id,qtd,qtd_freezer").eq("contagem_id", c.id);
-  if(error) return;
+  if(!gestor) return;
+  const { data: cs, error } = await sb.from("jb_contagem").select("id,data,momento,criado_em,atualizado_em").eq("freezer_contado", true)
+    .lte("data", hojeSP()).order("data", { ascending: false }).limit(4);
+  if(error || !cs || !cs.length) return;
+  const c = cs.slice().sort((a, b) => a.data !== b.data ? (a.data < b.data ? 1 : -1) : (a.momento === "fechamento" ? -1 : 1))[0];
+  const { data } = await sb.from("jb_contagem_item").select("produto_id,freezer").eq("contagem_id", c.id);
   const nomes = {}; PRODUTOS.forEach(p => { nomes[p.id] = p.nome; });
-  const linhas = (data || []).filter(i => (i.qtd_freezer || 0) > 0)
-    .sort((a, b) => b.qtd_freezer - a.qtd_freezer)
-    .map(i => i.qtd_freezer + " " + (nomes[i.produto_id] || "item"));
-  if(!linhas.length) return;
-  const total = (data || []).reduce((s, i) => s + (i.qtd_freezer || 0), 0);
+  const itens = (data || []).filter(i => (i.freezer || 0) > 0).sort((a, b) => b.freezer - a.freezer);
   const card = document.createElement("div"); card.className = "freezer-card"; card.id = "freezerCard";
+  const total = itens.reduce((s, i) => s + i.freezer, 0);
   const h = document.createElement("h4"); h.textContent = "No freezer · " + total;
-  const p = document.createElement("p"); p.textContent = linhas.join(", ");
+  const p = document.createElement("p");
+  p.textContent = itens.length ? itens.map(i => i.freezer + " " + (nomes[i.produto_id] || "item")).join(", ") : "Nada no freezer.";
   const s = document.createElement("p"); s.className = "s";
-  s.textContent = "Pela contagem " + (c.momento === "fechamento" ? "do fechamento" : "da abertura") + " às " + horaDe(c.criado_em) + ".";
+  s.textContent = (c.momento === "fechamento" ? "Contado no fechamento" : "Contado na abertura") + (c.data === hojeSP() ? " de hoje" : " de " + dataCurta(c.data))
+    + ". O que sai do freezer entra em Repor, com \"Saiu do freezer\" marcado.";
   card.append(h, p, s);
   box.appendChild(card);
 }

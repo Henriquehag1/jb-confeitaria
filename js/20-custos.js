@@ -121,18 +121,7 @@ async function editorDaLista(box, alvoMsg, aoMudar){
       await recarregarProdutos();
       aoMudar();
     });
-    /* item que também fica no freezer: a contagem pede expositora e freezer */
-    const bFz = document.createElement("button");
-    bFz.type = "button"; bFz.className = "rm"; bFz.dataset.congela = p.id;
-    bFz.textContent = p.congela ? "❄ tem freezer: sim" : "❄ tem freezer: não";
-    bFz.onclick = travar(bFz, async () => {
-      const { error } = await sb.from("jb_produto").update({ congela: !p.congela }).eq("id", p.id);
-      if(error){ aviso(alvoMsg,"Não consegui mudar esse item.","err"); return; }
-      aviso(alvoMsg, p.nome + (p.congela ? " volta a ter um número só." : " passa a ter expositora e freezer na contagem."), "ok");
-      await recarregarProdutos();
-      aoMudar();
-    });
-    bot.append(bSobe, bDesce, bAtivo, bFz);
+    bot.append(bSobe, bDesce, bAtivo);
     row.append(top, bot);
     box.appendChild(row);
   });

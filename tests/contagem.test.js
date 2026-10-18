@@ -17,13 +17,13 @@ test("Yasmin fecha o turno: campos vazios, Enter pula de item, salva pelo RPC em
   const a = await abrir("uYas", { db: db => comAbertura(db, hoje) });
   await a.page.click("#btnFechamento"); await a.espera(300);
   assert.equal(await a.tela(), "scCount");
-  assert.deepEqual(await a.page.evaluate(() => [...document.querySelectorAll("#countList .step input")].map(i => i.value)), ["", "", ""]);
+  assert.deepEqual(await a.page.evaluate(() => [...document.querySelectorAll("#countList .step input:not([data-local='freezer'])")].map(i => i.value)), ["", "", ""]);
 
   // Enter no primeiro campo leva o foco ao segundo
-  const inputs = a.page.locator("#countList .step input");
+  const inputs = a.page.locator("#countList .step input:not([data-local='freezer'])");
   await inputs.nth(0).fill("2");
   await inputs.nth(0).press("Enter");
-  assert.equal(await a.page.evaluate(() => [...document.querySelectorAll("#countList .step input")].indexOf(document.activeElement)), 1);
+  assert.equal(await a.page.evaluate(() => [...document.querySelectorAll("#countList .step input:not([data-local='freezer'])")].indexOf(document.activeElement)), 1);
   await inputs.nth(1).fill("5"); await inputs.nth(2).fill("6");
   await a.espera(150);
   await a.page.click("#btnSalvar"); await a.espera(500);
@@ -51,7 +51,7 @@ test("Jessica fecha e vê o resultado; item tirado da lista no meio do dia conti
   const nomes = await a.page.evaluate(() => [...document.querySelectorAll("#countList .item .nome")].map(e => e.textContent));
   assert.equal(nomes.length, 4, "3 ativos mais o que saiu da lista hoje");
   assert.match(nomes[3], /Torta antiga \(saiu da lista hoje\)/);
-  const inputs = a.page.locator("#countList .step input");
+  const inputs = a.page.locator("#countList .step input:not([data-local='freezer'])");
   for(let i = 0; i < 4; i++) await inputs.nth(i).fill(String([2, 5, 6, 1][i]));
   await a.espera(150);
   await a.page.click("#btnSalvar"); await a.espera(500);
@@ -74,7 +74,7 @@ test("falha do RPC mantém o rascunho e a mensagem certa; tentar de novo funcion
   const hoje = hojeSP();
   const a = await abrir("uYas", { db: db => comAbertura(db, hoje), falha: { "rpc:jb_salvar_contagem": true } });
   await a.page.click("#btnFechamento"); await a.espera(300);
-  const inputs = a.page.locator("#countList .step input");
+  const inputs = a.page.locator("#countList .step input:not([data-local='freezer'])");
   await inputs.nth(0).fill("1"); await inputs.nth(1).fill("2"); await inputs.nth(2).fill("3");
   await a.espera(150);
   await a.page.click("#btnSalvar"); await a.espera(500);
@@ -97,7 +97,7 @@ test("equipe tentando alterar contagem que não é dela recebe a mensagem de per
   // fechamento já existe (da Jessica): equipe cai na tela de feito; força a contagem por dentro
   await a.page.evaluate(async () => { await abrirContagem("fechamento"); });
   await a.espera(300);
-  const inputs = a.page.locator("#countList .step input");
+  const inputs = a.page.locator("#countList .step input:not([data-local='freezer'])");
   await inputs.nth(0).fill("1"); await inputs.nth(1).fill("2"); await inputs.nth(2).fill("3");
   await a.espera(150);
   await a.page.click("#btnSalvar"); await a.espera(500);
@@ -183,11 +183,11 @@ test("reposição durante o dia soma na geladeira em vez de trocar o número", a
   assert.equal(await a.tela(), "scCount");
   // reabrir a abertura já salva cai no modo repor: campos vazios e o que já tem na linha
   assert.equal(await a.page.evaluate(() => MODO), "repor");
-  assert.deepEqual(await a.page.evaluate(() => [...document.querySelectorAll("#countList .step input")].map(i => i.value)), ["", "", ""]);
+  assert.deepEqual(await a.page.evaluate(() => [...document.querySelectorAll("#countList .step input:not([data-local='freezer'])")].map(i => i.value)), ["", "", ""]);
   const bases = await a.page.evaluate(() => [...document.querySelectorAll("#countList .item .base")].map(e => e.textContent));
   assert.deepEqual(bases, ["tem 10 na geladeira", "tem 20 na geladeira", "tem 6 na geladeira"]);
 
-  const inputs = a.page.locator("#countList .step input");
+  const inputs = a.page.locator("#countList .step input:not([data-local='freezer'])");
   await inputs.nth(0).fill("5"); await a.espera(150);
   assert.equal(await a.page.evaluate(() => document.querySelector("#countList .item .base").textContent), "tem 10, fica 15");
   assert.match(await a.page.evaluate(() => $("btnSalvar").textContent), /Somar à geladeira/);
@@ -206,7 +206,7 @@ test("reposição durante o dia soma na geladeira em vez de trocar o número", a
   await a.page.click("#btnAbertura"); await a.espera(400);
   await a.page.click("#btnModoContar"); await a.espera(400);
   assert.equal(await a.page.evaluate(() => MODO), "contar");
-  assert.deepEqual(await a.page.evaluate(() => [...document.querySelectorAll("#countList .step input")].map(i => i.value)), ["15", "20", "6"]);
+  assert.deepEqual(await a.page.evaluate(() => [...document.querySelectorAll("#countList .step input:not([data-local='freezer'])")].map(i => i.value)), ["15", "20", "6"]);
   assert.equal(await a.page.evaluate(() => document.querySelectorAll("#countList .item .base").length), 0);
   semErros(a); await a.fechar();
 });
@@ -232,7 +232,7 @@ test("abertura cruza com o fechamento de ontem: mostra o saldo, não zera o que 
   assert.match(await a.page.evaluate(() => $("btnSalvar").textContent), /Confere com ontem, abrir o turno/,
     "sem digitar nada, o botão confirma em vez de mandar recontar");
 
-  const inputs = a.page.locator("#countList .step input");
+  const inputs = a.page.locator("#countList .step input:not([data-local='freezer'])");
   await inputs.nth(0).fill("10"); await a.espera(120);
   assert.equal(await a.page.evaluate(() => document.querySelector("#countList .item .base").textContent), "ontem ficaram 4, entraram 6");
   await inputs.nth(1).fill("2"); await a.espera(120);
@@ -334,7 +334,7 @@ test("falta na abertura oferece registrar a perda já preenchida", async () => {
   const hoje = hojeSP();
   const a = await abrir("uJes", { db: db => comOntemFechado(db, hoje), confirmar: true });
   await a.page.click("#btnAbertura"); await a.espera(600);
-  const inputs = a.page.locator("#countList .step input");
+  const inputs = a.page.locator("#countList .step input:not([data-local='freezer'])");
   await inputs.nth(0).fill("4"); await inputs.nth(1).fill("2"); await inputs.nth(2).fill("3");
   await a.espera(150);
   await a.page.click("#btnSalvar"); await a.espera(700);
@@ -452,7 +452,7 @@ test("fechamento com sobra maior do que entrou: o app soma como reposição e mo
   const hoje = hojeSP();
   const a = await abrir("uJes", { db: db => comAbertura(db, hoje), confirmar: true });   // abertura: 10, 20, 6
   await a.page.evaluate(() => abrirContagem("fechamento")); await a.espera(400);
-  const inputs = a.page.locator("#countList .step input");
+  const inputs = a.page.locator("#countList .step input:not([data-local='freezer'])");
   await inputs.nth(0).fill("4"); await inputs.nth(1).fill("25"); await inputs.nth(2).fill("6"); await a.espera(150);
   await a.page.click("#btnSalvar"); await a.espera(800);
   assert.equal(await a.tela(), "scRes");
