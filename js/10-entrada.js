@@ -43,6 +43,16 @@ async function entrar(){
   $("pin").value = "";
   await iniciar();
 }
+/* "hoje às 23:00", "amanhã às 06:00" ou "sáb 19/10 às 06:00" */
+function quandoAte(iso){
+  if(!iso) return "";
+  const d = new Date(iso);
+  const dia = new Intl.DateTimeFormat("en-CA",{timeZone:TZ,year:"numeric",month:"2-digit",day:"2-digit"}).format(d);
+  const hora = new Intl.DateTimeFormat("pt-BR",{timeZone:TZ,hour:"2-digit",minute:"2-digit"}).format(d);
+  if(dia === hojeSP()) return "hoje às " + hora;
+  if(dia === diaMais(1)) return "amanhã às " + hora;
+  return diaCurto(dia) + " às " + hora;
+}
 function erroLogin(t){ const e = $("loginErr"); e.textContent = t; e.classList.remove("hide"); }
 
 /* ============================================================
@@ -69,12 +79,31 @@ async function iniciar(){
   }
   EU = u;
 
+  /* Freela: a conta é uma só para todas. Ela só vale dentro da janela que a Jessica
+     ou o Henrique liberaram, e só no primeiro celular que entrar nessa janela. */
+  if(u.papel === "freela"){
+    const { data: fe, error: ef } = await sb.rpc("jb_freela_eu");
+    if(ef){
+      montarLogin(); show("scLogin");
+      erroLogin("Sem conexão agora. Confira o sinal e toque em Entrar de novo.");
+      return;
+    }
+    const acesso = Array.isArray(fe) ? fe[0] : fe;
+    if(!acesso || !acesso.nome){
+      await sb.auth.signOut();
+      montarLogin(); show("scLogin");
+      erroLogin("O acesso de freela não está liberado agora, ou já está em uso em outro celular. Peça para a Jessica liberar no JB OS.");
+      return;
+    }
+    EU = { ...u, nome: acesso.nome + " (freela)", apelido: acesso.nome, freela_ate: acesso.valido_ate };
+  }
+
   const { data: p, error: ep } = await sb.from("jb_produto_app").select("id,nome,ordem,foto_url").eq("ativo", true).order("ordem");
   PRODUTOS = p || [];
   PRODUTOS_OK = !ep;
 
   // quem não é gestor abriu o app hoje, então marca a presença como sugestão
-  if(EU.papel !== "gestor") await baterPonto();
+  if(EU.papel !== "gestor" && EU.papel !== "freela") await baterPonto();
 
   await carregarHome();
 }
@@ -93,25 +122,33 @@ function ajustarGrupos(){
 }
 
 async function carregarHome(){
-  $("whoName").textContent = EU.nome;
+  const freela = EU.papel === "freela";
+  $("whoName").textContent = EU.apelido || EU.nome;
   $("homeVersao").textContent = "JB OS · versão " + VERSAO;
-  $("homeSub").textContent = EU.papel === "gestor" ? "Ateliê" : (EU.papel === "producao" ? "Produção" : "Contagem de turno");
+  $("homeSub").textContent = EU.papel === "gestor" ? "Ateliê"
+    : EU.papel === "producao" ? "Produção"
+    : freela ? "Freela · até " + quandoAte(EU.freela_ate).replace(/^.* às /, "")
+    : "Contagem de turno";
   $("hoje").textContent = dataLonga(hojeSP());
   $("agora").textContent = horaSP();
 
-  const conta   = EU.papel === "gestor" || EU.papel === "equipe";
+  const conta   = EU.papel === "gestor" || EU.papel === "equipe" || freela;
 
   ["btnAbertura","btnFechamento","btnHist"].forEach(b => $(b).classList.toggle("hide", !conta));
+  /* A freela só fecha a geladeira: sem histórico (a conta é de todas as freelas) e sem plano. */
+  $("btnHist").classList.toggle("hide", !conta || freela);
   /* Todos veem "O que fazer hoje": o plano pode passar tarefa para a produção e para a
      equipe da noite. Cada um só recebe o que é para o seu papel, e a receita só abre
      para a equipe quando a tarefa foi passada para ela (o banco garante). */
-  $("btnProducao").className = "big" + (conta ? " ghost" : "");
+  $("btnProducao").className = "big" + (conta ? " ghost" : "") + (freela ? " hide" : "");
   $("btnProducao").querySelector(".t").textContent =
     EU.papel === "gestor" ? "Plano de produção" : "O que fazer hoje";
   $("btnProducao").querySelector(".s").textContent =
     EU.papel === "gestor" ? "Diga o que precisa ser feito e em que quantidade"
                           : "Suas receitas com as quantidades certas";
-  $("homeTip").textContent = conta
+  $("homeTip").textContent = freela
+    ? "Conte item por item, sem pressa. Seu acesso vale até " + quandoAte(EU.freela_ate) + "."
+    : conta
     ? "Conte item por item, sem pressa. Se errar, dá para corrigir no mesmo dia."
     : "Toque na receita para ver os ingredientes já na quantidade certa e o passo a passo.";
   $("btnHist").querySelector(".s").textContent = EU.papel === "gestor"
@@ -169,7 +206,7 @@ async function carregarHome(){
   const madrugada = horaSPnum() < 8;
   /* Turno de ontem: de madrugada, se hoje ainda não tem nada e ontem teve abertura,
      a equipe continua em ontem, tanto para fechar tarde quanto para o adendo. */
-  const turnoDeOntem = EU.papel === "equipe" && madrugada
+  const turnoDeOntem = (EU.papel === "equipe" || freela) && madrugada
                        && !hj.abertura && !hj.fechamento && !!on.abertura;
   TURNO_DIA = turnoDeOntem ? ontem : hoje;
   HOME_DIA = hoje;

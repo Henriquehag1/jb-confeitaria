@@ -13,7 +13,8 @@ const USUARIOS = {
   uJes: { user_id: "uJes", nome: "Jessica", papel: "gestor",   ativo: true },
   uHen: { user_id: "uHen", nome: "Henrique", papel: "gestor",  ativo: true },
   uYas: { user_id: "uYas", nome: "Yasmin",  papel: "equipe",   ativo: true },
-  uEli: { user_id: "uEli", nome: "Eliana",  papel: "producao", ativo: true }
+  uEli: { user_id: "uEli", nome: "Eliana",  papel: "producao", ativo: true },
+  uFre: { user_id: "uFre", nome: "Freela",  papel: "freela",   ativo: true }
 };
 
 /* Base pequena e coerente: 3 produtos, 2 fichas, 1 sub-receita, 4 canais. */
@@ -197,7 +198,15 @@ ${agora ? "window.__AGORA=" + JSON.stringify(agora) + ";" : ""}
   const DB = window.__DB;
   const eu = () => DB.jb_usuario.find(u => u.user_id === window.__UID) || null;
   const gestor = () => { const u = eu(); return !!(u && u.ativo && u.papel === "gestor"); };
-  const membro = () => { const u = eu(); return !!(u && u.ativo); };
+  /* freela: a conta só vale dentro da janela liberada e na sessão (celular) que pegou a janela */
+  window.__SID = DB.__sid || "sessA";
+  const agoraMs = () => window.__AGORA ? Date.parse(window.__AGORA) : Date.now();
+  const frAberta = () => (DB.jb_freela_acesso || []).filter(a => !a.encerrado_em && Date.parse(a.valido_de) <= agoraMs() && agoraMs() < Date.parse(a.valido_ate))
+                                                     .sort((a, b) => b.id - a.id)[0] || null;
+  const frVigente = () => { const a = frAberta(); return a && a.sessao && a.sessao === window.__SID ? a : null; };
+  const freela = () => { const u = eu(); return !!(u && u.papel === "freela"); };
+  const membro = () => { const u = eu(); return !!(u && u.ativo && (u.papel !== "freela" || frVigente())); };
+  const nomeResp = u => u.papel === "freela" ? ((frVigente() || {}).nome || "Freela") + " (freela)" : u.nome;
   const hojeSP = () => new Intl.DateTimeFormat("en-CA",{timeZone:"America/Sao_Paulo",year:"numeric",month:"2-digit",day:"2-digit"}).format(window.__AGORA ? new Date(window.__AGORA) : new Date());
   const nextId = t => Math.max(0, ...(DB[t]||[]).map(r => Number(r.id)||0)) + 1;
   const diaMais = (iso, n) => { const d = new Date(iso + "T12:00:00Z"); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0,10); };
@@ -447,6 +456,9 @@ ${agora ? "window.__AGORA=" + JSON.stringify(agora) + ";" : ""}
   }
 
   function tabela(t){
+    // fora da janela a conta de freela não lê nada (trava geral do banco)
+    if(freela() && !membro()) return t === "jb_usuario" ? (DB[t]||[]).filter(r => r.user_id === window.__UID) : [];
+    if(freela() && t === "jb_producao_item") return [];
     // resultado pronto de uma view, para o teste controlar o número (só gestor lê)
     if(DB["__" + t]) return gestor() ? DB["__" + t].map(x => ({ ...x })) : [];
     if(t === "jb_imposto_estimado" && DB.jb_imposto_regra){
@@ -481,7 +493,7 @@ ${agora ? "window.__AGORA=" + JSON.stringify(agora) + ";" : ""}
                       "jb_custo_fixo_total","jb_volume_calculado","jb_giro_produto","jb_insumo","jb_preco","jb_margem","jb_promo_teto","jb_canal","jb_config","jb_vale_taxa","jb_meio_pagamento",
                       "jb_mes","jb_faturamento","jb_ficha","jb_ficha_item","jb_subreceita","jb_subreceita_item","jb_uso_ingrediente",
                       "jb_insumo_ultimo_pago","jb_ficha_alertas","jb_compra","jb_compra_item","jb_estoque_contagem","jb_estoque_item","jb_estoque_sugestao",
-                      "jb_kpi_mes","jb_kpi_destino","jb_dia_vendas","jb_encomenda","jb_bolo_opcao","jb_ocorrencia","jb_conta","jb_falta","jb_freela","jb_banco_horas","jb_imposto_regra","jb_parametro","jb_contador_mes","jb_cartao_fatura"];
+                      "jb_kpi_mes","jb_kpi_destino","jb_dia_vendas","jb_encomenda","jb_bolo_opcao","jb_ocorrencia","jb_conta","jb_falta","jb_freela","jb_banco_horas","jb_imposto_regra","jb_parametro","jb_contador_mes","jb_cartao_fatura","jb_freela_acesso"];
     if(soGestor.includes(t) && !gestor()) return [];
     if(t === "jb_dia_trabalhado" && !gestor()) return (DB[t]||[]).filter(r => r.user_id === window.__UID);
     if(t === "jb_contagem_mov" && !gestor()) return [];
@@ -515,7 +527,7 @@ ${agora ? "window.__AGORA=" + JSON.stringify(agora) + ";" : ""}
             return Promise.resolve({ data:null, error:{ message:"duplicate key value violates unique constraint", code:"23505" } });
           }
         }
-        const feitas = arr.map(x => { const row = { ...x }; if(!("id" in row) && t !== "jb_contagem_item" && t !== "jb_preco" && t !== "jb_faturamento" && t !== "jb_ficha_item" && t !== "jb_subreceita_item") row.id = nextId(t); if(!row.criado_em) row.criado_em = new Date().toISOString(); (DB[t] = DB[t] || []).push(row); return row; });
+        const feitas = arr.map(x => { const row = { ...x }; if(freela() && "nome_responsavel" in row) row.nome_responsavel = nomeResp(eu()); if(!("id" in row) && t !== "jb_contagem_item" && t !== "jb_preco" && t !== "jb_faturamento" && t !== "jb_ficha_item" && t !== "jb_subreceita_item") row.id = nextId(t); if(!row.criado_em) row.criado_em = new Date().toISOString(); (DB[t] = DB[t] || []).push(row); return row; });
         window.__LOG.push(["insert", t, arr]);
         const p = Promise.resolve({ data:feitas, error:null });
         p.select = () => ({ single: async () => ({ data:feitas[0], error:null }), maybeSingle: async () => ({ data:feitas[0], error:null }) });
@@ -558,15 +570,40 @@ ${agora ? "window.__AGORA=" + JSON.stringify(agora) + ";" : ""}
   async function rpc(nome, args){
     window.__LOG.push(["rpc", nome, args]);
     if(window.__FALHA && window.__FALHA["rpc:" + nome]) return { data:null, error:{ message:"rede caiu (teste)" } };
+    if(nome === "jb_freela_eu"){
+      if(!freela()) return { data:[], error:null };
+      const a = frAberta();
+      if(a && !a.sessao){ a.sessao = window.__SID; a.sessao_em = new Date(agoraMs()).toISOString(); }
+      const v = frVigente();
+      return { data: v ? [{ nome: v.nome, valido_ate: v.valido_ate }] : [], error:null };
+    }
+    if(nome === "jb_freela_liberar"){
+      if(!gestor()) return { data:null, error:{ message:"so gestor", code:"42501" } };
+      const n = String(args.p_nome || "").trim();
+      const ate = Date.parse(args.p_ate);
+      if(!n || n.length > 40) return { data:null, error:{ message:"nome invalido" } };
+      if(!(ate > agoraMs() + 15 * 60000) || ate > agoraMs() + 4 * 86400000) return { data:null, error:{ message:"validade invalida" } };
+      DB.jb_freela_acesso = DB.jb_freela_acesso || [];
+      DB.jb_freela_acesso.filter(a => !a.encerrado_em).forEach(a => { a.encerrado_em = new Date(agoraMs()).toISOString(); a.encerrado_por = window.__UID; });
+      const id = nextId("jb_freela_acesso");
+      DB.jb_freela_acesso.push({ id, nome: n, valido_de: new Date(agoraMs()).toISOString(), valido_ate: new Date(ate).toISOString(), sessao: null, sessao_em: null,
+                                 criado_por: window.__UID, criado_em: new Date(agoraMs()).toISOString(), encerrado_em: null, encerrado_por: null });
+      return { data:id, error:null };
+    }
+    if(nome === "jb_freela_encerrar"){
+      if(!gestor()) return { data:null, error:{ message:"so gestor", code:"42501" } };
+      (DB.jb_freela_acesso || []).filter(a => !a.encerrado_em).forEach(a => { a.encerrado_em = new Date(agoraMs()).toISOString(); a.encerrado_por = window.__UID; });
+      return { data:null, error:null };
+    }
     if(nome === "jb_salvar_contagem"){
-      const u = eu(); if(!u) return { data:null, error:{ message:"sem acesso", code:"42501" } };
+      const u = eu(); if(!u || !membro()) return { data:null, error:{ message:"sem acesso", code:"42501" } };
       let c = DB.jb_contagem.find(x => x.data === args.p_data && x.momento === args.p_momento);
       if(c){
         const podeEditar = gestor() || (c.registrado_por === window.__UID && c.data === hojeSP());
         if(!podeEditar) return { data:null, error:{ message:"new row violates row-level security policy", code:"42501" } };
-        c.atualizado_em = new Date().toISOString(); c.nome_responsavel = u.nome;
+        c.atualizado_em = new Date().toISOString(); c.nome_responsavel = nomeResp(u);
       } else {
-        c = { id: nextId("jb_contagem"), data: args.p_data, momento: args.p_momento, registrado_por: window.__UID, nome_responsavel: u.nome, criado_em: new Date().toISOString(), atualizado_em: new Date().toISOString() };
+        c = { id: nextId("jb_contagem"), data: args.p_data, momento: args.p_momento, registrado_por: window.__UID, nome_responsavel: nomeResp(u), criado_em: new Date().toISOString(), atualizado_em: new Date().toISOString() };
         DB.jb_contagem.push(c);
       }
       (args.p_itens || []).forEach(it => {
@@ -591,7 +628,7 @@ ${agora ? "window.__AGORA=" + JSON.stringify(agora) + ";" : ""}
       return { data:c.id, error:null };
     }
     if(nome === "jb_repor"){
-      const u = eu(); if(!u) return { data:null, error:{ message:"sem acesso", code:"42501" } };
+      const u = eu(); if(!u || !membro()) return { data:null, error:{ message:"sem acesso", code:"42501" } };
       const ab = DB.jb_contagem.find(x => x.data === args.p_data && x.momento === "abertura");
       if(!ab) return { data:null, error:{ message:"turno ainda nao aberto" } };
       (args.p_itens || []).forEach(it => {

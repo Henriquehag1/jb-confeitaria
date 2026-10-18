@@ -11,11 +11,12 @@ const LOGINS = [
   { nome: "Jessica",  email: "jessica@jbconfeitaria.app"  },
   { nome: "Yasmin",   email: "delivery@jbconfeitaria.app" },
   { nome: "Eliana",   email: "producao@jbconfeitaria.app" },
-  { nome: "Henrique", email: "henrique@jbconfeitaria.app" }
+  { nome: "Henrique", email: "henrique@jbconfeitaria.app" },
+  { nome: "Freela",   email: "freela@jbconfeitaria.app"   }
 ];
 
 const TZ = "America/Sao_Paulo";
-const VERSAO = "2026-10-16a";   // aparece no login e no pé da Home, para saber qual versão cada celular tem
+const VERSAO = "2026-10-18a";   // aparece no login e no pé da Home, para saber qual versão cada celular tem
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
   auth: { persistSession: true, autoRefreshToken: true }
 });
