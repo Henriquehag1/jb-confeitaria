@@ -9,8 +9,8 @@
 
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#F8F0EA">
-<link rel="icon" href="icon-192.png?v=2026-10-16a" type="image/png">
-<link rel="apple-touch-icon" href="icon-180.png?v=2026-10-16a">
+<link rel="icon" href="icon-192.png?v=2026-10-18a" type="image/png">
+<link rel="apple-touch-icon" href="icon-180.png?v=2026-10-18a">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -1476,6 +1476,11 @@ h1,h2,h3.t,.wordmark,.top .marca b,.datebar .d,.big .t,.navbar .t,
 .eq-rel-datas{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
 .eq-form .eq-rel-op{flex-direction:row;align-items:center;gap:8px;font-size:.86rem;color:var(--tinta);}
 .eq-rel-texto{width:100%;box-sizing:border-box;font:inherit;font-size:16px;line-height:1.45;padding:12px;color:var(--tinta);border:1px solid var(--linha);border-radius:12px;background:#fff;resize:vertical;}
+.fr-ac{margin-top:16px;padding-top:14px;border-top:1px solid var(--linha);display:flex;flex-direction:column;gap:8px;}
+.fr-ac h4{margin:0;font-size:.95rem;color:var(--tinta);}
+.fr-ac .sub{margin:0;}
+.fr-ac .nota{margin:0;font-size:.79rem;color:var(--tinta-3);font-weight:300;line-height:1.45;}
+.fr-ac-ok{margin:0;font-weight:600;color:var(--tinta);}
 .eq-rel-copiar{align-self:flex-start;background:var(--cacau);color:var(--creme);border:none;border-radius:999px;padding:10px 18px;font-weight:600;min-height:44px;}
 </style>
 </head>
@@ -1493,7 +1498,7 @@ h1,h2,h3.t,.wordmark,.top .marca b,.datebar .d,.big .t,.navbar .t,
   <!-- ================= LOGIN ================= -->
   <section id="scLogin" class="login hide">
     <div class="mark">
-      <img class="marca-jb" src="marca-jb.png?v=2026-10-16a" alt="Jessica Ballassa Confeitaria" width="210" height="191">
+      <img class="marca-jb" src="marca-jb.png?v=2026-10-18a" alt="Jessica Ballassa Confeitaria" width="210" height="191">
       <p class="slogan">aqui tem amor<span class="pt">.</span></p>
       <div class="versao" id="loginVersao"></div>
     </div>
@@ -1503,14 +1508,14 @@ h1,h2,h3.t,.wordmark,.top .marca b,.datebar .d,.big .t,.navbar .t,
       <input id="pin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="PIN" autocomplete="current-password">
       <button id="btnEntrar">Entrar</button>
     </div>
-    <p class="tip">Digite uma vez e o celular guarda. Da próxima vez já abre direto.</p>
+    <p class="tip" id="loginTip">Digite uma vez e o celular guarda. Da próxima vez já abre direto.</p>
   </section>
 
   <!-- ================= HOME ================= -->
   <section id="scHome" class="hide">
     <div class="top">
       <div class="marca">
-        <img class="selo" src="selo-192.png?v=2026-10-16a" alt="" width="34" height="34">
+        <img class="selo" src="selo-192.png?v=2026-10-18a" alt="" width="34" height="34">
         <div><b>Jessica Ballassa</b><span id="homeSub">Ateliê</span></div>
       </div>
       <button class="recarregar" id="homeRecarregar" type="button" aria-label="Atualizar" title="Atualizar">&#8635;</button>
@@ -1876,23 +1881,24 @@ h1,h2,h3.t,.wordmark,.top .marca b,.datebar .d,.big .t,.navbar .t,
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.116.0/dist/umd/supabase.min.js"></script>
-<script src="js/00-base.js?v=2026-10-16a"></script>
-<script src="js/10-entrada.js?v=2026-10-16a"></script>
-<script src="js/20-custos.js?v=2026-10-16a"></script>
-<script src="js/25-promo.js?v=2026-10-16a"></script>
-<script src="js/30-mes.js?v=2026-10-16a"></script>
-<script src="js/35-saude.js?v=2026-10-16a"></script>
-<script src="js/40-producao.js?v=2026-10-16a"></script>
-<script src="js/50-contagem.js?v=2026-10-16a"></script>
-<script src="js/60-afazeres.js?v=2026-10-16a"></script>
-<script src="js/70-dias.js?v=2026-10-16a"></script>
-<script src="js/72-equipe.js?v=2026-10-16a"></script>
-<script src="js/74-bolsa.js?v=2026-10-16a"></script>
-<script src="js/76-conferencia.js?v=2026-10-16a"></script>
-<script src="js/80-estoque.js?v=2026-10-16a"></script>
-<script src="js/85-encomendas.js?v=2026-10-16a"></script>
-<script src="js/88-contas.js?v=2026-10-16a"></script>
-<script src="js/89-contador.js?v=2026-10-16a"></script>
-<script src="js/90-ligacoes.js?v=2026-10-16a"></script>
+<script src="js/00-base.js?v=2026-10-18a"></script>
+<script src="js/10-entrada.js?v=2026-10-18a"></script>
+<script src="js/12-freela.js?v=2026-10-18a"></script>
+<script src="js/20-custos.js?v=2026-10-18a"></script>
+<script src="js/25-promo.js?v=2026-10-18a"></script>
+<script src="js/30-mes.js?v=2026-10-18a"></script>
+<script src="js/35-saude.js?v=2026-10-18a"></script>
+<script src="js/40-producao.js?v=2026-10-18a"></script>
+<script src="js/50-contagem.js?v=2026-10-18a"></script>
+<script src="js/60-afazeres.js?v=2026-10-18a"></script>
+<script src="js/70-dias.js?v=2026-10-18a"></script>
+<script src="js/72-equipe.js?v=2026-10-18a"></script>
+<script src="js/74-bolsa.js?v=2026-10-18a"></script>
+<script src="js/76-conferencia.js?v=2026-10-18a"></script>
+<script src="js/80-estoque.js?v=2026-10-18a"></script>
+<script src="js/85-encomendas.js?v=2026-10-18a"></script>
+<script src="js/88-contas.js?v=2026-10-18a"></script>
+<script src="js/89-contador.js?v=2026-10-18a"></script>
+<script src="js/90-ligacoes.js?v=2026-10-18a"></script>
 </body>
 </html>

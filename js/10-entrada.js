@@ -17,13 +17,18 @@ function montarLogin(){
     b.onclick = () => {
       escolhido = l;
       [...box.children].forEach(c => c.setAttribute("aria-pressed", String(c === b)));
+      $("pin").placeholder = l.freela ? "Código" : "PIN";
+      $("pin").setAttribute("aria-label", l.freela ? "Código de 6 números que a Jessica mandou" : "PIN");
+      $("loginTip").textContent = l.freela
+        ? "Digite o código de 6 números que a Jessica mandou. Ele vale só neste celular e só até a hora combinada."
+        : "Digite uma vez e o celular guarda. Da próxima vez já abre direto.";
       $("pin").focus();
     };
     box.appendChild(b);
   });
   const ultimo = localStorage.getItem("jb_ultimo");
   if(ultimo){
-    const i = LOGINS.findIndex(l => l.email === ultimo);
+    const i = LOGINS.findIndex(l => l.email && l.email === ultimo);
     if(i >= 0) box.children[i].click();
   }
 }
@@ -32,9 +37,15 @@ async function entrar(){
   const pin = $("pin").value.trim();
   $("loginErr").classList.add("hide");
   if(!escolhido){ erroLogin("Toque no seu nome primeiro."); return; }
-  if(pin.length < 6){ erroLogin("O PIN tem 6 números."); return; }
+  if(pin.length < 6){ erroLogin(escolhido.freela ? "O código tem 6 números." : "O PIN tem 6 números."); return; }
   $("btnEntrar").disabled = true;
   $("btnEntrar").textContent = "...";
+  if(escolhido.freela){
+    await entrarFreela(pin);
+    $("btnEntrar").disabled = false;
+    $("btnEntrar").textContent = "Entrar";
+    return;
+  }
   const { error } = await sb.auth.signInWithPassword({ email: escolhido.email, password: pin });
   $("btnEntrar").disabled = false;
   $("btnEntrar").textContent = "Entrar";
@@ -43,12 +54,26 @@ async function entrar(){
   $("pin").value = "";
   await iniciar();
 }
+/* "hoje às 23:00", "amanhã às 06:00" ou "sáb 19/10 às 06:00" */
+function quandoAte(iso){
+  if(!iso) return "";
+  const d = new Date(iso);
+  const dia = new Intl.DateTimeFormat("en-CA",{timeZone:TZ,year:"numeric",month:"2-digit",day:"2-digit"}).format(d);
+  const hora = new Intl.DateTimeFormat("pt-BR",{timeZone:TZ,hour:"2-digit",minute:"2-digit"}).format(d);
+  if(dia === hojeSP()) return "hoje às " + hora;
+  if(dia === diaMais(1)) return "amanhã às " + hora;
+  return diaCurto(dia) + " às " + hora;
+}
 function erroLogin(t){ const e = $("loginErr"); e.textContent = t; e.classList.remove("hide"); }
 
 /* ============================================================
    CARGA
    ============================================================ */
 async function iniciar(){
+  /* Neste celular tem um acesso de freela guardado: ele vale mais que a sessão normal. */
+  const tk = lerTokenFreela();
+  if(tk && await iniciarFreela(tk)) return;
+  sb = SB_REAL;
   const { data: { session } } = await sb.auth.getSession();
   if(!session){ montarLogin(); show("scLogin"); return; }
 
@@ -74,7 +99,7 @@ async function iniciar(){
   PRODUTOS_OK = !ep;
 
   // quem não é gestor abriu o app hoje, então marca a presença como sugestão
-  if(EU.papel !== "gestor") await baterPonto();
+  if(EU.papel !== "gestor" && EU.papel !== "freela") await baterPonto();
 
   await carregarHome();
 }
@@ -93,25 +118,33 @@ function ajustarGrupos(){
 }
 
 async function carregarHome(){
-  $("whoName").textContent = EU.nome;
+  const freela = EU.papel === "freela";
+  $("whoName").textContent = EU.apelido || EU.nome;
   $("homeVersao").textContent = "JB OS · versão " + VERSAO;
-  $("homeSub").textContent = EU.papel === "gestor" ? "Ateliê" : (EU.papel === "producao" ? "Produção" : "Contagem de turno");
+  $("homeSub").textContent = EU.papel === "gestor" ? "Ateliê"
+    : EU.papel === "producao" ? "Produção"
+    : freela ? "Freela · até " + quandoAte(EU.freela_ate).replace(/^.* às /, "")
+    : "Contagem de turno";
   $("hoje").textContent = dataLonga(hojeSP());
   $("agora").textContent = horaSP();
 
-  const conta   = EU.papel === "gestor" || EU.papel === "equipe";
+  const conta   = EU.papel === "gestor" || EU.papel === "equipe" || freela;
 
   ["btnAbertura","btnFechamento","btnHist"].forEach(b => $(b).classList.toggle("hide", !conta));
+  /* A freela só fecha a geladeira: sem histórico (a conta é de todas as freelas) e sem plano. */
+  $("btnHist").classList.toggle("hide", !conta || freela);
   /* Todos veem "O que fazer hoje": o plano pode passar tarefa para a produção e para a
      equipe da noite. Cada um só recebe o que é para o seu papel, e a receita só abre
      para a equipe quando a tarefa foi passada para ela (o banco garante). */
-  $("btnProducao").className = "big" + (conta ? " ghost" : "");
+  $("btnProducao").className = "big" + (conta ? " ghost" : "") + (freela ? " hide" : "");
   $("btnProducao").querySelector(".t").textContent =
     EU.papel === "gestor" ? "Plano de produção" : "O que fazer hoje";
   $("btnProducao").querySelector(".s").textContent =
     EU.papel === "gestor" ? "Diga o que precisa ser feito e em que quantidade"
                           : "Suas receitas com as quantidades certas";
-  $("homeTip").textContent = conta
+  $("homeTip").textContent = freela
+    ? "Conte item por item, sem pressa. Seu acesso vale até " + quandoAte(EU.freela_ate) + "."
+    : conta
     ? "Conte item por item, sem pressa. Se errar, dá para corrigir no mesmo dia."
     : "Toque na receita para ver os ingredientes já na quantidade certa e o passo a passo.";
   $("btnHist").querySelector(".s").textContent = EU.papel === "gestor"
@@ -169,7 +202,7 @@ async function carregarHome(){
   const madrugada = horaSPnum() < 8;
   /* Turno de ontem: de madrugada, se hoje ainda não tem nada e ontem teve abertura,
      a equipe continua em ontem, tanto para fechar tarde quanto para o adendo. */
-  const turnoDeOntem = EU.papel === "equipe" && madrugada
+  const turnoDeOntem = (EU.papel === "equipe" || freela) && madrugada
                        && !hj.abertura && !hj.fechamento && !!on.abertura;
   TURNO_DIA = turnoDeOntem ? ontem : hoje;
   HOME_DIA = hoje;

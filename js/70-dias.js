@@ -92,7 +92,7 @@ function cartaoPonto(id, titulo, sub, feito){
 async function montarCheguei(){
   const box = $("cardCheguei");
   box.innerHTML = "";
-  if(!EU || EU.papel === "gestor") return;
+  if(!EU || EU.papel === "gestor" || EU.papel === "freela") return;
 
   const dia = diaDoTurnoSP();
   let ponto = null, entrada = null, saidaPrev = null;
@@ -169,7 +169,7 @@ async function montarCheguei(){
 async function montarMeusDias(){
   const box = $("cardMeusDias");
   box.innerHTML = "";
-  if(!EU || EU.papel === "gestor") return;
+  if(!EU || EU.papel === "gestor" || EU.papel === "freela") return;
 
   const mes = primeiroDia(hojeSP());
   let linhas = [];

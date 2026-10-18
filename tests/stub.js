@@ -198,6 +198,11 @@ ${agora ? "window.__AGORA=" + JSON.stringify(agora) + ";" : ""}
   const eu = () => DB.jb_usuario.find(u => u.user_id === window.__UID) || null;
   const gestor = () => { const u = eu(); return !!(u && u.ativo && u.papel === "gestor"); };
   const membro = () => { const u = eu(); return !!(u && u.ativo); };
+  /* freela: entra por código, recebe um token, e só fala com as funções jb_freela_* */
+  const agoraMs = () => window.__AGORA ? Date.parse(window.__AGORA) : Date.now();
+  const frAberta = () => (DB.jb_freela_acesso || []).filter(a => !a.encerrado_em && Date.parse(a.valido_de) <= agoraMs() && agoraMs() < Date.parse(a.valido_ate))
+                                                     .sort((a, b) => b.id - a.id)[0] || null;
+  const frPorToken = tk => { const a = frAberta(); return a && tk && a.token === tk ? a : null; };
   const hojeSP = () => new Intl.DateTimeFormat("en-CA",{timeZone:"America/Sao_Paulo",year:"numeric",month:"2-digit",day:"2-digit"}).format(window.__AGORA ? new Date(window.__AGORA) : new Date());
   const nextId = t => Math.max(0, ...(DB[t]||[]).map(r => Number(r.id)||0)) + 1;
   const diaMais = (iso, n) => { const d = new Date(iso + "T12:00:00Z"); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0,10); };
@@ -481,7 +486,7 @@ ${agora ? "window.__AGORA=" + JSON.stringify(agora) + ";" : ""}
                       "jb_custo_fixo_total","jb_volume_calculado","jb_giro_produto","jb_insumo","jb_preco","jb_margem","jb_promo_teto","jb_canal","jb_config","jb_vale_taxa","jb_meio_pagamento",
                       "jb_mes","jb_faturamento","jb_ficha","jb_ficha_item","jb_subreceita","jb_subreceita_item","jb_uso_ingrediente",
                       "jb_insumo_ultimo_pago","jb_ficha_alertas","jb_compra","jb_compra_item","jb_estoque_contagem","jb_estoque_item","jb_estoque_sugestao",
-                      "jb_kpi_mes","jb_kpi_destino","jb_dia_vendas","jb_encomenda","jb_bolo_opcao","jb_ocorrencia","jb_conta","jb_falta","jb_freela","jb_banco_horas","jb_imposto_regra","jb_parametro","jb_contador_mes","jb_cartao_fatura"];
+                      "jb_kpi_mes","jb_kpi_destino","jb_dia_vendas","jb_encomenda","jb_bolo_opcao","jb_ocorrencia","jb_conta","jb_falta","jb_freela","jb_banco_horas","jb_imposto_regra","jb_parametro","jb_contador_mes","jb_cartao_fatura","jb_freela_acesso"];
     if(soGestor.includes(t) && !gestor()) return [];
     if(t === "jb_dia_trabalhado" && !gestor()) return (DB[t]||[]).filter(r => r.user_id === window.__UID);
     if(t === "jb_contagem_mov" && !gestor()) return [];
@@ -558,8 +563,75 @@ ${agora ? "window.__AGORA=" + JSON.stringify(agora) + ";" : ""}
   async function rpc(nome, args){
     window.__LOG.push(["rpc", nome, args]);
     if(window.__FALHA && window.__FALHA["rpc:" + nome]) return { data:null, error:{ message:"rede caiu (teste)" } };
+    if(nome === "jb_freela_entrar"){
+      const a = frAberta();
+      if(!a) return { data:{ ok:false, motivo:"fechado" }, error:null };
+      if(a.erros >= 5) return { data:{ ok:false, motivo:"bloqueado" }, error:null };
+      if(String(args.p_codigo) !== a.codigo){ a.erros = (a.erros || 0) + 1; return { data:{ ok:false, motivo: a.erros >= 5 ? "bloqueado" : "codigo" }, error:null }; }
+      if(a.token) return { data:{ ok:false, motivo:"em_uso" }, error:null };
+      a.token = "tok" + "x".repeat(40) + a.id; a.token_em = new Date(agoraMs()).toISOString();
+      return { data:{ ok:true, token:a.token, nome:a.nome, valido_ate:a.valido_ate }, error:null };
+    }
+    if(nome === "jb_freela_dados"){
+      const a = frPorToken(args.p_token);
+      if(!a) return { data:{ ok:false }, error:null };
+      const hoje = hojeSP(), ontem = diaMais(hoje, -1);
+      const cs = DB.jb_contagem.filter(c => c.data === hoje || c.data === ontem);
+      return { data:{ ok:true, id:a.id, nome:a.nome, valido_ate:a.valido_ate,
+        produtos: DB.jb_produto.filter(p => p.ativo).sort((x, y) => x.ordem - y.ordem).map(p => ({ id:p.id, nome:p.nome, ordem:p.ordem, ativo:p.ativo, foto_url:p.foto_url || null })),
+        contagens: cs.map(c => ({ id:c.id, data:c.data, momento:c.momento, registrado_por: c.freela_id === a.id ? "freela:" + a.id : null, nome_responsavel:c.nome_responsavel, criado_em:c.criado_em })),
+        itens: DB.jb_contagem_item.filter(i => cs.some(c => c.id === i.contagem_id && c.freela_id === a.id)).map(i => ({ ...i })),
+        adendos: (DB.jb_adendo || []).filter(d => d.freela_id === a.id).map(d => ({ ...d, registrado_por: "freela:" + a.id }))
+      }, error:null };
+    }
+    if(nome === "jb_freela_salvar"){
+      const a = frPorToken(args.p_token);
+      if(!a) return { data:null, error:{ message:"sem acesso", code:"42501" } };
+      if(args.p_momento !== "fechamento") return { data:null, error:{ message:"so fechamento", code:"42501" } };
+      const hoje = hojeSP();
+      if(args.p_data !== hoje && args.p_data !== diaMais(hoje, -1)) return { data:null, error:{ message:"fora do dia", code:"42501" } };
+      const ab = DB.jb_contagem.find(x => x.data === args.p_data && x.momento === "abertura");
+      if(!ab) return { data:null, error:{ message:"turno ainda nao aberto" } };
+      let c = DB.jb_contagem.find(x => x.data === args.p_data && x.momento === "fechamento");
+      if(c && c.freela_id !== a.id) return { data:null, error:{ message:"turno ja fechado", code:"42501" } };
+      const nomeF = a.nome + " (freela)";
+      if(!c){ c = { id: nextId("jb_contagem"), data: args.p_data, momento: "fechamento", registrado_por: a.criado_por, nome_responsavel: nomeF, freela_id: a.id,
+                    criado_em: new Date(agoraMs()).toISOString(), atualizado_em: new Date(agoraMs()).toISOString() }; DB.jb_contagem.push(c); }
+      (args.p_itens || []).forEach(it => {
+        const ex = DB.jb_contagem_item.find(x => x.contagem_id === c.id && x.produto_id === it.produto_id);
+        if(ex) ex.qtd = it.qtd; else DB.jb_contagem_item.push({ contagem_id:c.id, produto_id:it.produto_id, qtd:it.qtd });
+      });
+      return { data:c.id, error:null };
+    }
+    if(nome === "jb_freela_adendo"){
+      const a = frPorToken(args.p_token);
+      if(!a) return { data:null, error:{ message:"sem acesso", code:"42501" } };
+      DB.jb_adendo = DB.jb_adendo || [];
+      (args.p_linhas || []).forEach(l => DB.jb_adendo.push({ id: nextId("jb_adendo"), data:l.data, produto_id:l.produto_id ?? null, qtd:l.qtd || 0, texto:l.texto || null,
+        registrado_por: a.criado_por, nome_responsavel: a.nome + " (freela)", freela_id: a.id, criado_em: new Date(agoraMs()).toISOString() }));
+      return { data:(args.p_linhas || []).length, error:null };
+    }
+    if(nome === "jb_freela_liberar"){
+      if(!gestor()) return { data:null, error:{ message:"so gestor", code:"42501" } };
+      const n = String(args.p_nome || "").trim();
+      const ate = Date.parse(args.p_ate);
+      if(!n || n.length > 40) return { data:null, error:{ message:"nome invalido" } };
+      if(!(ate > agoraMs() + 15 * 60000) || ate > agoraMs() + 4 * 86400000) return { data:null, error:{ message:"validade invalida" } };
+      DB.jb_freela_acesso = DB.jb_freela_acesso || [];
+      DB.jb_freela_acesso.filter(a => !a.encerrado_em).forEach(a => { a.encerrado_em = new Date(agoraMs()).toISOString(); a.encerrado_por = window.__UID; });
+      const id = nextId("jb_freela_acesso");
+      const codigo = String(100000 + id * 7919 % 900000);
+      DB.jb_freela_acesso.push({ id, nome: n, valido_de: new Date(agoraMs()).toISOString(), valido_ate: new Date(ate).toISOString(), codigo, erros: 0, token: null, token_em: null,
+                                 criado_por: window.__UID, criado_em: new Date(agoraMs()).toISOString(), encerrado_em: null, encerrado_por: null });
+      return { data:{ id, codigo }, error:null };
+    }
+    if(nome === "jb_freela_encerrar"){
+      if(!gestor()) return { data:null, error:{ message:"so gestor", code:"42501" } };
+      (DB.jb_freela_acesso || []).filter(a => !a.encerrado_em).forEach(a => { a.encerrado_em = new Date(agoraMs()).toISOString(); a.encerrado_por = window.__UID; });
+      return { data:null, error:null };
+    }
     if(nome === "jb_salvar_contagem"){
-      const u = eu(); if(!u) return { data:null, error:{ message:"sem acesso", code:"42501" } };
+      const u = eu(); if(!u || !membro()) return { data:null, error:{ message:"sem acesso", code:"42501" } };
       let c = DB.jb_contagem.find(x => x.data === args.p_data && x.momento === args.p_momento);
       if(c){
         const podeEditar = gestor() || (c.registrado_por === window.__UID && c.data === hojeSP());
@@ -591,7 +663,7 @@ ${agora ? "window.__AGORA=" + JSON.stringify(agora) + ";" : ""}
       return { data:c.id, error:null };
     }
     if(nome === "jb_repor"){
-      const u = eu(); if(!u) return { data:null, error:{ message:"sem acesso", code:"42501" } };
+      const u = eu(); if(!u || !membro()) return { data:null, error:{ message:"sem acesso", code:"42501" } };
       const ab = DB.jb_contagem.find(x => x.data === args.p_data && x.momento === "abertura");
       if(!ab) return { data:null, error:{ message:"turno ainda nao aberto" } };
       (args.p_itens || []).forEach(it => {
