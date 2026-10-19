@@ -148,6 +148,7 @@ function baseDB(agora){
       { id: 3, data: hoje, tipo: "ficha", ref_id: 11, qtd: 5, feito: false, feito_em: null, obs: null, para: "equipe", criado_em: hoje + "T10:06:00Z" }
     ],
     jb_perda: [],
+    jb_freezer_mov: [],
     jb_conta: [
       { id: 1, tipo: "imposto", descricao: "DAS do Simples, setembro/2026", competencia: "2026-09-01", vencimento: diaMais(hoje, -2), valor: 1240.00,
         codigo_barras: "858000000127400003282622930720262754978640606311", documento: "07.20.26275.9786406-0", boleto_path: "1/boleto-1.pdf",
@@ -198,6 +199,9 @@ ${agora ? "window.__AGORA=" + JSON.stringify(agora) + ";" : ""}
   const eu = () => DB.jb_usuario.find(u => u.user_id === window.__UID) || null;
   const gestor = () => { const u = eu(); return !!(u && u.ativo && u.papel === "gestor"); };
   const membro = () => { const u = eu(); return !!(u && u.ativo); };
+  /* o freezer mora na última contagem com freezer contado até o dia */
+  const refFreezer = dia => DB.jb_contagem.filter(c => c.freezer_contado && c.data <= dia)
+    .sort((a, b) => a.data !== b.data ? (a.data < b.data ? 1 : -1) : (a.momento === "fechamento" ? -1 : 1))[0] || null;
   /* freela: entra por código, recebe um token, e só fala com as funções jb_freela_* */
   const agoraMs = () => window.__AGORA ? Date.parse(window.__AGORA) : Date.now();
   const frAberta = () => (DB.jb_freela_acesso || []).filter(a => !a.encerrado_em && Date.parse(a.valido_de) <= agoraMs() && agoraMs() < Date.parse(a.valido_ate))
@@ -663,6 +667,26 @@ ${agora ? "window.__AGORA=" + JSON.stringify(agora) + ";" : ""}
       }
       return { data:c.id, error:null };
     }
+    if(nome === "jb_freezer_entrada"){
+      if(!gestor()) return { data:null, error:{ message:"so gestor", code:"42501" } };
+      const hoje = hojeSP();
+      let ref = refFreezer(hoje);
+      if(!ref){
+        ref = DB.jb_contagem.find(x => x.data === hoje && x.momento === "abertura");
+        if(!ref) return { data:null, error:{ message:"conte o freezer primeiro" } };
+        ref.freezer_contado = true;
+      }
+      const soma = {};
+      (args.p_itens || []).forEach(it => { const n = Math.max(0, Math.min(999, it.qtd || 0)); if(n > 0 && DB.jb_produto.some(p => p.id === it.produto_id)) soma[it.produto_id] = Math.min(999, (soma[it.produto_id] || 0) + n); });
+      Object.keys(soma).forEach(k => {
+        const pid = Number(k);
+        let r = DB.jb_contagem_item.find(x => x.contagem_id === ref.id && x.produto_id === pid);
+        if(!r){ r = { contagem_id: ref.id, produto_id: pid, qtd: 0, freezer: 0 }; DB.jb_contagem_item.push(r); }
+        r.freezer = Math.min(9999, (r.freezer || 0) + soma[k]);
+        DB.jb_freezer_mov.push({ id: nextId("jb_freezer_mov"), data: hoje, produto_id: pid, qtd: soma[k], tipo: "entrada", contagem_id: ref.id, nome: eu().nome, criado_em: new Date().toISOString() });
+      });
+      return { data: DB.jb_contagem_item.filter(x => x.contagem_id === ref.id).reduce((s, x) => s + (x.freezer || 0), 0), error:null };
+    }
     if(nome === "jb_repor"){
       const u = eu(); if(!u || !membro()) return { data:null, error:{ message:"sem acesso", code:"42501" } };
       const ab = DB.jb_contagem.find(x => x.data === args.p_data && x.momento === "abertura");
@@ -672,7 +696,14 @@ ${agora ? "window.__AGORA=" + JSON.stringify(agora) + ";" : ""}
         const ex = DB.jb_contagem_item.find(x => x.contagem_id === ab.id && x.produto_id === it.produto_id);
         const antes = ex ? ex.qtd : 0;
         if(ex) ex.qtd = Math.min(999, ex.qtd + it.qtd); else DB.jb_contagem_item.push({ contagem_id:ab.id, produto_id:it.produto_id, qtd:it.qtd, freezer: 0 });
-        if(it.do_freezer && gestor()){ const r = DB.jb_contagem_item.find(x => x.contagem_id === ab.id && x.produto_id === it.produto_id); r.freezer = Math.max(0, (r.freezer || 0) - it.qtd); }
+        if(it.do_freezer && gestor()){
+          const ref = refFreezer(args.p_data) || ab;
+          const r = DB.jb_contagem_item.find(x => x.contagem_id === ref.id && x.produto_id === it.produto_id);
+          if(r && r.freezer > 0){
+            const sai = Math.min(r.freezer, it.qtd); r.freezer -= sai;
+            DB.jb_freezer_mov.push({ id: nextId("jb_freezer_mov"), data: args.p_data, produto_id: it.produto_id, qtd: -sai, tipo: "saida", contagem_id: ref.id, nome: u.nome, criado_em: new Date().toISOString() });
+          }
+        }
         (DB.jb_contagem_mov = DB.jb_contagem_mov || []).push({ id: nextId("jb_contagem_mov"), data:args.p_data, momento:"abertura",
           produto_id:it.produto_id, antes, depois:Math.min(999, antes + it.qtd), tipo:"reposicao", nome:u.nome, criado_em:new Date().toISOString() });
       });

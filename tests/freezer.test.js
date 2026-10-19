@@ -92,3 +92,52 @@ test("abertura do dia seguinte começa do freezer de ontem", async () => {
   assert.equal(await a.page.locator("#countList .item[data-pid='2'] input[data-local='freezer']").getAttribute("placeholder"), "74");
   semErros(a); await a.fechar();
 });
+
+test("Coloquei no freezer: soma no freezer sem mexer na expositora e fica no histórico", async () => {
+  const hoje = hojeSP();
+  const a = await abrir("uJes", { db: db => comAbertura(db, hoje) });
+  assert.match(await a.texto("#freezerCard"), /Coloquei no freezer/);
+  await a.page.click("#btnFreezerEntrou"); await a.espera(400);
+  assert.match(await a.texto("#fzList .item[data-pid='2'] .fz"), /no freezer: 74/);
+  assert.equal(await a.page.locator("#btnFzSalvar").isDisabled(), true, "sem nada digitado não salva");
+  await a.page.locator("#fzList .item[data-pid='2'] .step input").fill("20");
+  await a.page.locator("#fzList .item[data-pid='3'] .step input").fill("5");
+  await a.espera(100);
+  assert.match(await a.texto("#fzProg"), /25 unidades/);
+  await a.page.click("#btnFzSalvar"); await a.espera(600);
+  const r = (await a.log("rpc")).find(x => x[1] === "jb_freezer_entrada");
+  assert.deepEqual(r[2].p_itens, [{ produto_id: 2, qtd: 20 }, { produto_id: 3, qtd: 5 }]);
+  const it = await a.db("jb_contagem_item");
+  const sup = it.find(i => i.contagem_id === 5 && i.produto_id === 2);
+  assert.deepEqual([sup.qtd, sup.freezer], [32, 94], "expositora igual, freezer somado");
+  assert.equal(it.find(i => i.contagem_id === 5 && i.produto_id === 3).freezer, 5);
+  assert.match(await a.texto("#homeMsg"), /25 unidades entraram no freezer/);
+  assert.match(await a.texto("#freezerCard"), /No freezer · 99/);
+  const mov = await a.db("jb_freezer_mov");
+  assert.equal(mov.length, 2);
+  semErros(a); await a.fechar();
+});
+
+test("depois de colocar, a tela mostra as últimas entradas; repor do freezer entra como saída", async () => {
+  const hoje = hojeSP();
+  const a = await abrir("uJes", { db: db => comAbertura(db, hoje) });
+  await a.page.click("#btnAbertura"); await a.espera(300);
+  await a.page.check("#reporDoFreezer");
+  await a.page.locator("#countList .item[data-pid='2'] .step input").fill("6");
+  await a.espera(100);
+  await a.page.click("#btnSalvar"); await a.espera(500);
+  await a.page.click("#btnFreezerEntrou"); await a.espera(400);
+  assert.match(await a.texto("#fzList .item[data-pid='2'] .fz"), /no freezer: 68/);
+  assert.match(await a.texto("#fzJa"), /Saiu para a expositora/);
+  assert.match(await a.texto("#fzJa"), /-6/);
+  semErros(a); await a.fechar();
+});
+
+test("Yasmin não tem Coloquei no freezer nem consegue gravar", async () => {
+  const hoje = hojeSP();
+  const a = await abrir("uYas", { db: db => comAbertura(db, hoje) });
+  assert.equal(await a.page.locator("#btnFreezerEntrou").count(), 0);
+  const r = await a.page.evaluate(async () => { const x = await sb.rpc("jb_freezer_entrada", { p_itens: [{ produto_id: 2, qtd: 1 }] }); return x.error && x.error.code; });
+  assert.equal(r, "42501");
+  semErros(a); await a.fechar();
+});

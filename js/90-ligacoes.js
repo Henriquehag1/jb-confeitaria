@@ -57,6 +57,8 @@ $("btnAdSalvar").onclick = salvarAdendo;
 $("btnAdVoltar").onclick = () => mostrarFeito(FEITO_DIA || diaDoTurno());
 $("btnPeSalvar").onclick = salvarPerda;
 $("btnPeVoltar").onclick = voltarDaPerda;
+$("btnFzSalvar").onclick = salvarFreezer;
+$("btnFzVoltar").onclick = carregarHome;
 $("peObs").addEventListener("input", pintarPerda);
 $("adTexto").addEventListener("input", pintarAdendo);
 $("btnPromo").onclick = abrirPromo;
