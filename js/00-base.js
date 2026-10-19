@@ -16,7 +16,7 @@ const LOGINS = [
 ];
 
 const TZ = "America/Sao_Paulo";
-const VERSAO = "2026-10-18d";   // aparece no login e no pé da Home, para saber qual versão cada celular tem
+const VERSAO = "2026-10-19a";   // aparece no login e no pé da Home, para saber qual versão cada celular tem
 const SB_REAL = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
   auth: { persistSession: true, autoRefreshToken: true }
 });
@@ -27,7 +27,7 @@ let sb = SB_REAL;
    UTILITÁRIOS
    ============================================================ */
 const $ = id => document.getElementById(id);
-const SC = ["scLogin","scHome","scCount","scRes","scFeito","scAdendo","scPerda","scHist","scPromo","scCustos","scFicha","scProd","scReceita","scMes","scDias","scAfa","scEstoque","scEnc","scContas","scSaude","scContador"];
+const SC = ["scLogin","scHome","scCount","scRes","scFeito","scAdendo","scPerda","scFreezer","scHist","scPromo","scCustos","scFicha","scProd","scReceita","scMes","scDias","scAfa","scEstoque","scEnc","scContas","scSaude","scContador"];
 /* ============================================================
    NAVEGAÇÃO
    Uma barra só, em todas as telas: voltar, título e atualizar.
@@ -53,6 +53,9 @@ const NAV = {
   scPerda:   { titulo: () => "Perda e descarte",
                voltar: () => voltarDaPerda(),
                recarregar: () => abrirPerda(PE_DIA, null, PE_VOLTA) },
+  scFreezer: { titulo: () => "Coloquei no freezer",
+               voltar: () => carregarHome(),
+               recarregar: () => abrirFreezer() },
   scHist:    { titulo: () => "Últimos dias",
                voltar: () => carregarHome(),
                recarregar: () => abrirHistorico() },

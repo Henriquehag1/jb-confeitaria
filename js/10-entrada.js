@@ -442,27 +442,38 @@ function horaDoLembrete(){
   return 22;
 }
 
-/* O que está no freezer, pela última contagem em que a Jessica ou o Henrique contaram o freezer. */
+/* O que está no freezer agora: a última contagem em que a Jessica ou o Henrique contaram
+   o freezer. "Coloquei no freezer" soma nela e "Saiu do freezer" (Repor) desconta dela. */
+async function freezerAtual(){
+  const { data: cs, error } = await sb.from("jb_contagem").select("id,data,momento,criado_em,atualizado_em").eq("freezer_contado", true)
+    .lte("data", hojeSP()).order("data", { ascending: false }).limit(4);
+  if(error || !cs || !cs.length) return null;
+  const c = cs.slice().sort((a, b) => a.data !== b.data ? (a.data < b.data ? 1 : -1) : (a.momento === "fechamento" ? -1 : 1))[0];
+  const { data } = await sb.from("jb_contagem_item").select("produto_id,freezer").eq("contagem_id", c.id);
+  return { c, itens: data || [] };
+}
+
 async function montarFreezerHome(gestor){
   const box = $("cardFreezer");
   if(!box) return;
   box.innerHTML = "";
   if(!gestor) return;
-  const { data: cs, error } = await sb.from("jb_contagem").select("id,data,momento,criado_em,atualizado_em").eq("freezer_contado", true)
-    .lte("data", hojeSP()).order("data", { ascending: false }).limit(4);
-  if(error || !cs || !cs.length) return;
-  const c = cs.slice().sort((a, b) => a.data !== b.data ? (a.data < b.data ? 1 : -1) : (a.momento === "fechamento" ? -1 : 1))[0];
-  const { data } = await sb.from("jb_contagem_item").select("produto_id,freezer").eq("contagem_id", c.id);
+  const atual = await freezerAtual();
   const nomes = {}; PRODUTOS.forEach(p => { nomes[p.id] = p.nome; });
-  const itens = (data || []).filter(i => (i.freezer || 0) > 0).sort((a, b) => b.freezer - a.freezer);
+  const itens = (atual ? atual.itens : []).filter(i => (i.freezer || 0) > 0).sort((a, b) => b.freezer - a.freezer);
   const card = document.createElement("div"); card.className = "freezer-card"; card.id = "freezerCard";
   const total = itens.reduce((s, i) => s + i.freezer, 0);
   const h = document.createElement("h4"); h.textContent = "No freezer · " + total;
   const p = document.createElement("p");
   p.textContent = itens.length ? itens.map(i => i.freezer + " " + (nomes[i.produto_id] || "item")).join(", ") : "Nada no freezer.";
   const s = document.createElement("p"); s.className = "s";
-  s.textContent = (c.momento === "fechamento" ? "Contado no fechamento" : "Contado na abertura") + (c.data === hojeSP() ? " de hoje" : " de " + dataCurta(c.data))
-    + ". O que sai do freezer entra em Repor, com \"Saiu do freezer\" marcado.";
-  card.append(h, p, s);
+  s.textContent = atual
+    ? "Contado na " + (atual.c.momento === "fechamento" ? "contagem do fechamento" : "abertura") + (atual.c.data === hojeSP() ? " de hoje" : " de " + dataCurta(atual.c.data))
+      + ", mais o que entrou e saiu depois. Saiu para a expositora? Repor, com \"Saiu do freezer\"."
+    : "Conte o freezer na abertura ou toque abaixo quando congelar algo.";
+  const bt = document.createElement("button"); bt.type = "button"; bt.className = "fz-bt"; bt.id = "btnFreezerEntrou";
+  bt.textContent = "Coloquei no freezer";
+  bt.onclick = () => abrirFreezer();
+  card.append(h, p, s, bt);
   box.appendChild(card);
 }

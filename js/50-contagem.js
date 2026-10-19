@@ -1121,6 +1121,124 @@ async function salvarPerda(){
 }
 
 /* ============================================================
+   COLOQUEI NO FREEZER (só a Jessica e o Henrique)
+   Soma no freezer sem mexer na expositora nem na conta de vendas.
+   ============================================================ */
+let FZ_IN = {};      // o que está entrando agora, por produto
+let FZ_AGORA = {};   // o que já está no freezer
+
+async function abrirFreezer(){
+  if(!EU || EU.papel !== "gestor") return carregarHome();
+  FZ_IN = {}; FZ_AGORA = {};
+  aviso("fzMsg", "", "");
+  $("fzData").textContent = dataLonga(hojeSP());
+  const atual = await freezerAtual().catch(() => null);
+  if(atual) atual.itens.forEach(i => { FZ_AGORA[i.produto_id] = i.freezer || 0; });
+
+  const box = $("fzList");
+  box.innerHTML = "";
+  PRODUTOS.forEach(p => {
+    const row = document.createElement("div");
+    row.className = "item";
+    row.dataset.pid = p.id;
+    const im = imgFoto(p.foto_url);
+    if(im) row.appendChild(im);
+    const nome = document.createElement("div");
+    nome.className = "nome"; nome.textContent = p.nome;
+    const fz = document.createElement("span"); fz.className = "fz";
+    fz.textContent = "no freezer: " + (FZ_AGORA[p.id] || 0);
+    nome.appendChild(fz);
+    row.appendChild(nome);
+
+    const step = document.createElement("div");
+    step.className = "step";
+    const menos = document.createElement("button");
+    menos.type = "button"; menos.textContent = "−"; menos.setAttribute("aria-label", "Menos um " + p.nome);
+    const inp = document.createElement("input");
+    inp.type = "tel"; inp.inputMode = "numeric"; inp.maxLength = 3;
+    inp.setAttribute("aria-label", "Entrou no freezer: " + p.nome);
+    const mais = document.createElement("button");
+    mais.type = "button"; mais.textContent = "+"; mais.setAttribute("aria-label", "Mais um " + p.nome);
+    const set = v => {
+      v = Math.max(0, Math.min(999, v));
+      if(v === 0){ inp.value = ""; delete FZ_IN[p.id]; }
+      else { inp.value = v; FZ_IN[p.id] = v; }
+      pintarFreezer();
+    };
+    menos.onclick = () => set((parseInt(inp.value, 10) || 0) - 1);
+    mais.onclick  = () => set((parseInt(inp.value, 10) || 0) + 1);
+    inp.oninput = () => {
+      inp.value = inp.value.replace(/\D/g, "").slice(0, 3);
+      const v = parseInt(inp.value, 10);
+      if(!v) delete FZ_IN[p.id]; else FZ_IN[p.id] = v;
+      pintarFreezer();
+    };
+    inp.onfocus = () => inp.select();
+    inp.onkeydown = e => { if(e.key === "Enter"){ e.preventDefault(); proximoCampo(inp); } };
+    step.append(menos, inp, mais);
+    row.appendChild(step);
+    box.appendChild(row);
+  });
+
+  /* As últimas entradas e saídas, para conferir o que já foi lançado. */
+  const ja = $("fzJa");
+  ja.innerHTML = "";
+  const { data: movs } = await sb.from("jb_freezer_mov").select("data,produto_id,qtd,tipo,nome,criado_em")
+    .order("criado_em", { ascending: false }).limit(12);
+  if(movs && movs.length){
+    const nomeDe = {}; PRODUTOS.forEach(p => nomeDe[p.id] = p.nome);
+    const h = document.createElement("h3"); h.textContent = "Últimas entradas e saídas";
+    ja.appendChild(h);
+    movs.forEach(m => {
+      const l = document.createElement("div"); l.className = "l";
+      const esq = document.createElement("span"); esq.textContent = nomeDe[m.produto_id] || "Item";
+      const hr = document.createElement("span"); hr.className = "hora";
+      hr.textContent = (m.tipo === "entrada" ? "Entrou" : "Saiu para a expositora") + " · " + (m.nome || "") + ", " + dataCurta(m.data) + " às " + horaDe(m.criado_em);
+      esq.appendChild(hr);
+      const q = document.createElement("span"); q.className = "q"; q.textContent = (m.qtd > 0 ? "+" : "") + m.qtd;
+      l.append(esq, q);
+      ja.appendChild(l);
+    });
+  }
+
+  pintarFreezer();
+  show("scFreezer");
+}
+
+function pintarFreezer(){
+  let itens = 0, n = 0;
+  document.querySelectorAll("#fzList .item").forEach(row => {
+    const v = FZ_IN[Number(row.dataset.pid)] || 0;
+    row.classList.toggle("filled", v > 0);
+    if(v > 0){ n++; itens += v; }
+  });
+  $("fzProg").textContent = itens ? (itens + (itens === 1 ? " unidade" : " unidades")) : "";
+  $("btnFzSalvar").disabled = !n;
+  $("btnFzSalvar").textContent = n ? "Guardar no freezer" : "Digite o que entrou no freezer";
+}
+
+async function salvarFreezer(){
+  const itens = Object.keys(FZ_IN).filter(k => FZ_IN[k] > 0).map(k => ({ produto_id: Number(k), qtd: FZ_IN[k] }));
+  if(!itens.length) return;
+  const btn = $("btnFzSalvar");
+  btn.disabled = true; btn.textContent = "Salvando...";
+  const { data, error } = await sb.rpc("jb_freezer_entrada", { p_itens: itens });
+  if(error){
+    btn.disabled = false; btn.textContent = "Guardar no freezer";
+    aviso("fzMsg", /conte o freezer/.test(error.message || "")
+      ? "Ainda não tem freezer contado. Faça a abertura de hoje (com o freezer) e depois volte aqui."
+      : "Não consegui salvar agora. Confira o sinal e tente de novo.", "err");
+    window.scrollTo(0, 0);
+    return;
+  }
+  const n = itens.reduce((s, i) => s + i.qtd, 0);
+  FZ_IN = {};
+  await carregarHome();
+  aviso("homeMsg", n + (n === 1 ? " unidade entrou" : " unidades entraram") + " no freezer." + (typeof data === "number" ? " Agora tem " + data + " no freezer." : ""), "ok");
+  window.scrollTo(0, 0);
+}
+
+/* ============================================================
    HISTÓRICO
    ============================================================ */
 async function abrirHistorico(){
