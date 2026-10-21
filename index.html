@@ -9,8 +9,8 @@
 
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#F8F0EA">
-<link rel="icon" href="icon-192.png?v=2026-10-19a" type="image/png">
-<link rel="apple-touch-icon" href="icon-180.png?v=2026-10-19a">
+<link rel="icon" href="icon-192.png?v=2026-10-21a" type="image/png">
+<link rel="apple-touch-icon" href="icon-180.png?v=2026-10-21a">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -1498,6 +1498,21 @@ h1,h2,h3.t,.wordmark,.top .marca b,.datebar .d,.big .t,.navbar .t,
 .fr-ac-sub{margin:6px 0 0;font-weight:600;font-size:.86rem;color:var(--tinta);}
 .fr-ac-ok{margin:0;font-weight:600;color:var(--tinta);}
 .eq-rel-copiar{align-self:flex-start;background:var(--cacau);color:var(--creme);border:none;border-radius:999px;padding:10px 18px;font-weight:600;min-height:44px;}
+
+/* ---------- quanto fazer ---------- */
+.qf-resumo .qf-total{font-family:var(--display);font-size:1.6rem;font-weight:600;color:var(--coral-forte);margin:2px 0 0;}
+.qf-op{margin:14px 0 0;}
+.qf-op .qf-rot{display:block;font-size:.78rem;color:var(--tinta-3);margin:0 2px 6px;}
+.qf-tit{margin:20px 2px 8px;font-size:.8rem;letter-spacing:.06em;text-transform:uppercase;color:var(--tinta-3);font-weight:600;}
+.qf-item{cursor:pointer;font-family:inherit;color:var(--tinta);}
+.qf-base .qt{font-size:1.05rem;}
+.qf-ed{background:var(--creme);border:1px solid var(--linha);border-radius:13px;padding:12px 13px;margin:-2px 0 10px;display:grid;gap:12px;}
+.qf-ed label{display:grid;grid-template-columns:1fr auto;align-items:center;gap:2px 10px;}
+.qf-ed label span{font-size:.92rem;}
+.qf-ed label small{grid-column:1;font-size:.74rem;color:var(--tinta-3);font-weight:300;}
+.qf-ed label input{grid-row:1 / span 2;grid-column:2;width:76px;height:40px;border-radius:11px;border:1px solid var(--linha-2);text-align:center;font-family:inherit;font-size:1.05rem;font-weight:600;background:var(--areia);color:var(--tinta);}
+.qf-bt{min-height:44px;width:100%;border-radius:12px;border:1px solid var(--coral);background:var(--branco,#fff);color:var(--coral-forte);font-weight:600;font-size:.95rem;font-family:inherit;cursor:pointer;margin-top:4px;}
+.qf-bt.cheio{background:var(--cacau);border-color:var(--cacau);color:var(--rosa-jb);margin-top:14px;}
 </style>
 </head>
 <body>
@@ -1514,7 +1529,7 @@ h1,h2,h3.t,.wordmark,.top .marca b,.datebar .d,.big .t,.navbar .t,
   <!-- ================= LOGIN ================= -->
   <section id="scLogin" class="login hide">
     <div class="mark">
-      <img class="marca-jb" src="marca-jb.png?v=2026-10-19a" alt="Jessica Ballassa Confeitaria" width="210" height="191">
+      <img class="marca-jb" src="marca-jb.png?v=2026-10-21a" alt="Jessica Ballassa Confeitaria" width="210" height="191">
       <p class="slogan">aqui tem amor<span class="pt">.</span></p>
       <div class="versao" id="loginVersao"></div>
     </div>
@@ -1531,7 +1546,7 @@ h1,h2,h3.t,.wordmark,.top .marca b,.datebar .d,.big .t,.navbar .t,
   <section id="scHome" class="hide">
     <div class="top">
       <div class="marca">
-        <img class="selo" src="selo-192.png?v=2026-10-19a" alt="" width="34" height="34">
+        <img class="selo" src="selo-192.png?v=2026-10-21a" alt="" width="34" height="34">
         <div><b>Jessica Ballassa</b><span id="homeSub">Ateliê</span></div>
       </div>
       <button class="recarregar" id="homeRecarregar" type="button" aria-label="Atualizar" title="Atualizar">&#8635;</button>
@@ -1573,6 +1588,11 @@ h1,h2,h3.t,.wordmark,.top .marca b,.datebar .d,.big .t,.navbar .t,
     <button class="big hide" id="btnProducao">
       <span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3.4 11.4h17.2a8.6 8.6 0 0 1-8.6 8.6 8.6 8.6 0 0 1-8.6-8.6Z"/><path d="M9.2 8.5c0-1.6 1.3-1.9 1.3-3.2"/><path d="M13.1 8.5c0-1.6 1.3-1.9 1.3-3.2"/></svg></span>
       <span class="tx"><span class="t">Plano de produ&ccedil;&atilde;o</span><span class="s">Diga o que precisa ser feito e em que quantidade</span></span>
+      <span class="seta" aria-hidden="true">&#8250;</span>
+    </button>
+    <button class="big ghost hide" id="btnQuanto">
+      <span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5h16"/><path d="M6.5 16V11"/><path d="M11 16V7"/><path d="M15.5 16v-3"/><path d="M15 6.5l3-2.5 2.5 2.5"/><path d="M18 4v6"/></svg></span>
+      <span class="tx"><span class="t">Quanto fazer</span><span class="s" id="qfSub">A conta da semana pela venda, pela geladeira e pelo freezer</span></span>
       <span class="seta" aria-hidden="true">&#8250;</span>
     </button>
     <button class="big ghost hide" id="btnEncomendas">
@@ -1695,6 +1715,12 @@ h1,h2,h3.t,.wordmark,.top .marca b,.datebar .d,.big .t,.navbar .t,
     <div id="prodMsg"></div>
     <div id="prodLista"></div>
     <select class="busca hide" id="addProd"><option value="">+ adicionar receita ao dia</option></select>
+  </section>
+
+  <!-- ================= QUANTO FAZER (só gestor) ================= -->
+  <section id="scQuanto" class="hide">
+    <div id="qfMsg"></div>
+    <div id="qfCorpo"></div>
   </section>
 
   <!-- ================= RECEITA ================= -->
@@ -1913,24 +1939,25 @@ h1,h2,h3.t,.wordmark,.top .marca b,.datebar .d,.big .t,.navbar .t,
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.116.0/dist/umd/supabase.min.js"></script>
-<script src="js/00-base.js?v=2026-10-19a"></script>
-<script src="js/10-entrada.js?v=2026-10-19a"></script>
-<script src="js/12-freela.js?v=2026-10-19a"></script>
-<script src="js/20-custos.js?v=2026-10-19a"></script>
-<script src="js/25-promo.js?v=2026-10-19a"></script>
-<script src="js/30-mes.js?v=2026-10-19a"></script>
-<script src="js/35-saude.js?v=2026-10-19a"></script>
-<script src="js/40-producao.js?v=2026-10-19a"></script>
-<script src="js/50-contagem.js?v=2026-10-19a"></script>
-<script src="js/60-afazeres.js?v=2026-10-19a"></script>
-<script src="js/70-dias.js?v=2026-10-19a"></script>
-<script src="js/72-equipe.js?v=2026-10-19a"></script>
-<script src="js/74-bolsa.js?v=2026-10-19a"></script>
-<script src="js/76-conferencia.js?v=2026-10-19a"></script>
-<script src="js/80-estoque.js?v=2026-10-19a"></script>
-<script src="js/85-encomendas.js?v=2026-10-19a"></script>
-<script src="js/88-contas.js?v=2026-10-19a"></script>
-<script src="js/89-contador.js?v=2026-10-19a"></script>
-<script src="js/90-ligacoes.js?v=2026-10-19a"></script>
+<script src="js/00-base.js?v=2026-10-21a"></script>
+<script src="js/10-entrada.js?v=2026-10-21a"></script>
+<script src="js/12-freela.js?v=2026-10-21a"></script>
+<script src="js/20-custos.js?v=2026-10-21a"></script>
+<script src="js/25-promo.js?v=2026-10-21a"></script>
+<script src="js/30-mes.js?v=2026-10-21a"></script>
+<script src="js/35-saude.js?v=2026-10-21a"></script>
+<script src="js/40-producao.js?v=2026-10-21a"></script>
+<script src="js/42-quanto.js?v=2026-10-21a"></script>
+<script src="js/50-contagem.js?v=2026-10-21a"></script>
+<script src="js/60-afazeres.js?v=2026-10-21a"></script>
+<script src="js/70-dias.js?v=2026-10-21a"></script>
+<script src="js/72-equipe.js?v=2026-10-21a"></script>
+<script src="js/74-bolsa.js?v=2026-10-21a"></script>
+<script src="js/76-conferencia.js?v=2026-10-21a"></script>
+<script src="js/80-estoque.js?v=2026-10-21a"></script>
+<script src="js/85-encomendas.js?v=2026-10-21a"></script>
+<script src="js/88-contas.js?v=2026-10-21a"></script>
+<script src="js/89-contador.js?v=2026-10-21a"></script>
+<script src="js/90-ligacoes.js?v=2026-10-21a"></script>
 </body>
 </html>

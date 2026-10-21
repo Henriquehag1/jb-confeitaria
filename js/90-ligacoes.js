@@ -99,6 +99,7 @@ $("abaPreco").onclick   = () => trocarAba("preco");
 $("abaGeladeira").onclick = () => trocarAba("geladeira");
 
 $("btnProducao").onclick = abrirProducao;
+$("btnQuanto").onclick = () => { QF_ABERTO = null; abrirQuanto(); };
 $("addProd").onchange = () => addReceitaAoDia($("addProd").value);
 $("btnRecFeito").onclick = marcarFeito;
 $("btnFichaApagar").onclick = apagarFicha;

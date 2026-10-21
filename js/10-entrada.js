@@ -161,6 +161,7 @@ async function carregarHome(){
     $("btnDias").classList.add("hide");
     $("btnAfazeres").classList.add("hide");
     $("btnEstoque").classList.add("hide");
+    $("btnQuanto").classList.add("hide");
     $("btnEncomendas").classList.add("hide");
     $("btnContas").classList.add("hide");
     $("btnSaude").classList.add("hide");
@@ -247,6 +248,7 @@ async function carregarHome(){
   $("btnDias").classList.toggle("hide", EU.papel !== "gestor");
   $("btnAfazeres").classList.toggle("hide", EU.papel !== "gestor");
   $("btnEstoque").classList.toggle("hide", EU.papel !== "gestor");
+  $("btnQuanto").classList.toggle("hide", EU.papel !== "gestor");
   $("btnEncomendas").classList.toggle("hide", EU.papel !== "gestor");
   $("btnContas").classList.toggle("hide", EU.papel !== "gestor");
   $("btnSaude").classList.toggle("hide", EU.papel !== "gestor");
@@ -270,6 +272,8 @@ async function carregarHome(){
       sub.textContent = "Impostos, contas fixas e boletos, com comprovante";
       $("btnContas").classList.add("ghost");
     }
+    const qf = await resumoQuantoHome().catch(() => null);
+    $("qfSub").textContent = qf || "A conta da semana pela venda, pela geladeira e pelo freezer";
     const ct = await resumoContadorHome().catch(() => null);
     $("contadorSub").textContent = ct ? ct.texto : "Venda do mês e impostos, numa mensagem pronta";
     $("contadorSub").className = "s" + (ct && ct.tom === "atraso" ? " alerta" : "");

@@ -490,7 +490,7 @@ ${agora ? "window.__AGORA=" + JSON.stringify(agora) + ";" : ""}
                       "jb_custo_fixo_total","jb_volume_calculado","jb_giro_produto","jb_insumo","jb_preco","jb_margem","jb_promo_teto","jb_canal","jb_config","jb_vale_taxa","jb_meio_pagamento",
                       "jb_mes","jb_faturamento","jb_ficha","jb_ficha_item","jb_subreceita","jb_subreceita_item","jb_uso_ingrediente",
                       "jb_insumo_ultimo_pago","jb_ficha_alertas","jb_compra","jb_compra_item","jb_estoque_contagem","jb_estoque_item","jb_estoque_sugestao",
-                      "jb_kpi_mes","jb_kpi_destino","jb_dia_vendas","jb_encomenda","jb_bolo_opcao","jb_ocorrencia","jb_conta","jb_falta","jb_freela","jb_banco_horas","jb_imposto_regra","jb_parametro","jb_contador_mes","jb_cartao_fatura","jb_freela_acesso"];
+                      "jb_kpi_mes","jb_kpi_destino","jb_dia_vendas","jb_encomenda","jb_bolo_opcao","jb_ocorrencia","jb_conta","jb_falta","jb_freela","jb_banco_horas","jb_imposto_regra","jb_parametro","jb_contador_mes","jb_cartao_fatura","jb_freela_acesso","jb_quanto_param","jb_quanto_meta"];
     if(soGestor.includes(t) && !gestor()) return [];
     if(t === "jb_dia_trabalhado" && !gestor()) return (DB[t]||[]).filter(r => r.user_id === window.__UID);
     if(t === "jb_contagem_mov" && !gestor()) return [];
@@ -567,6 +567,15 @@ ${agora ? "window.__AGORA=" + JSON.stringify(agora) + ";" : ""}
   async function rpc(nome, args){
     window.__LOG.push(["rpc", nome, args]);
     if(window.__FALHA && window.__FALHA["rpc:" + nome]) return { data:null, error:{ message:"rede caiu (teste)" } };
+    if(nome === "jb_quanto_fazer"){
+      if(!gestor()) return { data:null, error:{ message:"so gestor", code:"42501" } };
+      const prm = (DB.jb_quanto_param || [])[0] || { dias: 7, margem_pct: 15 };
+      const base = DB.__quanto ? JSON.parse(JSON.stringify(DB.__quanto))
+        : { hoje: hojeSP(), dias_base: 0, itens: [], bases: [], total_fazer: 0 };
+      base.dias = args && args.p_dias != null ? args.p_dias : (base.dias || prm.dias);
+      base.margem_pct = args && args.p_margem_pct != null ? args.p_margem_pct : (base.margem_pct != null ? base.margem_pct : prm.margem_pct);
+      return { data: base, error:null };
+    }
     if(nome === "jb_freela_entrar"){
       const a = frAberta();
       if(!a) return { data:{ ok:false, motivo:"fechado" }, error:null };
