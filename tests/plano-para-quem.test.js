@@ -144,3 +144,24 @@ test("Quanto fazer: massas para as freelas do dia, doces para a Ana e um recheio
   assert.match(await a.texto("#qfMsg"), /O que fazer hoje/);
   semErros(a); await a.fechar();
 });
+
+test("com a lista de freelas da casa, o seletor mostra só ela; Outra freela entra na lista", async () => {
+  const a = await abrir("uJes", { db: db => { comFreelas(db);
+    db.jb_freela_pessoa = [{ id: 1, nome: "Markus Porthos", ativo: true }, { id: 2, nome: "Edclecia Silva", ativo: true },
+                           { id: 3, nome: "Isabella Freitas", ativo: true }, { id: 4, nome: "Antiga", ativo: false }];
+    return db; } });
+  await a.page.click("#btnProducao"); await a.espera(700);
+  const opcoes = await a.page.evaluate(() => [...document.querySelector("#prodLista select.para").querySelectorAll("optgroup option")].map(o => o.textContent));
+  assert.deepEqual(opcoes, ["só as freelas do dia", "só Edclecia Silva (freela)", "só Isabella Freitas (freela)", "só Markus Porthos (freela)", "Outra freela..."]);
+  await a.page.evaluate(() => {
+    const s = [...document.querySelectorAll("#prodLista select.para")].find(x => x.value === "todos");
+    s.value = "fr:?"; s.dispatchEvent(new Event("change"));
+  });
+  await a.espera(150);
+  await a.page.fill("input.nomefreela", "Bia Souza");
+  await a.page.press("input.nomefreela", "Enter"); await a.espera(400);
+  const ins = (await a.log("insert")).find(x => x[1] === "jb_freela_pessoa");
+  assert.deepEqual(ins[2], [{ nome: "Bia Souza" }]);
+  assert.equal((await a.db("jb_producao_item")).find(p => p.id === 1).para_freela, "Bia Souza");
+  semErros(a); await a.fechar();
+});

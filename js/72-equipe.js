@@ -81,6 +81,7 @@ async function carregarEquipe(ini, fim){
     sb.from("jb_banco_horas").select("id,user_id,data,minutos,motivo,origem,falta_id,dia_id").eq("cancelado", false).order("data")
   ]);
   await carregarFreelaAcesso();
+  await carregarFreelasFixas(true).catch(() => null);
   BANCO = (bh && !bh.error && bh.data) || [];
   FALTAS  = (fa && !fa.error && fa.data) || [];
   FREELAS = (fr && !fr.error && fr.data) || [];
@@ -263,10 +264,13 @@ function formFalta(uid, ac){
   if(st.temFreela){
     const lf = document.createElement("div"); lf.className = "eq-linha";
     lf.append(
-      campo("Nome da freela", entrada("text", st.nome, v => { st.nome = v; }, { id: "eqFreelaNome", maxlength: "60" })),
+      campo("Nome da freela", entrada("text", st.nome, v => { st.nome = v; }, { id: "eqFreelaNome", maxlength: "60", autocomplete: "off", list: "eqFreelaNomes" })),
       campo("Valor combinado (R$)", entrada("text", st.valor, v => { st.valor = v; }, { id: "eqFreelaValor", inputmode: "decimal" }))
     );
     f.appendChild(lf);
+    const dlf = document.createElement("datalist"); dlf.id = "eqFreelaNomes";
+    (FREELAS_FIXAS || []).forEach(n => { const o = document.createElement("option"); o.value = n; dlf.appendChild(o); });
+    f.appendChild(dlf);
     const n = document.createElement("p"); n.className = "eq-nota";
     n.textContent = "A freela entra em Contas a pagar no mesmo dia, com o horário da falta.";
     f.appendChild(n);
@@ -449,7 +453,8 @@ function blocoFreelaAcesso(){
 function formFreelaAcesso(){
   const st = FR_AC_FORM;
   const f = document.createElement("div"); f.className = "eq-form"; f.id = "frAcForm";
-  const nomes = [...new Set(FREELAS.map(x => (x.nome || "").trim()).filter(Boolean))];
+  /* as freelas da casa primeiro: o nome da liberação tem que ser igual ao do plano de produção */
+  const nomes = [...new Set([...(FREELAS_FIXAS || []), ...FREELAS.map(x => limpaNome(x.nome))].filter(Boolean))];
   const inp = entrada("text", st.nome, v => { st.nome = v; }, { id: "frAcNome", maxlength: "40", autocomplete: "off", list: "frAcNomes" });
   const dl = document.createElement("datalist"); dl.id = "frAcNomes";
   nomes.forEach(n => { const o = document.createElement("option"); o.value = n; dl.appendChild(o); });
@@ -620,9 +625,12 @@ function formFreela(){
   const f = document.createElement("div"); f.className = "eq-form"; f.id = "eqFormFreela";
   const l1 = document.createElement("div"); l1.className = "eq-linha";
   l1.append(
-    campo("Nome", entrada("text", st.nome, v => { st.nome = v; }, { id: "eqFrNome", maxlength: "60" })),
+    campo("Nome", entrada("text", st.nome, v => { st.nome = v; }, { id: "eqFrNome", maxlength: "60", autocomplete: "off", list: "eqFrNomes" })),
     campo("Valor combinado (R$)", entrada("text", st.valor, v => { st.valor = v; }, { id: "eqFrValor", inputmode: "decimal" }))
   );
+  const dlr = document.createElement("datalist"); dlr.id = "eqFrNomes";
+  (FREELAS_FIXAS || []).forEach(n => { const o = document.createElement("option"); o.value = n; dlr.appendChild(o); });
+  l1.appendChild(dlr);
   const l2 = document.createElement("div"); l2.className = "eq-linha";
   l2.append(
     campo("Dia", entrada("date", st.data, v => { st.data = v; }, { id: "eqFrDia" })),
