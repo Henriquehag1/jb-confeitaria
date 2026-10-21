@@ -255,23 +255,47 @@ function recadoPara(it){
    Destinos: "todos" (equipe, produção e freelas), "producao" (Eliana), "equipe" (Yasmin),
    "fr:*" (só as freelas do dia) e "fr:Nome" (só a freela liberada com esse nome).
    No banco: para + para_freela. Item com para_freela some para a Eliana e a Yasmin. */
+/* As freelas da casa (jb_freela_pessoa, só gestor): é a lista do seletor e das sugestões
+   na hora de liberar o acesso. Sem lista cadastrada, usa os nomes das liberações e diárias. */
+let FREELAS_FIXAS = null;
+const limpaNome = n => String(n || "").trim().replace(/\s+/g, " ");
+async function carregarFreelasFixas(forcar){
+  if(FREELAS_FIXAS && !forcar) return FREELAS_FIXAS;
+  const r = await sb.from("jb_freela_pessoa").select("nome,ativo").eq("ativo", true).order("nome");
+  FREELAS_FIXAS = (r && !r.error && r.data ? r.data : []).map(x => limpaNome(x.nome)).filter(Boolean);
+  return FREELAS_FIXAS;
+}
+/* guarda um nome novo na lista (veio de "Outra freela...") */
+async function guardarFreelaFixa(nome){
+  const n = limpaNome(nome);
+  if(!n || (FREELAS_FIXAS || []).some(x => x.toLowerCase() === n.toLowerCase())) return;
+  const r = await sb.from("jb_freela_pessoa").insert({ nome: n });
+  if(!r || !r.error){ FREELAS_FIXAS = [...(FREELAS_FIXAS || []), n].sort((x, y) => x.localeCompare(y, "pt-BR")); }
+}
+
 async function carregarPessoas(forcar){
   if(PESSOAS && !forcar) return PESSOAS;
-  const [us, ac, fr] = await Promise.all([
+  const [us, fixas] = await Promise.all([
     sb.from("jb_usuario").select("nome,papel,ativo"),
-    sb.from("jb_freela_acesso").select("nome,criado_em").order("criado_em", { ascending: false }).limit(60),
-    sb.from("jb_freela").select("nome,data").gte("data", diaMais(-120)).order("data", { ascending: false }).limit(60)
+    carregarFreelasFixas(forcar)
   ]);
   const P = { producao: "Produção", equipe: "Noite", freelas: [] };
   (us.data || []).filter(u => u.ativo).forEach(u => {
     if(u.papel === "producao" || u.papel === "equipe") P[u.papel] = u.nome;
   });
-  const vistos = new Set();
-  [...(ac.data || []), ...(fr.data || [])].forEach(x => {
-    const n = String(x.nome || "").trim().replace(/\s+/g, " ");
-    const k = n.toLowerCase();
-    if(n && n.length <= 40 && !vistos.has(k)){ vistos.add(k); P.freelas.push(n); }
-  });
+  if(fixas.length){
+    P.freelas = fixas.slice();
+  } else {
+    const [ac, fr] = await Promise.all([
+      sb.from("jb_freela_acesso").select("nome,criado_em").order("criado_em", { ascending: false }).limit(60),
+      sb.from("jb_freela").select("nome,data").gte("data", diaMais(-120)).order("data", { ascending: false }).limit(60)
+    ]);
+    const vistos = new Set();
+    [...(ac.data || []), ...(fr.data || [])].forEach(x => {
+      const n = limpaNome(x.nome);
+      if(n && n.length <= 40 && !vistos.has(n.toLowerCase())){ vistos.add(n.toLowerCase()); P.freelas.push(n); }
+    });
+  }
   P.freelas.sort((x, y) => x.localeCompare(y, "pt-BR"));
   PESSOAS = P;
   return PESSOAS;
@@ -322,7 +346,7 @@ function opcoesDest(sel, atual, extraVazio){
 function pedirNomeFreela(sel, voltar, aoEscolher){
   const inp = document.createElement("input");
   inp.type = "text"; inp.maxLength = 40; inp.className = "rec nomefreela";
-  inp.placeholder = "Nome da freela, como você libera no app";
+  inp.placeholder = "Nome e sobrenome da freela";
   inp.setAttribute("aria-label", "Nome da freela");
   sel.insertAdjacentElement("afterend", inp);
   inp.focus();
@@ -335,6 +359,7 @@ function pedirNomeFreela(sel, voltar, aoEscolher){
     if(PESSOAS && !PESSOAS.freelas.some(x => x.toLowerCase() === n.toLowerCase())){
       PESSOAS.freelas.push(n); PESSOAS.freelas.sort((x, y) => x.localeCompare(y, "pt-BR"));
     }
+    guardarFreelaFixa(n);
     const o = document.createElement("option"); o.value = "fr:" + n; o.textContent = "só " + n + " (freela)";
     const g = sel.querySelector("optgroup") || sel;
     g.insertBefore(o, g.lastElementChild);
