@@ -13,6 +13,9 @@ let QF = null;             // resposta do banco
 let QF_ABERTO = null;      // produto com o editor de meta aberto
 let QF_DIA_BASES = null;   // dia das massas e recheios no plano
 let QF_DIA_MONTA = null;   // dia da montagem no plano
+/* para quem vai cada coisa: um destino para as massas e recheios, outro para os doces,
+   e o que a Jessica trocar item por item ("subreceita:8" -> "fr:Maria") */
+let QF_DEST = { bases: "producao", doces: "todos", item: {}, verItens: false };
 const QF_OPC_DIAS  = [3, 4, 5, 7, 10, 14];
 const QF_OPC_FOLGA = [0, 10, 15, 25];
 
@@ -45,7 +48,7 @@ async function abrirQuanto(){
   show("scQuanto");
   if(!QF_DIA_BASES || QF_DIA_BASES < hojeSP()) QF_DIA_BASES = hojeSP();
   if(!QF_DIA_MONTA || QF_DIA_MONTA < hojeSP()) QF_DIA_MONTA = diaMais(1);
-  try { QF = await qfConta(); }
+  try { QF = await qfConta(); await carregarPessoas().catch(() => null); }
   catch(e){
     $("qfCorpo").innerHTML = "";
     aviso("qfMsg", e && e.code === "42501"
@@ -197,12 +200,41 @@ function montarQuanto(){
     box.appendChild(p);
   }
 
-  /* mandar para o plano de produção */
+  /* mandar para o plano de produção: em que dia e para quem */
   const t3 = document.createElement("h3"); t3.className = "qf-tit"; t3.textContent = "Mandar para o plano de produção";
   box.appendChild(t3);
   const prox = [0, 1, 2, 3, 4, 5, 6].map(diaMais);
   box.appendChild(qfChips("Massas e recheios no dia", prox, QF_DIA_BASES, qfNomeDia, v => { QF_DIA_BASES = v; montarQuanto(); }, "qfDiaBases"));
   box.appendChild(qfChips("Montagem dos doces no dia", prox, QF_DIA_MONTA, qfNomeDia, v => { QF_DIA_MONTA = v; montarQuanto(); }, "qfDiaMonta"));
+  box.appendChild(qfDestGrupo("Massas e recheios vão para", "bases", "qfDestBases"));
+  box.appendChild(qfDestGrupo("Doces vão para", "doces", "qfDestDoces"));
+
+  const vaiItens = qfItensParaMandar();
+  if(vaiItens.length){
+    const tg = document.createElement("button"); tg.type = "button"; tg.className = "qf-link"; tg.id = "qfVerItens";
+    tg.textContent = QF_DEST.verItens ? "Esconder a escolha item por item" : "Escolher pessoa item por item";
+    tg.onclick = () => { QF_DEST.verItens = !QF_DEST.verItens; montarQuanto(); };
+    box.appendChild(tg);
+    if(QF_DEST.verItens){
+      const lista = document.createElement("div"); lista.className = "qf-dest-lista"; lista.id = "qfDestItens";
+      vaiItens.forEach(x => {
+        const l = document.createElement("label"); l.className = "qf-dest-item"; l.dataset.chave = x.chave;
+        const n = document.createElement("span"); n.textContent = x.nome + " · " + x.qtdTx;
+        const sel = document.createElement("select"); sel.className = "para";
+        sel.setAttribute("aria-label", "Para quem vai " + x.nome);
+        opcoesDest(sel, QF_DEST.item[x.chave] || "", "igual ao grupo");
+        sel.onchange = () => {
+          const ok = v => { if(v) QF_DEST.item[x.chave] = v; else delete QF_DEST.item[x.chave]; };
+          if(sel.value === "fr:?"){ pedirNomeFreela(sel, QF_DEST.item[x.chave] || "", ok); return; }
+          ok(sel.value);
+        };
+        l.append(n, sel);
+        lista.appendChild(l);
+      });
+      box.appendChild(lista);
+    }
+  }
+
   const bt = document.createElement("button"); bt.type = "button"; bt.className = "qf-bt cheio"; bt.id = "qfMandar";
   bt.textContent = "Mandar para o plano";
   bt.onclick = travar(bt, mandarParaPlano);
@@ -211,36 +243,61 @@ function montarQuanto(){
   const dica = document.createElement("p"); dica.className = "tip";
   dica.textContent = "Doce novo ou que volta ao cardápio (como a coxinha): ative em Custos e preços › Geladeira, conte junto nas contagens "
     + "e toque nele aqui para digitar a meta da semana. Depois de 7 dias de venda a conta passa a usar o que vendeu. "
-    + "Toque em qualquer doce para dizer a validade.";
+    + "Toque em qualquer doce para dizer a validade. Cada pessoa vê o que é dela em O que fazer hoje, inclusive a freela "
+    + "liberada com o mesmo nome; ela abre a receita já na quantidade certa e marca como feito.";
   box.appendChild(dica);
 }
 
+function qfDestGrupo(rotulo, grupo, id){
+  const g = document.createElement("label"); g.className = "qf-op qf-dest";
+  const r = document.createElement("span"); r.className = "qf-rot"; r.textContent = rotulo;
+  const sel = document.createElement("select"); sel.className = "para"; sel.id = id;
+  sel.setAttribute("aria-label", rotulo);
+  opcoesDest(sel, QF_DEST[grupo]);
+  sel.onchange = () => {
+    const ok = v => { QF_DEST[grupo] = v; };
+    if(sel.value === "fr:?"){ pedirNomeFreela(sel, QF_DEST[grupo], ok); return; }
+    ok(sel.value);
+  };
+  g.append(r, sel);
+  return g;
+}
+
+/* o que vai para o plano, com a chave de cada item e o destino escolhido */
+function qfItensParaMandar(){
+  const bases = ((QF && QF.bases) || []).filter(b => Number(b.lotes_fazer) > 0 && Number(b.rendimento_kg) > 0)
+    .map(b => ({ chave: "subreceita:" + b.subreceita_id, grupo: "bases", nome: b.nome, qtdTx: loteTx(b.lotes_fazer, b.unidade_producao),
+                 data: QF_DIA_BASES, tipo: "subreceita", ref_id: Number(b.subreceita_id),
+                 qtd: Math.round(Number(b.lotes_fazer) * Number(b.rendimento_kg) * 1000) / 1000 }));
+  const doces = ((QF && QF.itens) || []).filter(i => i.fazer > 0 && i.ficha_id)
+    .map(i => ({ chave: "ficha:" + i.ficha_id, grupo: "doces", nome: i.nome, qtdTx: i.fazer + " un",
+                 data: QF_DIA_MONTA, tipo: "ficha", ref_id: Number(i.ficha_id), qtd: i.fazer }));
+  return [...bases, ...doces].map(x => ({ ...x, dest: QF_DEST.item[x.chave] || QF_DEST[x.grupo] }));
+}
+
 async function mandarParaPlano(){
-  const bases = ((QF && QF.bases) || []).filter(b => Number(b.lotes_fazer) > 0 && Number(b.rendimento_kg) > 0);
-  const doces = ((QF && QF.itens) || []).filter(i => i.fazer > 0 && i.ficha_id);
-  if(!bases.length && !doces.length){ aviso("qfMsg", "Nada para mandar: tem o suficiente de tudo.", "ok"); return; }
+  const linhas = qfItensParaMandar();
+  if(!linhas.length){ aviso("qfMsg", "Nada para mandar: tem o suficiente de tudo.", "ok"); return; }
   const dias = [...new Set([QF_DIA_BASES, QF_DIA_MONTA])];
   const { data: ja, error: e1 } = await sb.from("jb_producao_item").select("id,data,tipo,ref_id,qtd").in("data", dias);
   if(e1){ aviso("qfMsg", "Não consegui ler o plano agora.", "err"); return; }
-  const linhas = [
-    ...bases.map(b => ({ data: QF_DIA_BASES, tipo: "subreceita", ref_id: Number(b.subreceita_id),
-                         qtd: Math.round(Number(b.lotes_fazer) * Number(b.rendimento_kg) * 1000) / 1000 })),
-    ...doces.map(i => ({ data: QF_DIA_MONTA, tipo: "ficha", ref_id: Number(i.ficha_id), qtd: i.fazer }))
-  ];
   const achar = l => (ja || []).find(j => j.data === l.data && j.tipo === l.tipo && Number(j.ref_id) === l.ref_id);
   const repetidas = linhas.filter(achar).length;
   if(repetidas && !confirm(repetidas + (repetidas === 1 ? " receita já estava" : " receitas já estavam")
-      + " no plano desses dias. Trocar pela quantidade da conta?")) return;
+      + " no plano desses dias. Trocar pela quantidade e pela pessoa da conta?")) return;
   let erros = 0;
   for(const l of linhas){
     const j = achar(l);
+    const dest = gravarDest(l.dest);
     const r = j
-      ? await sb.from("jb_producao_item").update({ qtd: l.qtd }).eq("id", j.id)
-      : await sb.from("jb_producao_item").insert({ ...l, para: PARA_PADRAO(l.tipo) });
+      ? await sb.from("jb_producao_item").update({ qtd: l.qtd, ...dest }).eq("id", j.id)
+      : await sb.from("jb_producao_item").insert({ data: l.data, tipo: l.tipo, ref_id: l.ref_id, qtd: l.qtd, ...dest });
     if(r && r.error) erros++;
   }
   if(erros){ aviso("qfMsg", "Mandei quase tudo, mas " + erros + " não entraram. Confira no Plano de produção.", "warn"); return; }
-  aviso("qfMsg", "No plano: " + bases.length + " massas e recheios para " + qfNomeDia(QF_DIA_BASES).toLowerCase()
-    + " e " + doces.length + " doces para montar " + (QF_DIA_MONTA === QF_DIA_BASES ? "no mesmo dia" : qfNomeDia(QF_DIA_MONTA).toLowerCase())
-    + ". Abra o Plano de produção para ajustar ou passar para quem vai fazer.", "ok");
+  const nb = linhas.filter(l => l.tipo === "subreceita").length, nd = linhas.length - nb;
+  const quem = [...new Set(linhas.map(l => nomeDest(l.dest)))];
+  aviso("qfMsg", "No plano: " + nb + " massas e recheios para " + qfNomeDia(QF_DIA_BASES).toLowerCase()
+    + " e " + nd + " doces para montar " + (QF_DIA_MONTA === QF_DIA_BASES ? "no mesmo dia" : qfNomeDia(QF_DIA_MONTA).toLowerCase())
+    + ". Para: " + quem.join(", ") + ". Cada um vê o seu em O que fazer hoje.", "ok");
 }

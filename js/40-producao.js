@@ -40,13 +40,7 @@ async function abrirProducao(){
   if(!PROD_DIA) PROD_DIA = hojeSP();
   const gestor = EU.papel === "gestor";
   $("addProd").classList.toggle("hide", !gestor);
-  if(gestor && !PESSOAS){
-    const { data } = await sb.from("jb_usuario").select("nome,papel,ativo");
-    PESSOAS = { producao: "Produção", equipe: "Noite" };
-    (data || []).filter(u => u.ativo).forEach(u => {
-      if(u.papel === "producao" || u.papel === "equipe") PESSOAS[u.papel] = u.nome;
-    });
-  }
+  if(gestor) await carregarPessoas();
   if(gestor && !RECEITAS){
     const [ff, ss] = await Promise.all([
       sb.from("jb_receita_ficha").select("ficha_id,nome,preparo_conferido").order("nome"),
@@ -149,7 +143,7 @@ function montarProdLista(){
     n.style.border = "none"; n.style.background = "none"; n.style.textAlign = "left"; n.style.padding = "0";
     n.textContent = it.nome;
     const s = document.createElement("small");
-    s.textContent = it.feito ? "Feito às " + horaDe(it.feito_em)
+    s.textContent = it.feito ? "Feito às " + horaDe(it.feito_em) + (it.feito_por ? " por " + it.feito_por : "")
       : travado ? (gestor ? "passo a passo ainda não conferido por você" : "passo a passo ainda não conferido pela Jessica")
       : (it.tipo === "subreceita"
           ? (lotesDe(it) !== null ? "cerca de " + qtdBonita(it.qtd, "kg") + " no total" : "massa ou recheio")
@@ -257,25 +251,116 @@ function recadoPara(it){
 }
 
 /* Para quem é este item. Massa e recheio nasce para a produção; produto pronto,
-   para todo mundo. O gestor troca quando quiser. */
+   para todo mundo. O gestor troca quando quiser.
+   Destinos: "todos" (equipe, produção e freelas), "producao" (Eliana), "equipe" (Yasmin),
+   "fr:*" (só as freelas do dia) e "fr:Nome" (só a freela liberada com esse nome).
+   No banco: para + para_freela. Item com para_freela some para a Eliana e a Yasmin. */
+async function carregarPessoas(forcar){
+  if(PESSOAS && !forcar) return PESSOAS;
+  const [us, ac, fr] = await Promise.all([
+    sb.from("jb_usuario").select("nome,papel,ativo"),
+    sb.from("jb_freela_acesso").select("nome,criado_em").order("criado_em", { ascending: false }).limit(60),
+    sb.from("jb_freela").select("nome,data").gte("data", diaMais(-120)).order("data", { ascending: false }).limit(60)
+  ]);
+  const P = { producao: "Produção", equipe: "Noite", freelas: [] };
+  (us.data || []).filter(u => u.ativo).forEach(u => {
+    if(u.papel === "producao" || u.papel === "equipe") P[u.papel] = u.nome;
+  });
+  const vistos = new Set();
+  [...(ac.data || []), ...(fr.data || [])].forEach(x => {
+    const n = String(x.nome || "").trim().replace(/\s+/g, " ");
+    const k = n.toLowerCase();
+    if(n && n.length <= 40 && !vistos.has(k)){ vistos.add(k); P.freelas.push(n); }
+  });
+  P.freelas.sort((x, y) => x.localeCompare(y, "pt-BR"));
+  PESSOAS = P;
+  return PESSOAS;
+}
+
+function destDe(it){
+  if(it.para_freela) return "fr:" + it.para_freela;
+  return it.para || "todos";
+}
+function gravarDest(v){
+  if(v && v.startsWith("fr:")) return { para: "todos", para_freela: v.slice(3).trim() || "*" };
+  return { para: v || "todos", para_freela: null };
+}
+function nomeDest(v){
+  if(v === "todos") return "todo mundo";
+  if(v === "producao") return (PESSOAS && PESSOAS.producao) || "a produção";
+  if(v === "equipe") return (PESSOAS && PESSOAS.equipe) || "a equipe";
+  if(v === "fr:*") return "as freelas do dia";
+  if(v && v.startsWith("fr:")) return v.slice(3) + " (freela)";
+  return v;
+}
+
+/* monta as opções do seletor de destino; "Outra freela..." abre um campo para digitar o nome */
+function opcoesDest(sel, atual, extraVazio){
+  sel.innerHTML = "";
+  const P = PESSOAS || { producao: "Produção", equipe: "Noite", freelas: [] };
+  const add = (v, t, pai) => { const o = document.createElement("option"); o.value = v; o.textContent = t; (pai || sel).appendChild(o); };
+  if(extraVazio) add("", extraVazio);
+  add("todos", "Todos veem");
+  add("producao", "só " + P.producao);
+  add("equipe", "só " + P.equipe);
+  const g = document.createElement("optgroup"); g.label = "Freelas";
+  add("fr:*", "só as freelas do dia", g);
+  const nomes = P.freelas.slice();
+  if(atual && atual.startsWith("fr:") && atual !== "fr:*" && !nomes.some(n => n.toLowerCase() === atual.slice(3).toLowerCase()))
+    nomes.push(atual.slice(3));
+  nomes.forEach(n => add("fr:" + n, "só " + n + " (freela)", g));
+  add("fr:?", "Outra freela...", g);
+  sel.appendChild(g);
+  sel.value = atual == null ? "" : atual;
+  if(sel.value !== (atual == null ? "" : atual)){
+    const achou = [...sel.options].find(o => o.value.toLowerCase() === String(atual).toLowerCase());
+    if(achou) sel.value = achou.value;
+  }
+}
+
+/* "Outra freela...": um campo logo abaixo do seletor; Enter ou sair do campo confirma */
+function pedirNomeFreela(sel, voltar, aoEscolher){
+  const inp = document.createElement("input");
+  inp.type = "text"; inp.maxLength = 40; inp.className = "rec nomefreela";
+  inp.placeholder = "Nome da freela, como você libera no app";
+  inp.setAttribute("aria-label", "Nome da freela");
+  sel.insertAdjacentElement("afterend", inp);
+  inp.focus();
+  let feito = false;
+  const fim = () => {
+    if(feito) return; feito = true;
+    const n = inp.value.trim().replace(/\s+/g, " ").slice(0, 40);
+    inp.remove();
+    if(!n){ sel.value = voltar; return; }
+    if(PESSOAS && !PESSOAS.freelas.some(x => x.toLowerCase() === n.toLowerCase())){
+      PESSOAS.freelas.push(n); PESSOAS.freelas.sort((x, y) => x.localeCompare(y, "pt-BR"));
+    }
+    const o = document.createElement("option"); o.value = "fr:" + n; o.textContent = "só " + n + " (freela)";
+    const g = sel.querySelector("optgroup") || sel;
+    g.insertBefore(o, g.lastElementChild);
+    sel.value = "fr:" + n;
+    aoEscolher("fr:" + n);
+  };
+  inp.addEventListener("keydown", e => { if(e.key === "Enter") inp.blur(); if(e.key === "Escape"){ inp.value = ""; inp.blur(); } });
+  inp.addEventListener("blur", fim);
+}
+
 function seletorPara(it){
   const sel = document.createElement("select");
   sel.className = "para";
   sel.setAttribute("aria-label", "Para quem é " + it.nome);
-  [["todos","Todos"], ["producao", PESSOAS.producao], ["equipe", PESSOAS.equipe]].forEach(([v, rot]) => {
-    const o = document.createElement("option");
-    o.value = v; o.textContent = "só " + rot;
-    if(v === "todos") o.textContent = "Todos veem";
-    sel.appendChild(o);
-  });
-  sel.value = it.para || "todos";
-  sel.onchange = async () => {
-    const antes = it.para || "todos";
-    const { error } = await sb.from("jb_producao_item").update({ para: sel.value }).eq("id", it.id);
-    if(error){ sel.value = antes; aviso("prodMsg","Não consegui mudar para quem é esse item.","err"); return; }
-    it.para = sel.value;
-    const quem = sel.value === "todos" ? "todo mundo" : PESSOAS[sel.value];
-    aviso("prodMsg", it.nome + " agora aparece para " + quem + ".", "ok");
+  opcoesDest(sel, destDe(it));
+  const gravar = async v => {
+    const antes = destDe(it);
+    const g = gravarDest(v);
+    const { error } = await sb.from("jb_producao_item").update(g).eq("id", it.id);
+    if(error){ opcoesDest(sel, antes); aviso("prodMsg","Não consegui mudar para quem é esse item.","err"); return; }
+    it.para = g.para; it.para_freela = g.para_freela;
+    aviso("prodMsg", it.nome + " agora aparece para " + nomeDest(v) + ".", "ok");
+  };
+  sel.onchange = () => {
+    if(sel.value === "fr:?"){ pedirNomeFreela(sel, destDe(it), gravar); return; }
+    gravar(sel.value);
   };
   return sel;
 }
