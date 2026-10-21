@@ -11,7 +11,8 @@ let EQ_FORM = null;      // formulário aberto: { tipo: "falta", uid, ... } ou {
 let EQ_CANCELA = null;   // "falta:12" ou "freela:3": primeiro toque em cancelar, espera o segundo
 const BANCO_ABERTO = {};  // por pessoa: a lista do banco fica aberta entre uma ação e outra
 let BANCO = [];          // jb_banco_horas de todo o tempo (não cancelados): o saldo não zera na virada do mês
-let FR_AC = null;        // liberação de freela em vigor (jb_freela_acesso) ou null; undefined = não deu para ler
+let FR_AC = null;        // a liberação de freela mais recente em vigor (jb_freela_acesso) ou null; undefined = não deu para ler
+let FR_ACS = [];         // todas as liberações em vigor: cada freela tem o seu código
 let FR_AC_FORM = null;   // formulário de liberar aberto: { nome, ate }
 let FR_AC_MSG = null;    // mensagem pronta depois de liberar
 let FR_AC_REG = "";      // o que aconteceu com a diária ao liberar
@@ -364,8 +365,9 @@ function botaoCancelar(chave, rotulo, fn, verbo){
    ============================================================ */
 async function carregarFreelaAcesso(){
   const r = await sb.from("jb_freela_acesso").select("id,nome,valido_de,valido_ate,erros,token_em,encerrado_em")
-    .is("encerrado_em", null).gte("valido_ate", agora().toISOString()).order("id", { ascending: false }).limit(1);
-  FR_AC = (r && !r.error) ? ((r.data || [])[0] || null) : undefined;
+    .is("encerrado_em", null).gte("valido_ate", agora().toISOString()).order("id", { ascending: false }).limit(12);
+  FR_ACS = (r && !r.error) ? (r.data || []) : [];
+  FR_AC = (r && !r.error) ? (FR_ACS[0] || null) : undefined;
 }
 
 /* opções de validade: até as próximas 6h da manhã (o fim do turno da noite), 24 horas, 3 dias */
@@ -381,7 +383,7 @@ function frAcOpcoes(){
 }
 
 function frAcMensagem(nome, ate, codigo){
-  return "Oi, " + nome + "! Liberei o app da JB para você fechar a geladeira e fazer a contagem.\n\n" +
+  return "Oi, " + nome + "! Liberei o app da JB para você ver o que fazer hoje, registrar o que fez e fechar a geladeira.\n\n" +
     "1. Abra " + APP_LINK + "\n" +
     "2. Toque em Freela\n" +
     "3. Digite o código " + codigo + "\n\n" +
@@ -420,45 +422,82 @@ function blocoFreelaAcesso(){
 
   if(FR_AC_FORM){ box.appendChild(formFreelaAcesso()); return box; }
 
+  /* uma linha por freela liberada: cada uma tem o seu código e pode ser encerrada sozinha */
+  const linhaAcesso = ac => ac.nome + " pode entrar até " + quandoAte(ac.valido_ate) + ". " +
+    (ac.token_em ? "Já entrou num celular às " + new Intl.DateTimeFormat("pt-BR",{timeZone:TZ,hour:"2-digit",minute:"2-digit"}).format(new Date(ac.token_em)) + "."
+     : ac.erros >= 5 ? "O código foi bloqueado depois de 5 tentativas erradas. Libere de novo para gerar outro."
+     : "Ainda ninguém entrou.");
   const sub = document.createElement("p"); sub.className = "sub"; sub.id = "frAcStatus";
-  if(FR_AC){
-    sub.textContent = FR_AC.nome + " pode entrar até " + quandoAte(FR_AC.valido_ate) + ". " +
-      (FR_AC.token_em ? "Já entrou num celular às " + new Intl.DateTimeFormat("pt-BR",{timeZone:TZ,hour:"2-digit",minute:"2-digit"}).format(new Date(FR_AC.token_em)) + "."
-       : FR_AC.erros >= 5 ? "O código foi bloqueado depois de 5 tentativas erradas. Libere de novo para gerar outro."
-       : "Ainda ninguém entrou.");
-  } else {
-    sub.textContent = "Ninguém liberado agora. Libere quando uma freela for fechar a geladeira e fazer a contagem.";
-  }
+  sub.textContent = FR_ACS.length
+    ? FR_ACS.map(linhaAcesso).join(" ")
+    : "Ninguém liberado agora. Libere quando uma freela vier produzir ou fechar a geladeira.";
   box.appendChild(sub);
+  if(FR_ACS.length){
+    const lista = document.createElement("div"); lista.className = "fr-ac-lista"; lista.id = "frAcLista";
+    FR_ACS.forEach(ac => {
+      const l = document.createElement("div"); l.className = "fr-ac-linha"; l.dataset.id = ac.id;
+      const n = document.createElement("span"); n.textContent = ac.nome;
+      const novo = document.createElement("button"); novo.type = "button"; novo.className = "ch-ed fr-ac-novo"; novo.textContent = "novo código";
+      novo.setAttribute("aria-label", "Gerar um código novo para " + ac.nome);
+      novo.onclick = () => abrirFormFreelaAcesso(ac.nome);
+      const enc = botaoCancelar("fracesso:" + ac.id, "Encerrar o acesso de " + ac.nome, () => encerrarFreelaAcesso(ac.id), "encerrar");
+      l.append(n, novo, enc);
+      lista.appendChild(l);
+    });
+    box.appendChild(lista);
+  }
 
   const acs = document.createElement("div"); acs.className = "enc-acoes";
   const b = document.createElement("button"); b.type = "button"; b.className = "eq-abre"; b.id = "frAcAbre";
-  b.textContent = FR_AC ? "Liberar de novo" : "Liberar acesso";
-  b.onclick = () => {
-    const ops = frAcOpcoes();
-    FR_AC_FORM = { nome: FR_AC ? FR_AC.nome : "", op: "turno", ops, valor: "", entrada: "", saida: "", no_lugar_de: "" };
-    EQ_CANCELA = null; montarCalendarioDias();
-  };
+  b.textContent = FR_ACS.length ? "Liberar outra freela" : "Liberar acesso";
+  b.onclick = () => abrirFormFreelaAcesso("");
   acs.appendChild(b);
-  if(FR_AC){ const enc = botaoCancelar("fracesso", "Encerrar o acesso de " + FR_AC.nome, encerrarFreelaAcesso, "encerrar agora"); enc.classList.add("sec"); acs.appendChild(enc); }
   box.appendChild(acs);
-  if(FR_AC){
+  if(FR_ACS.length){
     const n = document.createElement("p"); n.className = "nota";
-    n.textContent = "Perdeu a mensagem ou entrou no celular errado? Toque em Liberar de novo: sai um código novo e o celular antigo perde o acesso.";
+    n.textContent = "Cada freela tem o seu código e pode estar no app ao mesmo tempo. Perdeu a mensagem ou entrou no celular errado? Toque em novo código: o celular antigo dela perde o acesso.";
     box.appendChild(n);
   }
   return box;
 }
 
+function abrirFormFreelaAcesso(nome){
+  FR_AC_FORM = { nome: nome || "", op: "turno", ops: frAcOpcoes(), valor: "", entrada: "", saida: "", no_lugar_de: "", nova: false };
+  EQ_CANCELA = null; montarCalendarioDias();
+  const f = $("frAcForm"); if(f && f.scrollIntoView) f.scrollIntoView({ block: "start" });
+}
+
 function formFreelaAcesso(){
   const st = FR_AC_FORM;
   const f = document.createElement("div"); f.className = "eq-form"; f.id = "frAcForm";
-  /* as freelas da casa primeiro: o nome da liberação tem que ser igual ao do plano de produção */
-  const nomes = [...new Set([...(FREELAS_FIXAS || []), ...FREELAS.map(x => limpaNome(x.nome))].filter(Boolean))];
-  const inp = entrada("text", st.nome, v => { st.nome = v; }, { id: "frAcNome", maxlength: "40", autocomplete: "off", list: "frAcNomes" });
-  const dl = document.createElement("datalist"); dl.id = "frAcNomes";
-  nomes.forEach(n => { const o = document.createElement("option"); o.value = n; dl.appendChild(o); });
-  f.append(campo("Nome da freela", inp), dl);
+  /* As freelas da casa vêm num seletor: o nome da liberação tem que ser igual ao do plano de produção.
+     "Nova pessoa" abre o campo para digitar; ela entra na lista quando o acesso é liberado. */
+  const fixas = FREELAS_FIXAS || [];
+  if(fixas.length){
+    const sel = document.createElement("select"); sel.id = "frAcNomeSel";
+    const o0 = document.createElement("option"); o0.value = ""; o0.textContent = "Escolha a freela"; sel.appendChild(o0);
+    fixas.forEach(n => { const o = document.createElement("option"); o.value = n; o.textContent = n; sel.appendChild(o); });
+    const on = document.createElement("option"); on.value = "__nova"; on.textContent = "Nova pessoa..."; sel.appendChild(on);
+    const naLista = fixas.find(n => n.toLowerCase() === limpaNome(st.nome).toLowerCase());
+    if(st.nova || (st.nome && !naLista)){ sel.value = "__nova"; st.nova = true; } else { sel.value = naLista || ""; if(naLista) st.nome = naLista; }
+    sel.onchange = () => {
+      st.nova = sel.value === "__nova";
+      st.nome = st.nova ? "" : sel.value;
+      montarCalendarioDias();
+      if(st.nova){ const i = document.getElementById("frAcNome"); if(i) i.focus(); }
+    };
+    f.appendChild(campo("Nome da freela", sel));
+    if(st.nova){
+      const inp = entrada("text", st.nome, v => { st.nome = v; }, { id: "frAcNome", maxlength: "40", autocomplete: "off", placeholder: "Nome e sobrenome" });
+      f.appendChild(campo("Nome da pessoa nova", inp));
+    }
+  } else {
+    const nomes = [...new Set(FREELAS.map(x => limpaNome(x.nome)).filter(Boolean))];
+    const inp = entrada("text", st.nome, v => { st.nome = v; }, { id: "frAcNome", maxlength: "40", autocomplete: "off", list: "frAcNomes" });
+    const dl = document.createElement("datalist"); dl.id = "frAcNomes";
+    nomes.forEach(n => { const o = document.createElement("option"); o.value = n; dl.appendChild(o); });
+    f.append(campo("Nome da freela", inp), dl);
+  }
 
   const sel = document.createElement("select"); sel.id = "frAcAte";
   st.ops.forEach(o => { const op = document.createElement("option"); op.value = o.id; op.textContent = o.rotulo; if(o.id === st.op) op.selected = true; sel.appendChild(op); });
@@ -495,7 +534,7 @@ function formFreelaAcesso(){
   }
 
   const nota = document.createElement("p"); nota.className = "nota";
-  nota.textContent = "O app gera um código de 6 números para ela entrar pelo botão Freela. Ela só fecha o turno e anota o que saiu depois: nada de valores, dias ou histórico.";
+  nota.textContent = "O app gera um código de 6 números para ela entrar pelo botão Freela. Ela vê o que você mandou para ela no plano, registra quanto fez, fecha o turno e anota o que saiu depois: nada de valores, dias ou histórico.";
   f.appendChild(nota);
 
   const err = document.createElement("div"); err.id = "frAcErr"; f.appendChild(err);
@@ -528,6 +567,7 @@ async function liberarFreelaAcesso(){
   const op = st.ops.find(o => o.id === st.op) || st.ops[0];
   const { data, error } = await sb.rpc("jb_freela_liberar", { p_nome: nome, p_ate: op.ate });
   if(error || !data || !data.codigo){ aviso("frAcErr", "Não consegui liberar agora. Confira a internet e tente de novo.", "err"); return; }
+  if(st.nova) await guardarFreelaFixa(nome).catch(() => null);
   let registro = jaTem ? "ja" : "";
   if(temValor){
     const ok = await criarFreela({ nome, data: diaDoTurnoSP(), entrada: st.entrada || "", saida: st.saida || "", valor,
@@ -543,8 +583,8 @@ async function liberarFreelaAcesso(){
   await recarregarEquipe();
 }
 
-async function encerrarFreelaAcesso(){
-  const { error } = await sb.rpc("jb_freela_encerrar");
+async function encerrarFreelaAcesso(id){
+  const { error } = id ? await sb.rpc("jb_freela_encerrar_um", { p_id: id }) : await sb.rpc("jb_freela_encerrar");
   EQ_CANCELA = null;
   if(error){ toast("Não consegui encerrar agora. Tente de novo.", "err"); return; }
   toast("Acesso de freela encerrado.");

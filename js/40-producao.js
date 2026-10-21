@@ -143,11 +143,7 @@ function montarProdLista(){
     n.style.border = "none"; n.style.background = "none"; n.style.textAlign = "left"; n.style.padding = "0";
     n.textContent = it.nome;
     const s = document.createElement("small");
-    s.textContent = it.feito ? "Feito às " + horaDe(it.feito_em) + (it.feito_por ? " por " + it.feito_por : "")
-      : travado ? (gestor ? "passo a passo ainda não conferido por você" : "passo a passo ainda não conferido pela Jessica")
-      : (it.tipo === "subreceita"
-          ? (lotesDe(it) !== null ? "cerca de " + qtdBonita(it.qtd, "kg") + " no total" : "massa ou recheio")
-          : "produto pronto");
+    s.textContent = textoItemPlano(it, gestor, travado);
     n.appendChild(s);
     const emLotes = lotesDe(it) !== null;
     n.onclick = () => abrirReceita(it);
@@ -197,7 +193,8 @@ function montarProdLista(){
         aviso("prodMsg", it.nome + " saiu do dia.","ok");
         carregarDia();
       };
-      row.append(inp, un, seletorPara(it), tirar, recadoPara(it));
+      row.append(inp, un, botaoQuem(it), tirar, recadoPara(it));
+      if(PROD_QUEM_ABERTO === it.id) row.appendChild(pickerQuem(quemDe(it), arr => gravarQuemItem(it, arr), "quemItem" + it.id));
     } else {
       const qt = document.createElement("span"); qt.className = "qt";
       qt.textContent = emLotes ? loteTx(lotesDe(it), it.unidade_producao) : qtdBonita(it.qtd, it.unidade);
@@ -301,93 +298,152 @@ async function carregarPessoas(forcar){
   return PESSOAS;
 }
 
-function destDe(it){
-  if(it.para_freela) return "fr:" + it.para_freela;
-  return it.para || "todos";
+/* ---------- para quem: uma ou mais pessoas por item ----------
+   quem: ["todos"], ["producao"], ["equipe"], ["freelas"] (as freelas do dia) e "fr:Nome", combináveis.
+   Itens antigos sem quem seguem o para/para_freela. */
+let PROD_QUEM_ABERTO = null;   // item do plano com o seletor de pessoas aberto
+function quemDe(it){
+  if(it.quem && it.quem.length) return it.quem.slice();
+  if(it.para_freela === "*") return ["freelas"];
+  if(it.para_freela) return ["fr:" + it.para_freela];
+  return [it.para || "todos"];
 }
-function gravarDest(v){
-  if(v && v.startsWith("fr:")) return { para: "todos", para_freela: v.slice(3).trim() || "*" };
-  return { para: v || "todos", para_freela: null };
+function nomeQuemUm(q){
+  const P = PESSOAS || { producao: "Produção", equipe: "Noite" };
+  if(q === "todos") return "todo mundo";
+  if(q === "producao") return P.producao;
+  if(q === "equipe") return P.equipe;
+  if(q === "freelas") return "as freelas do dia";
+  if(q && q.startsWith("fr:")) return q.slice(3);
+  return q;
 }
-function nomeDest(v){
-  if(v === "todos") return "todo mundo";
-  if(v === "producao") return (PESSOAS && PESSOAS.producao) || "a produção";
-  if(v === "equipe") return (PESSOAS && PESSOAS.equipe) || "a equipe";
-  if(v === "fr:*") return "as freelas do dia";
-  if(v && v.startsWith("fr:")) return v.slice(3) + " (freela)";
-  return v;
+function nomeQuem(arr){
+  const n = (arr || []).map(nomeQuemUm);
+  return n.length <= 1 ? (n[0] || "") : n.slice(0, -1).join(", ") + " e " + n[n.length - 1];
+}
+/* grava quem e, quando é uma pessoa ou grupo só, também o para antigo (celular com versão velha) */
+function gravarQuem(arr){
+  const um = arr.length === 1 ? arr[0] : null;
+  return { quem: arr,
+           para: um && ["todos", "producao", "equipe"].includes(um) ? um : "todos",
+           para_freela: um === "freelas" ? "*" : (um && um.startsWith("fr:") ? um.slice(3) : null) };
+}
+function botaoQuem(it){
+  const b = document.createElement("button");
+  b.type = "button"; b.className = "para-quem";
+  b.setAttribute("aria-label", "Para quem é " + it.nome);
+  b.setAttribute("aria-expanded", String(PROD_QUEM_ABERTO === it.id));
+  b.textContent = "Para: " + nomeQuem(quemDe(it)) + (PROD_QUEM_ABERTO === it.id ? "  ▴" : "  ▾");
+  b.onclick = () => { PROD_QUEM_ABERTO = PROD_QUEM_ABERTO === it.id ? null : it.id; montarProdLista(); };
+  return b;
+}
+async function gravarQuemItem(it, arr){
+  const g = gravarQuem(arr);
+  const { error } = await sb.from("jb_producao_item").update(g).eq("id", it.id);
+  if(error){ aviso("prodMsg","Não consegui mudar para quem é esse item.","err"); return false; }
+  Object.assign(it, g);
+  const b = [...document.querySelectorAll("#prodLista .para-quem")].find(x => x.getAttribute("aria-label") === "Para quem é " + it.nome);
+  if(b) b.textContent = "Para: " + nomeQuem(arr) + "  ▴";
+  aviso("prodMsg", it.nome + " agora aparece para " + nomeQuem(arr) + ".", "ok");
+  return true;
 }
 
-/* monta as opções do seletor de destino; "Outra freela..." abre um campo para digitar o nome */
-function opcoesDest(sel, atual, extraVazio){
-  sel.innerHTML = "";
+/* Escolher pessoas: toque para marcar ou desmarcar. "Todos" vale sozinho.
+   "+ Pessoa nova" abre um campo; o nome entra na lista de freelas da casa. */
+function pickerQuem(atual, aoMudar, id){
+  const box = document.createElement("div"); box.className = "quem-picker"; if(id) box.id = id;
+  let sel = new Set(atual || []);
   const P = PESSOAS || { producao: "Produção", equipe: "Noite", freelas: [] };
-  const add = (v, t, pai) => { const o = document.createElement("option"); o.value = v; o.textContent = t; (pai || sel).appendChild(o); };
-  if(extraVazio) add("", extraVazio);
-  add("todos", "Todos veem");
-  add("producao", "só " + P.producao);
-  add("equipe", "só " + P.equipe);
-  const g = document.createElement("optgroup"); g.label = "Freelas";
-  add("fr:*", "só as freelas do dia", g);
-  const nomes = P.freelas.slice();
-  if(atual && atual.startsWith("fr:") && atual !== "fr:*" && !nomes.some(n => n.toLowerCase() === atual.slice(3).toLowerCase()))
-    nomes.push(atual.slice(3));
-  nomes.forEach(n => add("fr:" + n, "só " + n + " (freela)", g));
-  add("fr:?", "Outra freela...", g);
-  sel.appendChild(g);
-  sel.value = atual == null ? "" : atual;
-  if(sel.value !== (atual == null ? "" : atual)){
-    const achou = [...sel.options].find(o => o.value.toLowerCase() === String(atual).toLowerCase());
-    if(achou) sel.value = achou.value;
+  const desenhar = () => {
+    box.innerHTML = "";
+    const ops = [["todos", "Todos"], ["producao", P.producao], ["equipe", P.equipe], ["freelas", "Freelas do dia"]];
+    const nomes = (P.freelas || []).slice();
+    [...sel].filter(q => q.startsWith("fr:")).forEach(q => { if(!nomes.some(n => n.toLowerCase() === q.slice(3).toLowerCase())) nomes.push(q.slice(3)); });
+    nomes.forEach(n => ops.push(["fr:" + n, n]));
+    ops.forEach(([v, rot]) => {
+      const c = document.createElement("button"); c.type = "button"; c.className = "quem-chip"; c.dataset.q = v;
+      const on = [...sel].some(x => x.toLowerCase() === v.toLowerCase());
+      c.setAttribute("aria-pressed", String(on));
+      c.textContent = rot;
+      c.onclick = () => {
+        const antes = new Set(sel);
+        if(v === "todos") sel = new Set(["todos"]);
+        else {
+          sel.delete("todos");
+          const ja = [...sel].find(x => x.toLowerCase() === v.toLowerCase());
+          if(ja) sel.delete(ja); else sel.add(v);
+        }
+        if(!sel.size){ sel = antes; aviso(id && id.startsWith("quemItem") ? "prodMsg" : "qfMsg", "Escolha pelo menos uma pessoa.", "warn"); return; }
+        desenhar();
+        aoMudar([...sel]);
+      };
+      box.appendChild(c);
+    });
+    const nova = document.createElement("button"); nova.type = "button"; nova.className = "quem-chip nova"; nova.textContent = "+ Pessoa nova";
+    nova.onclick = () => {
+      nova.remove();
+      const inp = document.createElement("input"); inp.type = "text"; inp.maxLength = 40; inp.className = "rec nomefreela";
+      inp.placeholder = "Nome e sobrenome"; inp.setAttribute("aria-label", "Nome da pessoa nova");
+      box.appendChild(inp); inp.focus();
+      let feito = false;
+      const fim = async () => {
+        if(feito) return; feito = true;
+        const n = limpaNome(inp.value).slice(0, 40);
+        if(!n){ desenhar(); return; }
+        await guardarFreelaFixa(n);
+        if(PESSOAS && !PESSOAS.freelas.some(x => x.toLowerCase() === n.toLowerCase())){ PESSOAS.freelas.push(n); PESSOAS.freelas.sort((x, y) => x.localeCompare(y, "pt-BR")); }
+        sel.delete("todos"); sel.add("fr:" + n);
+        desenhar();
+        aoMudar([...sel]);
+      };
+      inp.addEventListener("keydown", e => { if(e.key === "Enter") inp.blur(); if(e.key === "Escape"){ inp.value = ""; inp.blur(); } });
+      inp.addEventListener("blur", fim);
+    };
+    box.appendChild(nova);
+  };
+  desenhar();
+  return box;
+}
+
+/* ---------- quanto já foi feito ---------- */
+function meuNome(){ return EU ? (EU.papel === "freela" ? EU.apelido : EU.nome) : ""; }
+function qtdItemTx(it, q){
+  if(it.tipo === "subreceita" && Number(it.rendimento) > 0) return loteTx(Number(q) / Number(it.rendimento), it.unidade_producao);
+  return qtdBonita(q, it.unidade || "un");
+}
+function feitosTx(it){
+  const fs = it.feitos || [];
+  return fs.map(f => f.nome + " " + qtdItemTx(it, f.qtd)).join(", ");
+}
+/* quem mais está neste item além de quem está usando o app */
+function outrosNoItem(it){
+  const eu = EU.papel === "freela" ? ("fr:" + meuNome()).toLowerCase() : EU.papel;
+  return quemDe(it).filter(x => x !== "todos" && x.toLowerCase() !== eu);
+}
+function textoItemPlano(it, gestor, travado){
+  const partes = [];
+  const total = it.feito_qtd == null ? null : Number(it.feito_qtd);
+  if(total !== null){
+    const dif = Math.round((total - Number(it.qtd)) * 1000) / 1000;
+    let t = (it.feito ? "Feito: " : "Até agora: ") + qtdItemTx(it, total) + " de " + qtdItemTx(it, it.qtd);
+    if(it.feito && dif > 0) t += " (" + qtdItemTx(it, dif) + " a mais)";
+    if(it.feito && dif < 0) t += " (" + qtdItemTx(it, -dif) + " a menos)";
+    partes.push(t);
+    if(feitosTx(it)) partes.push(feitosTx(it));
+  } else if(it.feito){
+    partes.push("Feito às " + horaDe(it.feito_em) + (it.feito_por ? " por " + it.feito_por : ""));
+  } else if(travado){
+    partes.push(gestor ? "passo a passo ainda não conferido por você" : "passo a passo ainda não conferido pela Jessica");
+  } else {
+    partes.push(it.tipo === "subreceita"
+      ? (lotesDe(it) !== null ? "cerca de " + qtdBonita(it.qtd, "kg") + " no total" : "massa ou recheio")
+      : "produto pronto");
   }
-}
-
-/* "Outra freela...": um campo logo abaixo do seletor; Enter ou sair do campo confirma */
-function pedirNomeFreela(sel, voltar, aoEscolher){
-  const inp = document.createElement("input");
-  inp.type = "text"; inp.maxLength = 40; inp.className = "rec nomefreela";
-  inp.placeholder = "Nome e sobrenome da freela";
-  inp.setAttribute("aria-label", "Nome da freela");
-  sel.insertAdjacentElement("afterend", inp);
-  inp.focus();
-  let feito = false;
-  const fim = () => {
-    if(feito) return; feito = true;
-    const n = inp.value.trim().replace(/\s+/g, " ").slice(0, 40);
-    inp.remove();
-    if(!n){ sel.value = voltar; return; }
-    if(PESSOAS && !PESSOAS.freelas.some(x => x.toLowerCase() === n.toLowerCase())){
-      PESSOAS.freelas.push(n); PESSOAS.freelas.sort((x, y) => x.localeCompare(y, "pt-BR"));
-    }
-    guardarFreelaFixa(n);
-    const o = document.createElement("option"); o.value = "fr:" + n; o.textContent = "só " + n + " (freela)";
-    const g = sel.querySelector("optgroup") || sel;
-    g.insertBefore(o, g.lastElementChild);
-    sel.value = "fr:" + n;
-    aoEscolher("fr:" + n);
-  };
-  inp.addEventListener("keydown", e => { if(e.key === "Enter") inp.blur(); if(e.key === "Escape"){ inp.value = ""; inp.blur(); } });
-  inp.addEventListener("blur", fim);
-}
-
-function seletorPara(it){
-  const sel = document.createElement("select");
-  sel.className = "para";
-  sel.setAttribute("aria-label", "Para quem é " + it.nome);
-  opcoesDest(sel, destDe(it));
-  const gravar = async v => {
-    const antes = destDe(it);
-    const g = gravarDest(v);
-    const { error } = await sb.from("jb_producao_item").update(g).eq("id", it.id);
-    if(error){ opcoesDest(sel, antes); aviso("prodMsg","Não consegui mudar para quem é esse item.","err"); return; }
-    it.para = g.para; it.para_freela = g.para_freela;
-    aviso("prodMsg", it.nome + " agora aparece para " + nomeDest(v) + ".", "ok");
-  };
-  sel.onchange = () => {
-    if(sel.value === "fr:?"){ pedirNomeFreela(sel, destDe(it), gravar); return; }
-    gravar(sel.value);
-  };
-  return sel;
+  if(!gestor){
+    const outros = outrosNoItem(it);
+    if(outros.length) partes.push("junto com " + nomeQuem(outros));
+  }
+  return partes.filter(Boolean).join(" · ");
 }
 
 async function addReceitaAoDia(valor){
@@ -535,28 +591,85 @@ function montarReceita(){
     box.appendChild(av);
   }
 
+  /* Quanto você fez: cada pessoa registra o que fez (pode ser mais ou menos que o pedido).
+     Registrar de novo corrige o número dela. Massa e recheio em massas/panelas; doce em unidades. */
   const btn = $("btnRecFeito");
   btn.classList.toggle("hide", !REC.item);
   btn.disabled = false;
-  btn.textContent = REC.item && REC.item.feito ? "Desmarcar, ainda não fiz" : "Marcar como feito";
-  btn.classList.toggle("desfazer", !!(REC.item && REC.item.feito));
+  btn.classList.remove("desfazer");
+  if(REC.item){
+    const it = REC.item;
+    const emLotesIt = it.tipo === "subreceita" && Number(it.rendimento) > 0;
+    const paraTela = q => emLotesIt ? Math.round(Number(q) / Number(it.rendimento) * 100) / 100 : Number(q);
+    const meu = (it.feitos || []).find(f => String(f.nome).trim().toLowerCase() === String(meuNome()).trim().toLowerCase());
+    const total = Number(it.feito_qtd || 0);
+    const sugestao = meu ? Number(meu.qtd) : Math.max(Number(it.qtd) - total, 0) || Number(it.qtd);
+
+    const bx = document.createElement("div"); bx.className = "recbloco rec-fez"; bx.id = "recFezBox";
+    const h = document.createElement("h3"); h.textContent = meu ? "Você registrou" : "Quanto você fez?";
+    bx.appendChild(h);
+    const pr = document.createElement("p"); pr.className = "rec-progresso"; pr.id = "recProgresso";
+    pr.textContent = "Pedido: " + qtdItemTx(it, it.qtd)
+      + (it.feito_qtd != null ? " · feito até agora: " + qtdItemTx(it, total) + (feitosTx(it) ? " (" + feitosTx(it) + ")" : "") : "")
+      + (EU.papel === "gestor"
+          ? (quemDe(it).length > 1 ? " · para " + nomeQuem(quemDe(it)) : "")
+          : (outrosNoItem(it).length ? " · junto com " + nomeQuem(outrosNoItem(it)) : ""));
+    bx.appendChild(pr);
+    const linha = document.createElement("label"); linha.className = "rec-fez-linha";
+    const inp = document.createElement("input"); inp.type = "tel"; inp.inputMode = "decimal"; inp.id = "recFez"; inp.className = "q";
+    inp.value = String(paraTela(sugestao)).replace(".", ",");
+    inp.setAttribute("aria-label", "Quanto você fez de " + cab.nome);
+    const un = document.createElement("span"); un.className = "un";
+    un.textContent = emLotesIt ? nomeLote(2, it.unidade_producao) : "unidades";
+    linha.append(inp, un);
+    bx.appendChild(linha);
+    const dica = document.createElement("p"); dica.className = "tip"; dica.style.margin = "6px 0 0";
+    dica.textContent = "Fez mais ou menos que o pedido? Coloque o número de verdade. Se errar, é só registrar de novo.";
+    bx.appendChild(dica);
+    if(EU.papel === "gestor"){
+      const mk = document.createElement("button"); mk.type = "button"; mk.className = "qf-link"; mk.id = "recMarcar";
+      mk.textContent = it.feito ? "Reabrir este item" : "Marcar como feito sem número";
+      mk.onclick = travar(mk, marcarFeitoSemNumero);
+      bx.appendChild(mk);
+    }
+    box.appendChild(bx);
+    btn.textContent = meu ? "Corrigir o que fiz" : "Registrar o que fiz";
+  }
 }
 
 async function marcarFeito(){
   if(!REC || !REC.item) return;
+  const it = REC.item;
   const btn = $("btnRecFeito");
-  const desmarcando = !!REC.item.feito;
-  const rotulo = desmarcando ? "Desmarcar, ainda não fiz" : "Marcar como feito";
+  const v = numBR(($("recFez") || {}).value);
+  if(v === null || v < 0 || v > 100000){ aviso("recMsg","Coloque quanto você fez (pode ser 0).","warn"); return; }
+  const emLotesIt = it.tipo === "subreceita" && Number(it.rendimento) > 0;
+  const qtd = emLotesIt ? Math.round(v * Number(it.rendimento) * 1000) / 1000 : v;
+  const rotulo = btn.textContent;
   btn.disabled = true; btn.textContent = "Salvando...";
-  const { error } = await sb.rpc("jb_marcar_producao",
-    { p_id: REC.item.id, p_feito: !desmarcando });
+  const { data, error } = await sb.rpc("jb_producao_registrar", { p_id: it.id, p_qtd: qtd });
   if(error){
-    aviso("recMsg","Não consegui salvar agora. Tente de novo.","err");
+    aviso("recMsg", error.code === "42501" ? "Esse item não é seu hoje. Fale com a Jessica." : "Não consegui salvar agora. Tente de novo.","err");
     btn.disabled = false; btn.textContent = rotulo;
     return;
   }
   await carregarDia();
-  aviso("prodMsg", REC.cab.nome + (desmarcando ? " voltou para a lista." : " marcado como feito."),"ok");
+  const r = data || {};
+  const falta = Number(r.pedido) - Number(r.total);
+  aviso("prodMsg", REC.cab.nome + ": registrei " + qtdItemTx(it, qtd) + "."
+    + (r.feito ? (falta > 0 ? " Item fechado com " + qtdItemTx(it, falta) + " a menos que o pedido." : falta < 0 ? " Item fechado com " + qtdItemTx(it, -falta) + " a mais." : " Item completo.")
+               : " Ainda faltam " + qtdItemTx(it, Math.max(falta, 0)) + " para o pedido."), "ok");
+  show("scProd");
+}
+
+/* gestor: fechar ou reabrir sem número (o jeito antigo) */
+async function marcarFeitoSemNumero(){
+  if(!REC || !REC.item) return;
+  const reabrir = !!REC.item.feito;
+  const { error } = await sb.rpc("jb_marcar_producao", { p_id: REC.item.id, p_feito: !reabrir });
+  if(error){ aviso("recMsg","Não consegui salvar agora. Tente de novo.","err"); return; }
+  await carregarDia();
+  aviso("prodMsg", REC.cab.nome + (reabrir ? " voltou para a lista." : " marcado como feito."),"ok");
   show("scProd");
 }
 

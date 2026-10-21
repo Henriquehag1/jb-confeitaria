@@ -143,7 +143,7 @@ async function carregarHome(){
     EU.papel === "gestor" ? "Diga o que precisa ser feito e em que quantidade"
                           : "Suas receitas com as quantidades certas";
   $("homeTip").textContent = freela
-    ? "Conte item por item, sem pressa. Seu acesso vale até " + quandoAte(EU.freela_ate) + "."
+    ? "Em O que fazer hoje está o que a Jessica mandou para você: abra a receita e, no fim, registre quanto fez. Na contagem, conte item por item, sem pressa. Seu acesso vale até " + quandoAte(EU.freela_ate) + "."
     : conta
     ? "Conte item por item, sem pressa. Se errar, dá para corrigir no mesmo dia."
     : "Toque na receita para ver os ingredientes já na quantidade certa e o passo a passo.";
@@ -162,6 +162,7 @@ async function carregarHome(){
     $("btnAfazeres").classList.add("hide");
     $("btnEstoque").classList.add("hide");
     $("btnQuanto").classList.add("hide");
+    $("btnFreelaHoje").classList.add("hide");
     $("btnEncomendas").classList.add("hide");
     $("btnContas").classList.add("hide");
     $("btnSaude").classList.add("hide");
@@ -249,6 +250,7 @@ async function carregarHome(){
   $("btnAfazeres").classList.toggle("hide", EU.papel !== "gestor");
   $("btnEstoque").classList.toggle("hide", EU.papel !== "gestor");
   $("btnQuanto").classList.toggle("hide", EU.papel !== "gestor");
+  $("btnFreelaHoje").classList.toggle("hide", EU.papel !== "gestor");
   $("btnEncomendas").classList.toggle("hide", EU.papel !== "gestor");
   $("btnContas").classList.toggle("hide", EU.papel !== "gestor");
   $("btnSaude").classList.toggle("hide", EU.papel !== "gestor");
@@ -272,6 +274,10 @@ async function carregarHome(){
       sub.textContent = "Impostos, contas fixas e boletos, com comprovante";
       $("btnContas").classList.add("ghost");
     }
+    await carregarFreelaAcesso().catch(() => null);
+    $("frHojeSub").textContent = FR_ACS && FR_ACS.length
+      ? "Liberadas: " + FR_ACS.map(a => a.nome).join(", ")
+      : "Escolha quem vem hoje e mande o código";
     const qf = await resumoQuantoHome().catch(() => null);
     $("qfSub").textContent = qf || "A conta da semana pela venda, pela geladeira e pelo freezer";
     const ct = await resumoContadorHome().catch(() => null);

@@ -11,11 +11,12 @@
 
 let QF = null;             // resposta do banco
 let QF_ABERTO = null;      // produto com o editor de meta aberto
-let QF_DIA_BASES = null;   // dia das massas e recheios no plano
-let QF_DIA_MONTA = null;   // dia da montagem no plano
-/* para quem vai cada coisa: um destino para as massas e recheios, outro para os doces,
-   e o que a Jessica trocar item por item ("subreceita:8" -> "fr:Maria") */
-let QF_DEST = { bases: "producao", doces: "todos", item: {}, verItens: false };
+/* Mandar para o plano: a Jessica marca os itens, escolhe o dia e uma ou mais pessoas, e manda.
+   Depois marca outros para outro dia ou outra pessoa. */
+let QF_SEL = new Map();    // "ficha:4" ou "subreceita:8" -> quantidade escolhida (un ou massas/panelas)
+let QF_DIA = null;         // dia do envio
+let QF_QUEM = [];          // para quem vai o envio
+let QF_PLANO = [];         // o que já está no plano de hoje em diante (para não pedir duas vezes)
 const QF_OPC_DIAS  = [3, 4, 5, 7, 10, 14];
 const QF_OPC_FOLGA = [0, 10, 15, 25];
 
@@ -46,9 +47,8 @@ async function abrirQuanto(){
   aviso("qfMsg", "", "");
   $("qfCorpo").innerHTML = "<p class='tip'>Fazendo a conta...</p>";
   show("scQuanto");
-  if(!QF_DIA_BASES || QF_DIA_BASES < hojeSP()) QF_DIA_BASES = hojeSP();
-  if(!QF_DIA_MONTA || QF_DIA_MONTA < hojeSP()) QF_DIA_MONTA = diaMais(1);
-  try { QF = await qfConta(); await carregarPessoas().catch(() => null); }
+  if(!QF_DIA || QF_DIA < hojeSP()) QF_DIA = diaMais(1);
+  try { QF = await qfConta(); await Promise.all([carregarPessoas().catch(() => null), qfCarregarPlano()]); }
   catch(e){
     $("qfCorpo").innerHTML = "";
     aviso("qfMsg", e && e.code === "42501"
@@ -139,11 +139,77 @@ function qfEditor(it){
   return ed;
 }
 
+async function qfCarregarPlano(){
+  const r = await sb.from("jb_producao_dia").select("id,data,tipo,ref_id,qtd,feito,feito_qtd,quem,para,para_freela,rendimento,unidade_producao")
+    .gte("data", hojeSP());
+  QF_PLANO = (r && !r.error && r.data) || [];
+}
+
+/* os itens da conta num formato só: doces e massas/recheios */
+function qfLinhas(){
+  const doces = ((QF && QF.itens) || []).map(it => ({
+    chave: "ficha:" + it.ficha_id, tipo: "ficha", ref_id: it.ficha_id, nome: it.nome, it, sem_ficha: !it.ficha_id,
+    fazer: it.fazer, emLotes: false, rendimento: 1, unidade_producao: null }));
+  const bases = ((QF && QF.bases) || []).map(b => ({
+    chave: "subreceita:" + b.subreceita_id, tipo: "subreceita", ref_id: b.subreceita_id, nome: b.nome, base: b,
+    fazer: Number(b.lotes_fazer) || 0, emLotes: true, rendimento: Number(b.rendimento_kg) || 1, unidade_producao: b.unidade_producao }));
+  return { doces, bases };
+}
+/* quanto desse item já está no plano e ainda não foi feito (na mesma unidade da tela) */
+function qfNoPlano(l){
+  const ps = QF_PLANO.filter(p => p.tipo === l.tipo && Number(p.ref_id) === Number(l.ref_id));
+  const aberto = ps.filter(p => !p.feito).reduce((t, p) => t + Math.max(Number(p.qtd) - Number(p.feito_qtd || 0), 0), 0);
+  return { ps, aberto: l.emLotes ? aberto / l.rendimento : aberto };
+}
+function qfFaltaMandar(l){
+  if(l.sem_ficha) return 0;
+  const v = Math.max(l.fazer - qfNoPlano(l).aberto, 0);
+  return l.emLotes ? Math.ceil(v * 2) / 2 : Math.ceil(v);
+}
+function qfQtdTx(l, v){ return l.emLotes ? loteTx(v, l.unidade_producao) : qfNum(v) + " un"; }
+
+function qfLinhaItem(l){
+  const row = document.createElement("div");
+  const sel = QF_SEL.has(l.chave);
+  const falta = qfFaltaMandar(l);
+  row.className = "prod qf-item qf-sel-row" + (l.fazer > 0 ? "" : " feito") + (sel ? " escolhido" : "")
+    + (l.it && l.it.fonte !== "vendas" ? " travado" : "") + (l.base ? " qf-base" : "");
+  row.dataset.chave = l.chave;
+  if(l.it) row.dataset.pid = l.it.produto_id;
+  const ck = document.createElement("input"); ck.type = "checkbox"; ck.className = "qf-ck"; ck.checked = sel;
+  ck.disabled = !!l.sem_ficha;
+  ck.setAttribute("aria-label", "Escolher " + l.nome);
+  ck.onchange = () => {
+    if(ck.checked) QF_SEL.set(l.chave, falta > 0 ? falta : l.fazer || (l.emLotes ? 1 : 1));
+    else QF_SEL.delete(l.chave);
+    montarQuanto();
+  };
+  row.appendChild(ck);
+  if(l.it){ const im = imgFoto(l.it.foto_url); if(im) row.appendChild(im); }
+  const nm = document.createElement("button"); nm.type = "button"; nm.className = "n qf-nome"; nm.textContent = l.nome;
+  const sm = document.createElement("small");
+  sm.textContent = l.it ? qfDetalhe(l.it) : "cerca de " + qtdBonita(l.base.kg, "kg") + " no total · para " + l.base.para;
+  nm.appendChild(sm);
+  const np = qfNoPlano(l);
+  if(np.ps.length){
+    const tg = document.createElement("small"); tg.className = "qf-plano";
+    tg.textContent = "No plano: " + np.ps.map(p => qfNomeDia(p.data).toLowerCase() + " " + qfQtdTx(l, l.emLotes ? Number(p.qtd) / l.rendimento : Number(p.qtd))
+      + " para " + nomeQuem(quemDe(p)) + (p.feito ? " (feito)" : "")).join("; ")
+      + (l.fazer > 0 ? ". Falta mandar: " + (falta > 0 ? qfQtdTx(l, falta) : "nada") : "");
+    nm.appendChild(tg);
+  }
+  if(l.it) nm.onclick = () => { QF_ABERTO = QF_ABERTO === l.it.produto_id ? null : l.it.produto_id; montarQuanto(); };
+  else nm.onclick = () => { ck.checked = !ck.checked; ck.onchange(); };
+  const qt = document.createElement("span"); qt.className = "qt";
+  qt.textContent = l.fazer > 0 ? (l.emLotes ? loteTx(l.fazer, l.unidade_producao) : String(l.fazer)) : "ok";
+  row.append(nm, qt);
+  return row;
+}
+
 function montarQuanto(){
   const box = $("qfCorpo");
   box.innerHTML = "";
-  const itens = (QF && QF.itens) || [];
-  const bases = (QF && QF.bases) || [];
+  const { doces, bases } = qfLinhas();
 
   /* o resumo */
   const card = document.createElement("div"); card.className = "freezer-card qf-resumo"; card.id = "qfResumo";
@@ -160,144 +226,130 @@ function montarQuanto(){
   box.appendChild(qfChips("Cobrir quantos dias", QF_OPC_DIAS, QF.dias, v => v + " dias", v => qfTrocarParam("dias", v), "qfDias"));
   box.appendChild(qfChips("Folga", QF_OPC_FOLGA, QF.margem_pct, v => v + "%", v => qfTrocarParam("margem_pct", v), "qfFolga"));
 
+  const como = document.createElement("p"); como.className = "tip qf-como";
+  como.textContent = "Marque os itens, escolha o dia e quem vai fazer, e mande. Depois marque outros para outro dia ou outra pessoa. Toque no nome do doce para dizer a meta ou a validade.";
+  box.appendChild(como);
+  const atalhos = document.createElement("div"); atalhos.className = "qf-atalhos";
+  const tudo = document.createElement("button"); tudo.type = "button"; tudo.className = "qf-link"; tudo.id = "qfSelTudo";
+  tudo.textContent = "Marcar tudo que falta mandar";
+  tudo.onclick = () => { [...doces, ...bases].forEach(l => { const f = qfFaltaMandar(l); if(f > 0) QF_SEL.set(l.chave, f); }); montarQuanto(); };
+  atalhos.appendChild(tudo);
+  if(QF_SEL.size){
+    const limpa = document.createElement("button"); limpa.type = "button"; limpa.className = "qf-link"; limpa.id = "qfSelLimpa";
+    limpa.textContent = "Desmarcar tudo";
+    limpa.onclick = () => { QF_SEL.clear(); montarQuanto(); };
+    atalhos.appendChild(limpa);
+  }
+  box.appendChild(atalhos);
+
   /* doces: primeiro o que precisa fazer, do maior para o menor */
   const t1 = document.createElement("h3"); t1.className = "qf-tit"; t1.textContent = "Doces";
   box.appendChild(t1);
-  const ordem = itens.slice().sort((a, b) => (b.fazer > 0) - (a.fazer > 0) || b.fazer - a.fazer || a.ordem - b.ordem);
-  ordem.forEach(it => {
-    const row = document.createElement("button"); row.type = "button";
-    row.className = "prod qf-item" + (it.fazer > 0 ? "" : " feito") + (it.fonte === "vendas" ? "" : " travado");
-    row.dataset.pid = it.produto_id;
-    const im = imgFoto(it.foto_url); if(im) row.appendChild(im);
-    const nm = document.createElement("span"); nm.className = "n"; nm.textContent = it.nome;
-    const sm = document.createElement("small"); sm.textContent = qfDetalhe(it);
-    nm.appendChild(sm);
-    const qt = document.createElement("span"); qt.className = "qt";
-    qt.textContent = it.fazer > 0 ? String(it.fazer) : "ok";
-    row.append(nm, qt);
-    row.onclick = () => { QF_ABERTO = QF_ABERTO === it.produto_id ? null : it.produto_id; montarQuanto(); };
-    box.appendChild(row);
-    if(QF_ABERTO === it.produto_id) box.appendChild(qfEditor(it));
+  doces.slice().sort((a, b) => (b.fazer > 0) - (a.fazer > 0) || b.fazer - a.fazer || a.it.ordem - b.it.ordem).forEach(l => {
+    box.appendChild(qfLinhaItem(l));
+    if(QF_ABERTO === l.it.produto_id) box.appendChild(qfEditor(l.it));
   });
 
   /* massas e recheios */
   if(bases.length){
     const t2 = document.createElement("h3"); t2.className = "qf-tit"; t2.textContent = "Massas e recheios para isso";
     box.appendChild(t2);
-    bases.forEach(b => {
-      const row = document.createElement("div"); row.className = "prod qf-base";
-      const nm = document.createElement("span"); nm.className = "n"; nm.textContent = b.nome;
-      const sm = document.createElement("small");
-      sm.textContent = "cerca de " + qtdBonita(b.kg, "kg") + " no total · para " + b.para;
-      nm.appendChild(sm);
-      const qt = document.createElement("span"); qt.className = "qt";
-      qt.textContent = loteTx(b.lotes_fazer, b.unidade_producao);
-      row.append(nm, qt);
-      box.appendChild(row);
-    });
+    bases.forEach(l => box.appendChild(qfLinhaItem(l)));
     const p = document.createElement("p"); p.className = "tip";
     p.textContent = "Arredondado para meia receita. O que já sobrou de massa ou recheio pronto não entra na conta: desconte de cabeça.";
     box.appendChild(p);
   }
 
-  /* mandar para o plano de produção: em que dia e para quem */
-  const t3 = document.createElement("h3"); t3.className = "qf-tit"; t3.textContent = "Mandar para o plano de produção";
-  box.appendChild(t3);
-  const prox = [0, 1, 2, 3, 4, 5, 6].map(diaMais);
-  box.appendChild(qfChips("Massas e recheios no dia", prox, QF_DIA_BASES, qfNomeDia, v => { QF_DIA_BASES = v; montarQuanto(); }, "qfDiaBases"));
-  box.appendChild(qfChips("Montagem dos doces no dia", prox, QF_DIA_MONTA, qfNomeDia, v => { QF_DIA_MONTA = v; montarQuanto(); }, "qfDiaMonta"));
-  box.appendChild(qfDestGrupo("Massas e recheios vão para", "bases", "qfDestBases"));
-  box.appendChild(qfDestGrupo("Doces vão para", "doces", "qfDestDoces"));
-
-  const vaiItens = qfItensParaMandar();
-  if(vaiItens.length){
-    const tg = document.createElement("button"); tg.type = "button"; tg.className = "qf-link"; tg.id = "qfVerItens";
-    tg.textContent = QF_DEST.verItens ? "Esconder a escolha item por item" : "Escolher pessoa item por item";
-    tg.onclick = () => { QF_DEST.verItens = !QF_DEST.verItens; montarQuanto(); };
-    box.appendChild(tg);
-    if(QF_DEST.verItens){
-      const lista = document.createElement("div"); lista.className = "qf-dest-lista"; lista.id = "qfDestItens";
-      vaiItens.forEach(x => {
-        const l = document.createElement("label"); l.className = "qf-dest-item"; l.dataset.chave = x.chave;
-        const n = document.createElement("span"); n.textContent = x.nome + " · " + x.qtdTx;
-        const sel = document.createElement("select"); sel.className = "para";
-        sel.setAttribute("aria-label", "Para quem vai " + x.nome);
-        opcoesDest(sel, QF_DEST.item[x.chave] || "", "igual ao grupo");
-        sel.onchange = () => {
-          const ok = v => { if(v) QF_DEST.item[x.chave] = v; else delete QF_DEST.item[x.chave]; };
-          if(sel.value === "fr:?"){ pedirNomeFreela(sel, QF_DEST.item[x.chave] || "", ok); return; }
-          ok(sel.value);
-        };
-        l.append(n, sel);
-        lista.appendChild(l);
-      });
-      box.appendChild(lista);
-    }
+  /* barra que acompanha a rolagem quando há itens marcados */
+  if(QF_SEL.size){
+    const barra = document.createElement("button"); barra.type = "button"; barra.className = "qf-barra"; barra.id = "qfBarra";
+    barra.textContent = QF_SEL.size + (QF_SEL.size === 1 ? " item marcado" : " itens marcados") + " · escolher dia e pessoa";
+    barra.onclick = () => { const e = $("qfEnvio"); if(e && e.scrollIntoView) e.scrollIntoView({ behavior: "smooth", block: "start" }); };
+    box.appendChild(barra);
   }
 
+  /* o envio dos marcados */
+  const env = document.createElement("div"); env.className = "qf-envio"; env.id = "qfEnvio";
+  const t3 = document.createElement("h3"); t3.className = "qf-tit"; t3.textContent = "Mandar para o plano";
+  env.appendChild(t3);
+  const todas = [...doces, ...bases];
+  const marcados = todas.filter(l => QF_SEL.has(l.chave));
+  if(!marcados.length){
+    const p = document.createElement("p"); p.className = "tip"; p.style.margin = "0 2px 8px";
+    p.textContent = "Nenhum item marcado. Marque na lista acima.";
+    env.appendChild(p);
+  } else {
+    const lista = document.createElement("div"); lista.className = "qf-dest-lista"; lista.id = "qfMarcados";
+    marcados.forEach(l => {
+      const lin = document.createElement("div"); lin.className = "qf-dest-item"; lin.dataset.chave = l.chave;
+      const nm = document.createElement("span"); nm.textContent = l.nome;
+      const q = document.createElement("input"); q.type = "tel"; q.inputMode = "decimal"; q.className = "q";
+      q.value = String(QF_SEL.get(l.chave)).replace(".", ",");
+      q.setAttribute("aria-label", "Quanto mandar de " + l.nome);
+      q.onchange = () => { const v = numBR(q.value); if(v !== null && v > 0) QF_SEL.set(l.chave, v); else q.value = String(QF_SEL.get(l.chave)).replace(".", ","); };
+      const un = document.createElement("span"); un.className = "un"; un.textContent = l.emLotes ? nomeLote(2, l.unidade_producao) : "un";
+      const x = document.createElement("button"); x.type = "button"; x.className = "tirar"; x.textContent = "tirar";
+      x.setAttribute("aria-label", "Desmarcar " + l.nome);
+      x.onclick = () => { QF_SEL.delete(l.chave); montarQuanto(); };
+      lin.append(nm, q, un, x);
+      lista.appendChild(lin);
+    });
+    env.appendChild(lista);
+  }
+  const prox = [0, 1, 2, 3, 4, 5, 6].map(diaMais);
+  env.appendChild(qfChips("Para que dia", prox, QF_DIA, qfNomeDia, v => { QF_DIA = v; montarQuanto(); }, "qfDia"));
+  const rq = document.createElement("span"); rq.className = "qf-rot"; rq.textContent = "Quem vai fazer (pode ser mais de uma pessoa)";
+  env.appendChild(rq);
+  env.appendChild(pickerQuem(QF_QUEM, arr => { QF_QUEM = arr; qfAtualizaBotao(); }, "qfQuem"));
   const bt = document.createElement("button"); bt.type = "button"; bt.className = "qf-bt cheio"; bt.id = "qfMandar";
-  bt.textContent = "Mandar para o plano";
   bt.onclick = travar(bt, mandarParaPlano);
-  box.appendChild(bt);
+  env.appendChild(bt);
+  box.appendChild(env);
+  qfAtualizaBotao();
 
   const dica = document.createElement("p"); dica.className = "tip";
   dica.textContent = "Doce novo ou que volta ao cardápio (como a coxinha): ative em Custos e preços › Geladeira, conte junto nas contagens "
-    + "e toque nele aqui para digitar a meta da semana. Depois de 7 dias de venda a conta passa a usar o que vendeu. "
-    + "Toque em qualquer doce para dizer a validade. Cada pessoa vê o que é dela em O que fazer hoje, inclusive a freela "
-    + "liberada com o mesmo nome; ela abre a receita já na quantidade certa e marca como feito.";
+    + "e toque no nome dele aqui para digitar a meta da semana. Depois de 7 dias de venda a conta passa a usar o que vendeu. "
+    + "Cada pessoa vê o que é dela em O que fazer hoje, abre a receita já na quantidade certa e registra quanto fez.";
   box.appendChild(dica);
 }
 
-function qfDestGrupo(rotulo, grupo, id){
-  const g = document.createElement("label"); g.className = "qf-op qf-dest";
-  const r = document.createElement("span"); r.className = "qf-rot"; r.textContent = rotulo;
-  const sel = document.createElement("select"); sel.className = "para"; sel.id = id;
-  sel.setAttribute("aria-label", rotulo);
-  opcoesDest(sel, QF_DEST[grupo]);
-  sel.onchange = () => {
-    const ok = v => { QF_DEST[grupo] = v; };
-    if(sel.value === "fr:?"){ pedirNomeFreela(sel, QF_DEST[grupo], ok); return; }
-    ok(sel.value);
-  };
-  g.append(r, sel);
-  return g;
-}
-
-/* o que vai para o plano, com a chave de cada item e o destino escolhido */
-function qfItensParaMandar(){
-  const bases = ((QF && QF.bases) || []).filter(b => Number(b.lotes_fazer) > 0 && Number(b.rendimento_kg) > 0)
-    .map(b => ({ chave: "subreceita:" + b.subreceita_id, grupo: "bases", nome: b.nome, qtdTx: loteTx(b.lotes_fazer, b.unidade_producao),
-                 data: QF_DIA_BASES, tipo: "subreceita", ref_id: Number(b.subreceita_id),
-                 qtd: Math.round(Number(b.lotes_fazer) * Number(b.rendimento_kg) * 1000) / 1000 }));
-  const doces = ((QF && QF.itens) || []).filter(i => i.fazer > 0 && i.ficha_id)
-    .map(i => ({ chave: "ficha:" + i.ficha_id, grupo: "doces", nome: i.nome, qtdTx: i.fazer + " un",
-                 data: QF_DIA_MONTA, tipo: "ficha", ref_id: Number(i.ficha_id), qtd: i.fazer }));
-  return [...bases, ...doces].map(x => ({ ...x, dest: QF_DEST.item[x.chave] || QF_DEST[x.grupo] }));
+function qfAtualizaBotao(){
+  const bt = $("qfMandar"); if(!bt) return;
+  const n = QF_SEL.size;
+  bt.textContent = n ? "Mandar " + n + (n === 1 ? " item" : " itens") + " para " + qfNomeDia(QF_DIA).toLowerCase()
+    + (QF_QUEM.length ? ", para " + nomeQuem(QF_QUEM) : "") : "Marque itens para mandar";
+  bt.disabled = !n || !QF_QUEM.length;
 }
 
 async function mandarParaPlano(){
-  const linhas = qfItensParaMandar();
-  if(!linhas.length){ aviso("qfMsg", "Nada para mandar: tem o suficiente de tudo.", "ok"); return; }
-  const dias = [...new Set([QF_DIA_BASES, QF_DIA_MONTA])];
-  const { data: ja, error: e1 } = await sb.from("jb_producao_item").select("id,data,tipo,ref_id,qtd").in("data", dias);
+  const { doces, bases } = qfLinhas();
+  const marcados = [...doces, ...bases].filter(l => QF_SEL.has(l.chave) && !l.sem_ficha);
+  if(!marcados.length){ aviso("qfMsg", "Marque pelo menos um item.", "warn"); return; }
+  if(!QF_QUEM.length){ aviso("qfMsg", "Escolha quem vai fazer.", "warn"); return; }
+  const { data: ja, error: e1 } = await sb.from("jb_producao_item").select("id,data,tipo,ref_id,qtd").eq("data", QF_DIA);
   if(e1){ aviso("qfMsg", "Não consegui ler o plano agora.", "err"); return; }
-  const achar = l => (ja || []).find(j => j.data === l.data && j.tipo === l.tipo && Number(j.ref_id) === l.ref_id);
-  const repetidas = linhas.filter(achar).length;
-  if(repetidas && !confirm(repetidas + (repetidas === 1 ? " receita já estava" : " receitas já estavam")
-      + " no plano desses dias. Trocar pela quantidade e pela pessoa da conta?")) return;
+  const achar = l => (ja || []).find(j => j.tipo === l.tipo && Number(j.ref_id) === Number(l.ref_id));
+  const repetidas = marcados.filter(achar);
+  if(repetidas.length && !confirm(repetidas.map(l => l.nome).join(", ") + (repetidas.length === 1 ? " já estava" : " já estavam")
+      + " no plano de " + qfNomeDia(QF_DIA).toLowerCase() + ". Trocar pela quantidade e pelas pessoas de agora?")) return;
+  const dest = gravarQuem(QF_QUEM);
   let erros = 0;
-  for(const l of linhas){
+  for(const l of marcados){
+    const v = Number(QF_SEL.get(l.chave));
+    const qtd = l.emLotes ? Math.round(v * l.rendimento * 1000) / 1000 : v;
     const j = achar(l);
-    const dest = gravarDest(l.dest);
     const r = j
-      ? await sb.from("jb_producao_item").update({ qtd: l.qtd, ...dest }).eq("id", j.id)
-      : await sb.from("jb_producao_item").insert({ data: l.data, tipo: l.tipo, ref_id: l.ref_id, qtd: l.qtd, ...dest });
+      ? await sb.from("jb_producao_item").update({ qtd, ...dest }).eq("id", j.id)
+      : await sb.from("jb_producao_item").insert({ data: QF_DIA, tipo: l.tipo, ref_id: Number(l.ref_id), qtd, ...dest });
     if(r && r.error) erros++;
   }
-  if(erros){ aviso("qfMsg", "Mandei quase tudo, mas " + erros + " não entraram. Confira no Plano de produção.", "warn"); return; }
-  const nb = linhas.filter(l => l.tipo === "subreceita").length, nd = linhas.length - nb;
-  const quem = [...new Set(linhas.map(l => nomeDest(l.dest)))];
-  aviso("qfMsg", "No plano: " + nb + " massas e recheios para " + qfNomeDia(QF_DIA_BASES).toLowerCase()
-    + " e " + nd + " doces para montar " + (QF_DIA_MONTA === QF_DIA_BASES ? "no mesmo dia" : qfNomeDia(QF_DIA_MONTA).toLowerCase())
-    + ". Para: " + quem.join(", ") + ". Cada um vê o seu em O que fazer hoje.", "ok");
+  if(erros){ aviso("qfMsg", "Mandei quase tudo, mas " + erros + " não entraram. Confira no Plano de produção.", "warn"); }
+  const n = marcados.length - erros;
+  QF_SEL.clear();
+  await qfCarregarPlano();
+  montarQuanto();
+  if(!erros) aviso("qfMsg", "Mandei " + n + (n === 1 ? " item" : " itens") + " para " + qfNomeDia(QF_DIA).toLowerCase() + ", para "
+    + nomeQuem(QF_QUEM) + ". Cada um vê em O que fazer hoje e registra quanto fez. Marque outros itens para outro dia ou outra pessoa.", "ok");
+  window.scrollTo(0, 0);
 }
