@@ -264,7 +264,7 @@ ${agora ? "window.__AGORA=" + JSON.stringify(agora) + ";" : ""}
     /* igual à view do banco: gestor vê tudo, os outros só o que é deles ou de todos */
     const meu = (eu() || {}).papel;
     return DB.jb_producao_item.filter(p =>
-        gestor() || !p.para || p.para === "todos" || p.para === meu).map(p => {
+        gestor() || (!p.para_freela && (!p.para || p.para === "todos" || p.para === meu))).map(p => {
       const f = p.tipo === "ficha" ? DB.jb_ficha.find(x => x.id === p.ref_id) : null;
       const s = p.tipo === "subreceita" ? DB.jb_subreceita.find(x => x.id === p.ref_id) : null;
       const r = f || s || {};
@@ -576,6 +576,37 @@ ${agora ? "window.__AGORA=" + JSON.stringify(agora) + ";" : ""}
       base.margem_pct = args && args.p_margem_pct != null ? args.p_margem_pct : (base.margem_pct != null ? base.margem_pct : prm.margem_pct);
       return { data: base, error:null };
     }
+    if(nome === "jb_freela_producao" || nome === "jb_freela_marcar"){
+      const a = frPorToken(args.p_token);
+      if(!a){ return nome === "jb_freela_producao" ? { data:{ ok:false }, error:null } : { data:null, error:{ message:"sem acesso", code:"42501" } }; }
+      const hoje = hojeSP();
+      const ve = p => (!p.para_freela && p.para === "todos") || p.para_freela === "*"
+        || String(p.para_freela || "").trim().toLowerCase() === String(a.nome).trim().toLowerCase();
+      const meus = DB.jb_producao_item.filter(p => p.data === hoje && ve(p));
+      if(nome === "jb_freela_marcar"){
+        const r = meus.find(p => p.id === args.p_id);
+        if(!r) return { data:null, error:{ message:"item fora do seu dia", code:"42501" } };
+        r.feito = args.p_feito; r.feito_em = args.p_feito ? new Date(agoraMs()).toISOString() : null; r.feito_por = args.p_feito ? a.nome + " (freela)" : null;
+        return { data:true, error:null };
+      }
+      const fichas = meus.filter(p => p.tipo === "ficha").map(p => p.ref_id);
+      const subsDasFichas = DB.jb_ficha_item.filter(i => fichas.includes(i.ficha_id))
+        .map(i => (DB.jb_subreceita.find(s => s.nome === i.ingrediente && s.ativo) || {}).id).filter(Boolean);
+      const subs = [...meus.filter(p => p.tipo === "subreceita").map(p => p.ref_id), ...subsDasFichas];
+      const itens = meus.map(p => {
+        const f = p.tipo === "ficha" ? DB.jb_ficha.find(x => x.id === p.ref_id) : null;
+        const s2 = p.tipo === "subreceita" ? DB.jb_subreceita.find(x => x.id === p.ref_id) : null;
+        const r = f || s2 || {};
+        return { ...p, nome: r.nome, rendimento: f ? f.rendimento_un : (s2 ? s2.rendimento_kg : null), unidade: f ? "un" : "kg",
+                 preparo_conferido: !!r.preparo_conferido, modo_preparo: r.modo_preparo || null, foto_url: f ? f.foto_url : null,
+                 unidade_producao: s2 ? (s2.unidade_producao || "receita") : null };
+      });
+      return { data:{ ok:true, itens,
+        fichas: DB.jb_ficha.filter(f => f.ativo && fichas.includes(f.id)).map(f => ({ ficha_id:f.id, nome:f.nome, rendimento_un:f.rendimento_un, tempo_mo_min:f.tempo_mo_min, modo_preparo:f.modo_preparo, preparo_conferido:f.preparo_conferido, rascunho:f.rascunho, foto_url:f.foto_url })),
+        ficha_itens: DB.jb_ficha_item.filter(i => fichas.includes(i.ficha_id)).map(i => { const s3 = DB.jb_subreceita.find(s => s.nome === i.ingrediente && s.ativo); return { ...i, e_subreceita: !!s3, subreceita_id: s3 ? s3.id : null }; }),
+        subs: DB.jb_subreceita.filter(s => s.ativo && subs.includes(s.id)).map(s => ({ subreceita_id:s.id, nome:s.nome, rendimento_kg:s.rendimento_kg, modo_preparo:s.modo_preparo, preparo_conferido:s.preparo_conferido, unidade_producao:s.unidade_producao })),
+        sub_itens: (DB.jb_subreceita_item || []).filter(i => subs.includes(i.subreceita_id)).map(i => ({ ...i })) }, error:null };
+    }
     if(nome === "jb_freela_entrar"){
       const a = frAberta();
       if(!a) return { data:{ ok:false, motivo:"fechado" }, error:null };
@@ -778,7 +809,7 @@ ${agora ? "window.__AGORA=" + JSON.stringify(agora) + ";" : ""}
     }
     if(nome === "jb_marcar_producao"){
       const r = DB.jb_producao_item.find(x => x.id === args.p_id);
-      if(r){ r.feito = args.p_feito; r.feito_em = args.p_feito ? new Date().toISOString() : null; }
+      if(r){ r.feito = args.p_feito; r.feito_em = args.p_feito ? new Date().toISOString() : null; r.feito_por = args.p_feito ? (eu() || {}).nome : null; }
       return { data:null, error:null };
     }
     if(nome === "jb_renomear_ingrediente"){ return { data:null, error:null }; }

@@ -131,12 +131,12 @@ async function carregarHome(){
   const conta   = EU.papel === "gestor" || EU.papel === "equipe" || freela;
 
   ["btnAbertura","btnFechamento","btnHist"].forEach(b => $(b).classList.toggle("hide", !conta));
-  /* A freela só fecha a geladeira: sem histórico (a conta é de todas as freelas) e sem plano. */
+  /* A freela fecha a geladeira e vê o que é dela no plano do dia (sem histórico: a conta é de todas as freelas). */
   $("btnHist").classList.toggle("hide", !conta || freela);
   /* Todos veem "O que fazer hoje": o plano pode passar tarefa para a produção e para a
      equipe da noite. Cada um só recebe o que é para o seu papel, e a receita só abre
      para a equipe quando a tarefa foi passada para ela (o banco garante). */
-  $("btnProducao").className = "big" + (conta ? " ghost" : "") + (freela ? " hide" : "");
+  $("btnProducao").className = "big" + (conta ? " ghost" : "");
   $("btnProducao").querySelector(".t").textContent =
     EU.papel === "gestor" ? "Plano de produção" : "O que fazer hoje";
   $("btnProducao").querySelector(".s").textContent =

@@ -42,7 +42,7 @@ test("código certo dentro da janela: entra, fica só com a contagem, sem conta 
   assert.match(await a.texto("#homeTip"), /Seu acesso vale até amanhã às 06:00\./);
   assert.ok(await a.page.evaluate(() => localStorage.getItem("jb_freela_token")), "token guardado no celular");
   assert.equal(await a.visivel("btnFechamento"), true);
-  for(const b of ["btnAbertura","btnHist","btnProducao","btnDias","btnPerda","btnPromo","btnCustos","btnResultado","btnContas","btnSaude","btnContador","btnEstoque","btnEncomendas","btnAfazeres"])
+  for(const b of ["btnAbertura","btnHist","btnDias","btnPerda","btnPromo","btnCustos","btnResultado","btnContas","btnSaude","btnContador","btnEstoque","btnEncomendas","btnAfazeres"])
     assert.equal(await a.visivel(b), false, b + " escondido");
   assert.deepEqual(await a.page.evaluate(() => [$("cardCheguei").innerHTML, $("cardMeusDias").innerHTML]), ["", ""], "sem Cheguei e sem Meus dias");
   const rpcs = (await a.log("rpc")).map(r => r[1]);
