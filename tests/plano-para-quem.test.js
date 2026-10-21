@@ -1,12 +1,11 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const { abrir, encerrar } = require("./harness");
-const { hojeSP } = require("./stub");
 
 test.after(encerrar);
 const semErros = a => assert.deepEqual(a.erros, [], "sem erros de página");
 
-/* freelas que já foram liberadas: os nomes viram opção no seletor */
+/* freelas que já foram liberadas: sem lista da casa, os nomes delas viram opção */
 const comFreelas = db => {
   db.jb_freela_acesso = [
     { id: 7, nome: "Ana", valido_de: "2026-10-01T10:00:00Z", valido_ate: "2026-10-01T20:00:00Z", criado_em: "2026-10-01T10:00:00Z", encerrado_em: null },
@@ -14,46 +13,43 @@ const comFreelas = db => {
   ];
   return db;
 };
+const casa = db => { comFreelas(db);
+  db.jb_freela_pessoa = [{ id: 1, nome: "Markus Porthos", ativo: true }, { id: 2, nome: "Edclecia Silva", ativo: true },
+                         { id: 3, nome: "Isabella Freitas", ativo: true }, { id: 4, nome: "Antiga", ativo: false }];
+  return db; };
+const chips = (a, id) => a.page.evaluate(i => [...document.querySelectorAll("#" + i + " .quem-chip")].map(c => c.textContent), id);
 
-test("gestor manda um item só para uma freela pelo nome e ele some para a Eliana", async () => {
+test("gestor manda um item só para uma freela e ele some para a Eliana", async () => {
   const a = await abrir("uJes", { db: comFreelas });
   await a.page.click("#btnProducao"); await a.espera(700);
-  const opcoes = await a.page.evaluate(() => [...document.querySelector("#prodLista select.para").options].map(o => o.textContent));
-  assert.ok(opcoes.includes("só as freelas do dia"));
-  assert.ok(opcoes.includes("só Ana (freela)"));
-  assert.ok(opcoes.includes("só maria (freela)"), "nome limpo de espaço: " + JSON.stringify(opcoes));
-  assert.ok(opcoes.includes("Outra freela..."));
-  // a massa de brownie (produção) vai só para a Ana
-  await a.page.evaluate(() => {
-    const s = [...document.querySelectorAll("#prodLista select.para")].find(x => x.value === "producao");
-    s.value = "fr:Ana"; s.dispatchEvent(new Event("change"));
-  });
-  await a.espera(400);
+  await a.page.locator("#prodLista .para-quem", { hasText: "Eliana" }).click(); await a.espera(200);
+  assert.deepEqual(await chips(a, "quemItem2"), ["Todos", "Eliana", "Yasmin", "Freelas do dia", "Ana", "maria", "+ Pessoa nova"]);
+  await a.page.click("#quemItem2 .quem-chip[data-q='fr:Ana']"); await a.espera(300);
+  await a.page.click("#quemItem2 .quem-chip[data-q='producao']"); await a.espera(300);
   const massa = (await a.db("jb_producao_item")).find(p => p.id === 2);
+  assert.deepEqual(massa.quem, ["fr:Ana"]);
   assert.equal(massa.para_freela, "Ana"); assert.equal(massa.para, "todos");
-  assert.match(await a.texto("#prodMsg"), /agora aparece para Ana \(freela\)/);
+  assert.match(await a.texto("#prodMsg"), /agora aparece para Ana/);
   semErros(a); await a.fechar();
 
-  const e = await abrir("uEli", { db: db => { comFreelas(db); db.jb_producao_item.find(p => p.id === 2).para_freela = "Ana"; return db; } });
+  const e = await abrir("uEli", { db: db => { comFreelas(db); Object.assign(db.jb_producao_item.find(p => p.id === 2), { quem: ["fr:Ana"], para: "todos", para_freela: "Ana" }); return db; } });
   await e.page.click("#btnProducao"); await e.espera(600);
   const nomes = await e.page.evaluate(() => [...document.querySelectorAll("#prodLista .prod .n")].map(x => x.childNodes[0].textContent.trim()));
   assert.ok(!nomes.some(n => /Massa Brownie/.test(n)), "a Eliana não vê o que é da freela: " + JSON.stringify(nomes));
   semErros(e); await e.fechar();
 });
 
-test("Outra freela...: digita o nome e grava", async () => {
-  const a = await abrir("uJes", { db: comFreelas });
+test("com a lista de freelas da casa, as opções são ela; pessoa nova entra na lista", async () => {
+  const a = await abrir("uJes", { db: casa });
   await a.page.click("#btnProducao"); await a.espera(700);
-  await a.page.evaluate(() => {
-    const s = [...document.querySelectorAll("#prodLista select.para")].find(x => x.value === "todos");
-    s.value = "fr:?"; s.dispatchEvent(new Event("change"));
-  });
-  await a.espera(150);
-  await a.page.fill("input.nomefreela", "  Bia  ");
-  await a.page.press("input.nomefreela", "Enter"); await a.espera(400);
-  const it = (await a.db("jb_producao_item")).find(p => p.id === 1);
-  assert.equal(it.para_freela, "Bia");
-  assert.equal(await a.page.locator("input.nomefreela").count(), 0);
+  await a.page.locator("#prodLista .para-quem", { hasText: "todo mundo" }).click(); await a.espera(200);
+  assert.deepEqual(await chips(a, "quemItem1"), ["Todos", "Eliana", "Yasmin", "Freelas do dia", "Edclecia Silva", "Isabella Freitas", "Markus Porthos", "+ Pessoa nova"]);
+  await a.page.click("#quemItem1 .quem-chip.nova"); await a.espera(150);
+  await a.page.fill("#quemItem1 input.nomefreela", "  Bia   Souza ");
+  await a.page.press("#quemItem1 input.nomefreela", "Enter"); await a.espera(400);
+  const ins = (await a.log("insert")).find(x => x[1] === "jb_freela_pessoa");
+  assert.deepEqual(ins[2], [{ nome: "Bia Souza" }]);
+  assert.deepEqual((await a.db("jb_producao_item")).find(p => p.id === 1).quem, ["fr:Bia Souza"]);
   semErros(a); await a.fechar();
 });
 
@@ -67,101 +63,127 @@ const freelaAna = montar => ({ agora: AGORA, semSessao: true, storage: { jb_free
       token: TOKEN, token_em: "2026-10-08T11:05:00Z", criado_por: "uJes", criado_em: "2026-10-08T11:00:00Z", encerrado_em: null, encerrado_por: null }];
     db.jb_producao_item = [
       { id: 1, data: HOJE, tipo: "ficha", ref_id: 10, qtd: 48, feito: false, obs: null, para: "todos", para_freela: null },
-      { id: 2, data: HOJE, tipo: "subreceita", ref_id: 20, qtd: 5, feito: false, obs: "mais firme", para: "todos", para_freela: "ana" },
-      { id: 3, data: HOJE, tipo: "ficha", ref_id: 11, qtd: 5, feito: false, obs: null, para: "todos", para_freela: "Bia" },
+      { id: 2, data: HOJE, tipo: "subreceita", ref_id: 20, qtd: 5, feito: false, obs: "mais firme", para: "todos", quem: ["fr:ana", "fr:Bia"] },
+      { id: 3, data: HOJE, tipo: "ficha", ref_id: 11, qtd: 5, feito: false, obs: null, para: "todos", quem: ["fr:Bia"] },
       { id: 4, data: HOJE, tipo: "subreceita", ref_id: 21, qtd: 1, feito: false, obs: null, para: "producao", para_freela: null }
     ];
     if(montar) montar(db);
     return db;
   } });
 
-test("a freela vê O que fazer hoje só com o que é dela ou de todos, abre a receita e marca feito", async () => {
+test("a freela vê só o que é dela ou de todos, abre a receita e registra quanto fez", async () => {
   const a = await abrir(null, freelaAna());
   assert.equal(await a.tela(), "scHome");
   assert.equal(await a.visivel("btnProducao"), true);
-  assert.match(await a.texto("#btnProducao .t"), /O que fazer hoje/);
   await a.page.click("#btnProducao"); await a.espera(600);
   const nomes = await a.page.evaluate(() => [...document.querySelectorAll("#prodLista .prod .n")].map(x => x.childNodes[0].textContent.trim()));
   assert.deepEqual(nomes.sort(), ["Brownie Brigadeiro", "Massa Brownie"], "vê o dela e o de todos: " + JSON.stringify(nomes));
-  assert.equal(await a.page.locator("#prodLista select.para").count(), 0, "freela não escolhe destino");
-  // abre a massa, que está em 2 massas de 2,5 kg
+  assert.match(await a.page.evaluate(() => [...document.querySelectorAll("#prodLista .prod")].find(r => /Massa Brownie/.test(r.textContent)).textContent), /junto com Bia/);
+  assert.equal(await a.page.locator("#prodLista .para-quem").count(), 0, "freela não escolhe destino");
   await a.page.evaluate(() => [...document.querySelectorAll("#prodLista .prod .n")].find(e => /Massa Brownie/.test(e.textContent)).click());
   await a.espera(500);
   assert.equal(await a.tela(), "scReceita");
   assert.match(await a.texto("#recCorpo .rendebox"), /2 massas/);
   assert.match(await a.texto("#recCorpo"), /Recado: mais firme/);
-  assert.match(await a.texto("#recCorpo"), /Chocolate 50%/);
+  assert.match(await a.texto("#recProgresso"), /Pedido: 2 massas · junto com Bia/);
+  assert.equal(await a.page.inputValue("#recFez"), "2", "sugere o pedido");
+  assert.match(await a.texto("#btnRecFeito"), /Registrar o que fiz/);
+  // fez só 1,5 massa
+  await a.page.fill("#recFez", "1,5");
   await a.page.click("#btnRecFeito"); await a.espera(600);
-  const r = (await a.log("rpc")).find(x => x[1] === "jb_freela_marcar");
-  assert.equal(r[2].p_id, 2); assert.equal(r[2].p_feito, true); assert.equal(r[2].p_token, TOKEN);
-  const salvo = (await a.db("jb_producao_item")).find(p => p.id === 2);
-  assert.equal(salvo.feito, true); assert.equal(salvo.feito_por, "Ana (freela)");
+  const r = (await a.log("rpc")).find(x => x[1] === "jb_freela_registrar");
+  assert.equal(r[2].p_id, 2); assert.equal(r[2].p_qtd, 3.75, "1,5 massa de 2,5 kg"); assert.equal(r[2].p_token, TOKEN);
+  let it = (await a.db("jb_producao_item")).find(p => p.id === 2);
+  assert.equal(it.feito, false, "a Bia ainda não registrou");
   assert.equal(await a.tela(), "scProd");
-  assert.match(await a.page.evaluate(() => [...document.querySelectorAll("#prodLista .prod")].find(r => /Massa Brownie/.test(r.textContent)).textContent), /Feito às .* por Ana \(freela\)/);
+  assert.match(await a.texto("#prodMsg"), /registrei 1,5 massas\. Ainda faltam meia massa/);
+  assert.match(await a.page.evaluate(() => [...document.querySelectorAll("#prodLista .prod")].find(r => /Massa Brownie/.test(r.textContent)).textContent), /Até agora: 1,5 massas de 2 massas · Ana 1,5 massas/);
+  // corrigir: abrir de novo mostra o número dela
+  await a.page.evaluate(() => [...document.querySelectorAll("#prodLista .prod .n")].find(e => /Massa Brownie/.test(e.textContent)).click());
+  await a.espera(500);
+  assert.equal(await a.page.inputValue("#recFez"), "1,5");
+  assert.match(await a.texto("#btnRecFeito"), /Corrigir o que fiz/);
   semErros(a); await a.fechar();
 });
 
-test("a freela abre a receita do doce de todos com a massa dentro", async () => {
-  const a = await abrir(null, freelaAna());
+test("quando todas as pessoas do item registram, ele fecha mesmo com menos; fez a mais aparece", async () => {
+  const a = await abrir(null, freelaAna(db => {
+    db.jb_producao_registro = [{ id: 1, item_id: 2, nome: "Bia", qtd: 2.5, criado_em: "2026-10-08T16:00:00Z", atualizado_em: "2026-10-08T16:00:00Z" }];
+  }));
   await a.page.click("#btnProducao"); await a.espera(600);
+  await a.page.evaluate(() => [...document.querySelectorAll("#prodLista .prod .n")].find(e => /Massa Brownie/.test(e.textContent)).click());
+  await a.espera(500);
+  assert.equal(await a.page.inputValue("#recFez"), "1", "sugere o que falta: 1 massa");
+  await a.page.fill("#recFez", "0,5");
+  await a.page.click("#btnRecFeito"); await a.espera(600);
+  const it = (await a.db("jb_producao_item")).find(p => p.id === 2);
+  assert.equal(it.feito, true, "Ana e Bia registraram");
+  assert.match(await a.texto("#prodMsg"), /Item fechado com meia massa a menos que o pedido/);
+  assert.match(await a.page.evaluate(() => [...document.querySelectorAll("#prodLista .prod")].find(r => /Massa Brownie/.test(r.textContent)).textContent), /Feito: 1,5 massas de 2 massas \(meia massa a menos\) · Bia 1 massa, Ana meia massa/);
+  // doce de todos: fez a mais fecha e mostra
   await a.page.evaluate(() => [...document.querySelectorAll("#prodLista .prod .n")].find(e => /Brownie Brigadeiro/.test(e.textContent)).click());
   await a.espera(500);
-  assert.equal(await a.tela(), "scReceita");
-  assert.match(await a.texto("#recCorpo"), /Massa Brownie/);
+  await a.page.fill("#recFez", "52");
+  await a.page.click("#btnRecFeito"); await a.espera(600);
+  assert.match(await a.page.evaluate(() => [...document.querySelectorAll("#prodLista .prod")].find(r => /Brownie Brigadeiro/.test(r.textContent)).textContent), /Feito: 52 un de 48 un \(4 un a mais\) · Ana 52 un/);
   semErros(a); await a.fechar();
 });
 
-/* ---------- Quanto fazer: para quem vai cada coisa ---------- */
-const conta = db => {
-  comFreelas(db);
-  db.jb_quanto_param = [{ id: 1, dias: 7, margem_pct: 15 }];
-  db.__quanto = { hoje: hojeSP(), dias: 7, margem_pct: 15, dias_base: 25, total_fazer: 71,
-    itens: [{ produto_id: 1, nome: "Brownie Brigadeiro", ordem: 1, ficha_id: 10, rend: 1, fonte: "vendas", venda_dia: 10.5, dias_hist: 25, zerou: 0,
-              cobertura: 7, extra: 0, alvo: 86, expositora: 15, freezer: 0, falta: 71, fazer: 71 }],
-    bases: [{ subreceita_id: 20, nome: "Massa Brownie", unidade_producao: "massa", rendimento_kg: 2.5, kg: 5.68, lotes: 2.27, lotes_fazer: 2.5, para: "Brownie Brigadeiro" },
-            { subreceita_id: 21, nome: "Creme de Ninho", unidade_producao: "panela", rendimento_kg: 1, kg: 0.4, lotes: 0.4, lotes_fazer: 0.5, para: "Brownie Brigadeiro" }] };
-  db.jb_producao_item = [];
-  return db;
-};
+test("Eliana registra o que fez no item dela e da freela; o gestor vê quem fez quanto", async () => {
+  const e = await abrir("uEli", { db: db => { Object.assign(db.jb_producao_item.find(p => p.id === 2), { quem: ["producao", "fr:Ana"] }); return db; } });
+  await e.page.click("#btnProducao"); await e.espera(600);
+  await e.page.evaluate(() => [...document.querySelectorAll("#prodLista .prod .n")].find(x => /Massa Brownie/.test(x.textContent)).click());
+  await e.espera(500);
+  await e.page.fill("#recFez", "1");
+  await e.page.click("#btnRecFeito"); await e.espera(600);
+  const r = (await e.log("rpc")).find(x => x[1] === "jb_producao_registrar");
+  assert.equal(r[2].p_qtd, 2.5);
+  const reg = await e.db("jb_producao_registro");
+  assert.deepEqual(reg.map(x => [x.nome, x.qtd]), [["Eliana", 2.5]]);
+  semErros(e); await e.fechar();
 
-test("Quanto fazer: massas para as freelas do dia, doces para a Ana e um recheio trocado para a Yasmin", async () => {
-  const a = await abrir("uJes", { db: conta });
-  await a.page.click("#btnQuanto"); await a.espera(500);
-  await a.page.selectOption("#qfDestBases", "fr:*");
-  await a.page.selectOption("#qfDestDoces", "fr:Ana");
-  await a.page.click("#qfVerItens"); await a.espera(200);
-  await a.page.selectOption("#qfDestItens .qf-dest-item[data-chave='subreceita:21'] select", "equipe");
-  await a.page.click("#qfMandar"); await a.espera(700);
-  const it = await a.db("jb_producao_item");
-  const massa = it.find(p => p.tipo === "subreceita" && p.ref_id === 20);
-  const creme = it.find(p => p.tipo === "subreceita" && p.ref_id === 21);
-  const doce  = it.find(p => p.tipo === "ficha" && p.ref_id === 10);
-  assert.deepEqual([massa.para, massa.para_freela], ["todos", "*"]);
-  assert.deepEqual([creme.para, creme.para_freela], ["equipe", null]);
-  assert.deepEqual([doce.para, doce.para_freela, doce.qtd], ["todos", "Ana", 71]);
-  const msg = await a.texto("#qfMsg");
-  assert.match(msg, /as freelas do dia/); assert.match(msg, /Yasmin/); assert.match(msg, /Ana \(freela\)/);
-  assert.match(await a.texto("#qfMsg"), /O que fazer hoje/);
-  semErros(a); await a.fechar();
-});
-
-test("com a lista de freelas da casa, o seletor mostra só ela; Outra freela entra na lista", async () => {
-  const a = await abrir("uJes", { db: db => { comFreelas(db);
-    db.jb_freela_pessoa = [{ id: 1, nome: "Markus Porthos", ativo: true }, { id: 2, nome: "Edclecia Silva", ativo: true },
-                           { id: 3, nome: "Isabella Freitas", ativo: true }, { id: 4, nome: "Antiga", ativo: false }];
+  const j = await abrir("uJes", { db: db => {
+    Object.assign(db.jb_producao_item.find(p => p.id === 2), { quem: ["producao", "fr:Ana"] });
+    db.jb_producao_registro = [{ id: 1, item_id: 2, nome: "Eliana", qtd: 2.5, atualizado_em: "2026-10-08T16:00:00Z" }];
     return db; } });
-  await a.page.click("#btnProducao"); await a.espera(700);
-  const opcoes = await a.page.evaluate(() => [...document.querySelector("#prodLista select.para").querySelectorAll("optgroup option")].map(o => o.textContent));
-  assert.deepEqual(opcoes, ["só as freelas do dia", "só Edclecia Silva (freela)", "só Isabella Freitas (freela)", "só Markus Porthos (freela)", "Outra freela..."]);
-  await a.page.evaluate(() => {
-    const s = [...document.querySelectorAll("#prodLista select.para")].find(x => x.value === "todos");
-    s.value = "fr:?"; s.dispatchEvent(new Event("change"));
-  });
-  await a.espera(150);
-  await a.page.fill("input.nomefreela", "Bia Souza");
-  await a.page.press("input.nomefreela", "Enter"); await a.espera(400);
-  const ins = (await a.log("insert")).find(x => x[1] === "jb_freela_pessoa");
-  assert.deepEqual(ins[2], [{ nome: "Bia Souza" }]);
-  assert.equal((await a.db("jb_producao_item")).find(p => p.id === 1).para_freela, "Bia Souza");
+  await j.page.click("#btnProducao"); await j.espera(700);
+  const linha = await j.page.evaluate(() => [...document.querySelectorAll("#prodLista .prod")].find(r => /Massa Brownie/.test(r.textContent)));
+  assert.ok(linha);
+  assert.match(await j.page.evaluate(() => [...document.querySelectorAll("#prodLista .prod")].find(r => /Massa Brownie/.test(r.textContent)).querySelector(".n small").textContent), /Até agora: 1 massa de 1,2 massas · Eliana 1 massa/);
+  assert.match(await j.page.evaluate(() => [...document.querySelectorAll("#prodLista .para-quem")].map(b => b.textContent).join("|")), /Para: Eliana e Ana/);
+  semErros(j); await j.fechar();
+});
+
+/* ---------- home e liberação ---------- */
+test("Home do gestor tem Liberar freela: abre o formulário com as freelas da casa e Nova pessoa", async () => {
+  const a = await abrir("uJes", { db: casa });
+  assert.equal(await a.visivel("btnFreelaHoje"), true);
+  assert.match(await a.texto("#frHojeSub"), /Escolha quem vem hoje/);
+  await a.page.click("#btnFreelaHoje"); await a.espera(800);
+  assert.equal(await a.tela(), "scDias");
+  assert.equal(await a.visivel("frAcForm"), true);
+  const ops = await a.page.evaluate(() => [...document.querySelectorAll("#frAcNomeSel option")].map(o => o.textContent));
+  assert.deepEqual(ops, ["Escolha a freela", "Edclecia Silva", "Isabella Freitas", "Markus Porthos", "Nova pessoa..."]);
+  await a.page.selectOption("#frAcNomeSel", "Markus Porthos"); await a.espera(150);
+  await a.page.click("#frAcSalvar"); await a.espera(600);
+  let rows = await a.db("jb_freela_acesso");
+  assert.equal(rows[rows.length - 1].nome, "Markus Porthos");
+  await a.page.locator("#frAcesso button", { hasText: "Pronto" }).click(); await a.espera(200);
+  // segunda freela, pessoa nova
+  await a.page.click("#frAcAbre"); await a.espera(150);
+  await a.page.selectOption("#frAcNomeSel", "__nova"); await a.espera(150);
+  await a.page.fill("#frAcNome", "Carla Dias");
+  await a.page.click("#frAcSalvar"); await a.espera(600);
+  rows = await a.db("jb_freela_acesso");
+  assert.deepEqual(rows.filter(r => !r.encerrado_em).map(r => r.nome).filter(n => n !== "Ana" && n !== "maria ").sort(), ["Carla Dias", "Markus Porthos"]);
+  assert.ok((await a.log("insert")).some(x => x[1] === "jb_freela_pessoa" && x[2][0].nome === "Carla Dias"), "pessoa nova entra na lista");
   semErros(a); await a.fechar();
+});
+
+test("Yasmin e Eliana não veem Liberar freela", async () => {
+  for(const uid of ["uYas", "uEli"]){
+    const a = await abrir(uid);
+    assert.equal(await a.visivel("btnFreelaHoje"), false, uid);
+    semErros(a); await a.fechar();
+  }
 });

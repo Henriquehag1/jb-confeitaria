@@ -2,7 +2,7 @@
    A freela não tem conta de login: ela entra com o código que o gestor gerou em Quem veio.
    O banco devolve um token, guardado neste celular, e tudo o que ela faz passa por quatro
    funções que conferem esse token (jb_freela_dados, jb_freela_salvar, jb_freela_adendo,
-   jb_freela_producao e jb_freela_marcar para o plano do dia).
+   jb_freela_producao, jb_freela_marcar e jb_freela_registrar para o plano do dia).
    Para o resto do app não precisar saber disso, o modo freela troca o "sb" por um cliente
    pequeno que responde às mesmas perguntas (from/rpc/auth) com o que veio do banco. */
 
@@ -109,6 +109,9 @@ function clienteFreela(real, token, aoTerminar){
     }
     if(nome === "jb_marcar_producao"){
       return real.rpc("jb_freela_marcar", { p_token: token, p_id: args.p_id, p_feito: args.p_feito });
+    }
+    if(nome === "jb_producao_registrar"){
+      return real.rpc("jb_freela_registrar", { p_token: token, p_id: args.p_id, p_qtd: args.p_qtd });
     }
     return { data: null, error: { message: "sem acesso", code: "42501" } };
   }

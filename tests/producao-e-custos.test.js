@@ -226,27 +226,31 @@ test("plano do dia por pessoa: a Eliana vê a massa dela e não vê o que é da 
   const nomes = await a.page.evaluate(() => [...document.querySelectorAll("#prodLista .prod .n")].map(e => e.childNodes[0].textContent.trim()));
   assert.ok(nomes.some(n => /Massa Brownie/.test(n)), "vê a massa: " + JSON.stringify(nomes));
   assert.ok(!nomes.some(n => /Pudim/.test(n)), "não vê o que foi direcionado à Yasmin");
-  assert.equal(await a.page.evaluate(() => document.querySelectorAll("#prodLista select.para").length), 0,
+  assert.equal(await a.page.evaluate(() => document.querySelectorAll("#prodLista .para-quem").length), 0,
     "quem não é gestor não escolhe destinatário");
   semErros(a); await a.fechar();
 });
 
-test("gestor escolhe para quem é cada item e a troca é salva", async () => {
+test("gestor escolhe para quem é cada item (uma ou mais pessoas) e a troca é salva", async () => {
   const a = await abrir("uJes");
   await a.page.click("#btnProducao"); await a.espera(700);
-  const sels = await a.page.evaluate(() => [...document.querySelectorAll("#prodLista select.para")].map(s => s.value));
-  assert.equal(sels.length, 3, "o gestor vê os três itens com seletor");
-  assert.deepEqual(sels.sort(), ["equipe","producao","todos"]);
+  const rot = await a.page.evaluate(() => [...document.querySelectorAll("#prodLista .para-quem")].map(b => b.textContent.replace(/\s+[▾▴]$/, "")));
+  assert.equal(rot.length, 3, "o gestor vê os três itens com o botão de pessoas");
+  assert.deepEqual(rot.sort(), ["Para: Eliana", "Para: Yasmin", "Para: todo mundo"]);
 
-  // o item que hoje é de todos passa a ser só da produção
-  await a.page.evaluate(() => {
-    const s = [...document.querySelectorAll("#prodLista select.para")].find(x => x.value === "todos");
-    s.value = "producao"; s.dispatchEvent(new Event("change"));
-  });
-  await a.espera(500);
-  const salvos = (await a.db("jb_producao_item")).map(p => p.para).sort();
-  assert.deepEqual(salvos, ["equipe","producao","producao"], "gravou o novo destino");
-  assert.match(await a.texto("#prodMsg"), /agora aparece para/);
+  // o item que hoje é de todos passa a ser da Eliana e da Yasmin
+  await a.page.locator("#prodLista .para-quem", { hasText: "todo mundo" }).click(); await a.espera(200);
+  await a.page.click("#quemItem1 .quem-chip[data-q='producao']"); await a.espera(300);
+  await a.page.click("#quemItem1 .quem-chip[data-q='equipe']"); await a.espera(300);
+  const it = (await a.db("jb_producao_item")).find(p => p.id === 1);
+  assert.deepEqual(it.quem, ["producao", "equipe"]);
+  assert.equal(it.para, "todos"); assert.equal(it.para_freela, null);
+  assert.match(await a.texto("#prodMsg"), /agora aparece para Eliana e Yasmin/);
+  // tirar todo mundo não deixa: precisa de pelo menos uma pessoa
+  await a.page.click("#quemItem1 .quem-chip[data-q='producao']"); await a.espera(300);
+  await a.page.click("#quemItem1 .quem-chip[data-q='equipe']"); await a.espera(300);
+  assert.deepEqual((await a.db("jb_producao_item")).find(p => p.id === 1).quem, ["equipe"]);
+  assert.match(await a.texto("#prodMsg"), /pelo menos uma pessoa/);
   semErros(a); await a.fechar();
 });
 

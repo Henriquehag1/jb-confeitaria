@@ -204,9 +204,42 @@ ${agora ? "window.__AGORA=" + JSON.stringify(agora) + ";" : ""}
     .sort((a, b) => a.data !== b.data ? (a.data < b.data ? 1 : -1) : (a.momento === "fechamento" ? -1 : 1))[0] || null;
   /* freela: entra por código, recebe um token, e só fala com as funções jb_freela_* */
   const agoraMs = () => window.__AGORA ? Date.parse(window.__AGORA) : Date.now();
-  const frAberta = () => (DB.jb_freela_acesso || []).filter(a => !a.encerrado_em && Date.parse(a.valido_de) <= agoraMs() && agoraMs() < Date.parse(a.valido_ate))
-                                                     .sort((a, b) => b.id - a.id)[0] || null;
-  const frPorToken = tk => { const a = frAberta(); return a && tk && a.token === tk ? a : null; };
+  const frAbertas = () => (DB.jb_freela_acesso || []).filter(a => !a.encerrado_em && Date.parse(a.valido_de) <= agoraMs() && agoraMs() < Date.parse(a.valido_ate))
+                                                     .sort((a, b) => b.id - a.id);
+  const frAberta = () => frAbertas()[0] || null;
+  const frPorToken = tk => tk ? (frAbertas().find(a => a.token === tk) || null) : null;
+  /* igual a public.jb_item_visivel do banco */
+  const itemVisivel = (p, papel, freela) => {
+    if(p.quem){
+      const q = p.quem.map(x => String(x).trim().toLowerCase());
+      return q.includes("todos") || (!!papel && q.includes(papel))
+        || (!!freela && (q.includes("freelas") || q.includes("fr:" + String(freela).trim().toLowerCase())));
+    }
+    if(freela) return (!p.para_freela && p.para === "todos") || p.para_freela === "*" || String(p.para_freela || "").trim().toLowerCase() === String(freela).trim().toLowerCase();
+    return !p.para_freela && (!p.para || p.para === "todos" || p.para === papel);
+  };
+  const registrosDe = id => (DB.jb_producao_registro || []).filter(r => r.item_id === id);
+  const comFeitos = p => { const rs = registrosDe(p.id);
+    return { feito_qtd: rs.length ? rs.reduce((t, r) => t + Number(r.qtd), 0) : null, feitos: rs.length ? rs.map(r => ({ nome: r.nome, qtd: r.qtd, em: r.atualizado_em })) : null }; };
+  /* igual a interno.jb_registrar_feito */
+  const registrarFeito = (it, nome, qtd) => {
+    DB.jb_producao_registro = DB.jb_producao_registro || [];
+    const ex = DB.jb_producao_registro.find(r => r.item_id === it.id && r.nome.trim().toLowerCase() === nome.trim().toLowerCase());
+    const em = new Date(agoraMs()).toISOString();
+    if(ex){ ex.qtd = qtd; ex.atualizado_em = em; } else DB.jb_producao_registro.push({ id: nextId("jb_producao_registro"), item_id: it.id, nome: nome.trim(), qtd, criado_em: em, atualizado_em: em });
+    const rs = registrosDe(it.id);
+    const total = rs.reduce((t, r) => t + Number(r.qtd), 0);
+    let todos = false;
+    if(it.quem && !it.quem.includes("todos") && !it.quem.includes("freelas")){
+      const esp = new Set();
+      it.quem.forEach(q => { if(q.startsWith("fr:")) esp.add(q.slice(3).trim().toLowerCase()); });
+      (DB.jb_usuario || []).filter(u => u.ativo && (u.papel === "producao" || u.papel === "equipe") && it.quem.includes(u.papel)).forEach(u => esp.add(u.nome.toLowerCase()));
+      todos = esp.size > 0 && [...esp].every(n => rs.some(r => r.nome.trim().toLowerCase() === n));
+    }
+    const feito = total >= Number(it.qtd) || todos;
+    it.feito = feito; it.feito_em = feito ? (it.feito_em || em) : null; it.feito_por = rs.map(r => r.nome).join(", ");
+    return { feito, total, pedido: Number(it.qtd) };
+  };
   const hojeSP = () => new Intl.DateTimeFormat("en-CA",{timeZone:"America/Sao_Paulo",year:"numeric",month:"2-digit",day:"2-digit"}).format(window.__AGORA ? new Date(window.__AGORA) : new Date());
   const nextId = t => Math.max(0, ...(DB[t]||[]).map(r => Number(r.id)||0)) + 1;
   const diaMais = (iso, n) => { const d = new Date(iso + "T12:00:00Z"); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0,10); };
@@ -263,14 +296,13 @@ ${agora ? "window.__AGORA=" + JSON.stringify(agora) + ";" : ""}
   function viewProducaoDia(){
     /* igual à view do banco: gestor vê tudo, os outros só o que é deles ou de todos */
     const meu = (eu() || {}).papel;
-    return DB.jb_producao_item.filter(p =>
-        gestor() || (!p.para_freela && (!p.para || p.para === "todos" || p.para === meu))).map(p => {
+    return DB.jb_producao_item.filter(p => gestor() || itemVisivel(p, meu, null)).map(p => {
       const f = p.tipo === "ficha" ? DB.jb_ficha.find(x => x.id === p.ref_id) : null;
       const s = p.tipo === "subreceita" ? DB.jb_subreceita.find(x => x.id === p.ref_id) : null;
       const r = f || s || {};
       return { ...p, nome: r.nome, rendimento: f ? f.rendimento_un : (s ? s.rendimento_kg : null), unidade: f ? "un" : "kg",
                preparo_conferido: !!r.preparo_conferido, modo_preparo: r.modo_preparo || null, foto_url: f ? f.foto_url : null,
-               unidade_producao: s ? (s.unidade_producao || "receita") : null };
+               unidade_producao: s ? (s.unidade_producao || "receita") : null, ...comFeitos(p) };
     });
   }
   function viewFichaCusto(){ return DB.jb_ficha.map(f => ({ id:f.id, nome:f.nome, produto_id:f.produto_id, rendimento_un:f.rendimento_un, tempo_mo_min:f.tempo_mo_min, custo_unit: 6, itens: DB.jb_ficha_item.filter(i => i.ficha_id === f.id).length, itens_sem_preco:0, itens_sem_quantidade:0, rascunho:f.rascunho, cmv_ingrediente_un:5, cmv_embalagem_un:1 })); }
@@ -576,13 +608,17 @@ ${agora ? "window.__AGORA=" + JSON.stringify(agora) + ";" : ""}
       base.margem_pct = args && args.p_margem_pct != null ? args.p_margem_pct : (base.margem_pct != null ? base.margem_pct : prm.margem_pct);
       return { data: base, error:null };
     }
-    if(nome === "jb_freela_producao" || nome === "jb_freela_marcar"){
+    if(nome === "jb_freela_producao" || nome === "jb_freela_marcar" || nome === "jb_freela_registrar"){
       const a = frPorToken(args.p_token);
       if(!a){ return nome === "jb_freela_producao" ? { data:{ ok:false }, error:null } : { data:null, error:{ message:"sem acesso", code:"42501" } }; }
       const hoje = hojeSP();
-      const ve = p => (!p.para_freela && p.para === "todos") || p.para_freela === "*"
-        || String(p.para_freela || "").trim().toLowerCase() === String(a.nome).trim().toLowerCase();
+      const ve = p => itemVisivel(p, null, a.nome);
       const meus = DB.jb_producao_item.filter(p => p.data === hoje && ve(p));
+      if(nome === "jb_freela_registrar"){
+        const r = meus.find(p => p.id === args.p_id);
+        if(!r) return { data:null, error:{ message:"item fora do seu dia", code:"42501" } };
+        return { data: registrarFeito(r, a.nome, Number(args.p_qtd)), error:null };
+      }
       if(nome === "jb_freela_marcar"){
         const r = meus.find(p => p.id === args.p_id);
         if(!r) return { data:null, error:{ message:"item fora do seu dia", code:"42501" } };
@@ -599,7 +635,7 @@ ${agora ? "window.__AGORA=" + JSON.stringify(agora) + ";" : ""}
         const r = f || s2 || {};
         return { ...p, nome: r.nome, rendimento: f ? f.rendimento_un : (s2 ? s2.rendimento_kg : null), unidade: f ? "un" : "kg",
                  preparo_conferido: !!r.preparo_conferido, modo_preparo: r.modo_preparo || null, foto_url: f ? f.foto_url : null,
-                 unidade_producao: s2 ? (s2.unidade_producao || "receita") : null };
+                 unidade_producao: s2 ? (s2.unidade_producao || "receita") : null, ...comFeitos(p) };
       });
       return { data:{ ok:true, itens,
         fichas: DB.jb_ficha.filter(f => f.ativo && fichas.includes(f.id)).map(f => ({ ficha_id:f.id, nome:f.nome, rendimento_un:f.rendimento_un, tempo_mo_min:f.tempo_mo_min, modo_preparo:f.modo_preparo, preparo_conferido:f.preparo_conferido, rascunho:f.rascunho, foto_url:f.foto_url })),
@@ -608,10 +644,17 @@ ${agora ? "window.__AGORA=" + JSON.stringify(agora) + ";" : ""}
         sub_itens: (DB.jb_subreceita_item || []).filter(i => subs.includes(i.subreceita_id)).map(i => ({ ...i })) }, error:null };
     }
     if(nome === "jb_freela_entrar"){
-      const a = frAberta();
-      if(!a) return { data:{ ok:false, motivo:"fechado" }, error:null };
+      /* igual ao banco: o código é procurado entre as liberações abertas */
+      const abertas = frAbertas();
+      if(!abertas.length) return { data:{ ok:false, motivo:"fechado" }, error:null };
+      const a = abertas.find(x => String(args.p_codigo) === x.codigo);
+      const livres = () => abertas.filter(x => !x.token && (x.erros || 0) < 5);
+      if(!a){
+        if(!livres().length) return { data:{ ok:false, motivo: abertas.some(x => !x.token) ? "bloqueado" : "fechado" }, error:null };
+        livres().forEach(x => { x.erros = (x.erros || 0) + 1; });
+        return { data:{ ok:false, motivo: livres().length ? "codigo" : "bloqueado" }, error:null };
+      }
       if(a.erros >= 5) return { data:{ ok:false, motivo:"bloqueado" }, error:null };
-      if(String(args.p_codigo) !== a.codigo){ a.erros = (a.erros || 0) + 1; return { data:{ ok:false, motivo: a.erros >= 5 ? "bloqueado" : "codigo" }, error:null }; }
       if(a.token) return { data:{ ok:false, motivo:"em_uso" }, error:null };
       a.token = "tok" + "x".repeat(40) + a.id; a.token_em = new Date(agoraMs()).toISOString();
       return { data:{ ok:true, token:a.token, nome:a.nome, valido_ate:a.valido_ate }, error:null };
@@ -662,12 +705,25 @@ ${agora ? "window.__AGORA=" + JSON.stringify(agora) + ";" : ""}
       if(!n || n.length > 40) return { data:null, error:{ message:"nome invalido" } };
       if(!(ate > agoraMs() + 15 * 60000) || ate > agoraMs() + 4 * 86400000) return { data:null, error:{ message:"validade invalida" } };
       DB.jb_freela_acesso = DB.jb_freela_acesso || [];
-      DB.jb_freela_acesso.filter(a => !a.encerrado_em).forEach(a => { a.encerrado_em = new Date(agoraMs()).toISOString(); a.encerrado_por = window.__UID; });
+      DB.jb_freela_acesso.filter(a => !a.encerrado_em && String(a.nome).trim().toLowerCase() === n.replace(/\s+/g, " ").toLowerCase())
+        .forEach(a => { a.encerrado_em = new Date(agoraMs()).toISOString(); a.encerrado_por = window.__UID; });
       const id = nextId("jb_freela_acesso");
       const codigo = String(100000 + id * 7919 % 900000);
       DB.jb_freela_acesso.push({ id, nome: n, valido_de: new Date(agoraMs()).toISOString(), valido_ate: new Date(ate).toISOString(), codigo, erros: 0, token: null, token_em: null,
                                  criado_por: window.__UID, criado_em: new Date(agoraMs()).toISOString(), encerrado_em: null, encerrado_por: null });
       return { data:{ id, codigo }, error:null };
+    }
+    if(nome === "jb_freela_encerrar_um"){
+      if(!gestor()) return { data:null, error:{ message:"so gestor", code:"42501" } };
+      (DB.jb_freela_acesso || []).filter(a => !a.encerrado_em && a.id === args.p_id).forEach(a => { a.encerrado_em = new Date(agoraMs()).toISOString(); a.encerrado_por = window.__UID; });
+      return { data:null, error:null };
+    }
+    if(nome === "jb_producao_registrar"){
+      const u = eu(); if(!u || !membro()) return { data:null, error:{ message:"sem acesso", code:"42501" } };
+      const it = DB.jb_producao_item.find(x => x.id === args.p_id);
+      if(!it) return { data:null, error:{ message:"item nao encontrado" } };
+      if(!gestor() && (!itemVisivel(it, u.papel, null) || ![hojeSP(), diaMais(hojeSP(), -1)].includes(it.data))) return { data:null, error:{ message:"item fora do seu dia", code:"42501" } };
+      return { data: registrarFeito(it, u.nome, Number(args.p_qtd)), error:null };
     }
     if(nome === "jb_freela_encerrar"){
       if(!gestor()) return { data:null, error:{ message:"so gestor", code:"42501" } };

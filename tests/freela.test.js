@@ -169,25 +169,36 @@ test("gestor libera, a mensagem já leva o código, e depois encerra", async () 
   assert.match(await a.texto("#frAcStatus"), /Ana pode entrar até amanhã às 20:30\. Ainda ninguém entrou\./);
   assert.ok(!(await a.texto("#frAcesso")).includes(rows[0].codigo), "depois de Pronto o código some da tela");
 
-  await a.page.locator("#frAcesso .ch-ed").click(); await a.espera(150);
-  await a.page.locator("#frAcesso .ch-ed").click(); await a.espera(500);
+  await a.page.locator("#frAcesso .fr-ac-linha .ch-ed:not(.fr-ac-novo)").click(); await a.espera(150);
+  await a.page.locator("#frAcesso .fr-ac-linha .ch-ed:not(.fr-ac-novo)").click(); await a.espera(500);
   assert.ok((await a.db("jb_freela_acesso"))[0].encerrado_em, "encerrado");
   assert.match(await a.texto("#frAcStatus"), /Ninguém liberado agora/);
   semErros(a); await a.fechar();
 });
 
-test("gestor vê quando ela entrou e quando o código foi bloqueado; liberar de novo troca a pessoa", async () => {
+test("gestor vê quando ela entrou e quando o código foi bloqueado; outra freela fica junto; novo código troca só a dela", async () => {
   let a = await abrir("uHen", { agora: AGORA, db: db => { db.jb_freela_acesso = [janela({ token: TOKEN, token_em: "2026-10-08T21:10:00Z" })]; return db; } });
   await a.page.click("#btnDias"); await a.espera(500);
   assert.match(await a.texto("#frAcStatus"), /Ana pode entrar até amanhã às 06:00\. Já entrou num celular às 18:10\./);
+  assert.match(await a.texto("#frAcAbre"), /Liberar outra freela/);
   await a.page.click("#frAcAbre"); await a.espera(150);
-  assert.equal(await a.page.inputValue("#frAcNome"), "Ana");
+  assert.equal(await a.page.inputValue("#frAcNome"), "");
   await a.page.fill("#frAcNome", "Carla");
   await a.page.click("#frAcSalvar"); await a.espera(500);
-  const rows = await a.db("jb_freela_acesso");
+  let rows = await a.db("jb_freela_acesso");
   assert.equal(rows.length, 2);
-  assert.ok(rows[0].encerrado_em, "a liberação antiga terminou");
+  assert.ok(!rows[0].encerrado_em, "a Ana continua liberada junto com a Carla");
   assert.equal(rows[1].nome, "Carla"); assert.equal(rows[1].token, null);
+  await a.page.locator("#frAcesso button", { hasText: "Pronto" }).click(); await a.espera(300);
+  assert.equal(await a.page.locator("#frAcLista .fr-ac-linha").count(), 2);
+  // novo código para a Ana: só a liberação dela termina
+  await a.page.locator("#frAcLista .fr-ac-linha[data-id='1'] .fr-ac-novo").click(); await a.espera(150);
+  assert.equal(await a.page.inputValue("#frAcNome"), "Ana");
+  await a.page.click("#frAcSalvar"); await a.espera(500);
+  rows = await a.db("jb_freela_acesso");
+  assert.ok(rows.find(r => r.id === 1).encerrado_em, "a liberação antiga da Ana terminou");
+  assert.ok(!rows.find(r => r.nome === "Carla").encerrado_em, "a Carla continua");
+  assert.equal(rows.filter(r => !r.encerrado_em).length, 2);
   semErros(a); await a.fechar();
 
   a = await abrir("uHen", { agora: AGORA, db: db => { db.jb_freela_acesso = [janela({ erros: 5 })]; return db; } });
@@ -230,7 +241,7 @@ test("liberar com valor combinado já registra a diária e a conta a pagar (só 
 
   // liberar de novo para a mesma pessoa no mesmo dia não lança outra diária
   await a.page.locator("#frAcesso button", { hasText: "Pronto" }).click(); await a.espera(200);
-  await a.page.click("#frAcAbre"); await a.espera(150);
+  await a.page.locator("#frAcesso .fr-ac-novo").click(); await a.espera(150);
   assert.match(await a.texto("#frAcJaTem"), /já está registrada/);
   await a.page.click("#frAcSalvar"); await a.espera(500);
   assert.equal((await a.db("jb_freela")).length, 1);

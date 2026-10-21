@@ -19,7 +19,7 @@ const conta = db => {
         meta_semana: null, validade_dias: null, cobertura: 7, extra: 0, alvo: 74, expositora: 27, freezer: 49, falta: 0, fazer: 0 },
       { produto_id: 3, nome: "Pudim", ordem: 3, ficha_id: 11, rend: 1, fonte: "sem", venda_dia: 0, dias_hist: 0, vendeu_hist: 0, zerou: 0,
         meta_semana: null, validade_dias: null, cobertura: 7, extra: 0, alvo: 0, expositora: 0, freezer: 0, falta: 0, fazer: 0 },
-      { produto_id: 4, nome: "Coxinha", ordem: 4, ficha_id: 11, rend: 1, fonte: "meta", venda_dia: 5.71, dias_hist: 2, vendeu_hist: 9, zerou: 0,
+      { produto_id: 4, nome: "Coxinha", ordem: 4, ficha_id: 12, rend: 1, fonte: "meta", venda_dia: 5.71, dias_hist: 2, vendeu_hist: 9, zerou: 0,
         meta_semana: 40, validade_dias: null, cobertura: 7, extra: 0, alvo: 46, expositora: 9, freezer: 0, falta: 37, fazer: 37 }
     ],
     bases: [
@@ -42,7 +42,7 @@ test("Jessica vê Quanto fazer na Home com o resumo da conta e abre a tela", asy
   assert.deepEqual(linhas[0], ["Brownie Brigadeiro", "71"], "o que mais precisa vem primeiro");
   assert.deepEqual(linhas[1], ["Coxinha", "37"]);
   assert.ok(linhas.some(l => l[0] === "Bolo Gelado Supreme" && l[1] === "ok"), "geladeira e freezer cobrem: ok");
-  const det = await a.page.evaluate(() => [...document.querySelectorAll("#qfCorpo .qf-item small")].map(s => s.textContent));
+  const det = await a.page.evaluate(() => [...document.querySelectorAll("#qfCorpo .qf-item:not(.qf-base)")].map(r => r.querySelector(".qf-nome small").textContent));
   assert.match(det[0], /vende 10,6 por dia · tem 15 na geladeira · precisa de 86 para 7 dias/);
   assert.match(det[1], /doce novo: usando sua meta de 40 por semana \(2 dias de venda até agora\)/);
   assert.ok(det.some(d => /tem 27 na geladeira e 49 no freezer/.test(d) && /sem ficha técnica/.test(d)));
@@ -104,31 +104,67 @@ test("validade zero ou meta absurda não grava", async () => {
   semErros(a); await a.fechar();
 });
 
-test("mandar para o plano: massas e recheios num dia em kg, montagem em outro em unidades, sem duplicar", async () => {
+test("marcar itens, escolher dia e pessoa, mandar; o que já está no plano aparece e não duplica", async () => {
   const hoje = hojeSP();
-  const quinta = diaMais(hoje, 2), sexta = diaMais(hoje, 3);
+  const quinta = diaMais(hoje, 2);
   const a = await abrir("uJes", { db: db => {
     conta(db);
-    // a massa de brownie já estava no plano da quinta
+    // uma massa de brownie (2,5 kg) já estava no plano da quinta
     db.jb_producao_item.push({ id: 900, data: quinta, tipo: "subreceita", ref_id: 20, qtd: 2.5, feito: false, para: "producao" });
     return db;
   } });
-  await a.page.click("#btnQuanto"); await a.espera(400);
-  await a.page.locator("#qfDiaBases button").nth(2).click(); await a.espera(150);
-  await a.page.locator("#qfDiaMonta button").nth(3).click(); await a.espera(150);
-  await a.page.click("#qfMandar"); await a.espera(600);
+  await a.page.click("#btnQuanto"); await a.espera(500);
+  // a massa mostra o que já está no plano e quanto falta mandar
+  assert.match(await a.texto("#qfCorpo .qf-item[data-chave='subreceita:20'] .qf-plano"), /No plano: hoje 1,2 massas para Eliana; .* 1 massa para Eliana\. Falta mandar: meia massa/);
+  assert.equal(await a.page.isDisabled("#qfMandar"), true, "sem nada marcado não manda");
+
+  await a.page.click("#qfSelTudo"); await a.espera(200);
+  const marcados = await a.page.evaluate(() => [...document.querySelectorAll("#qfMarcados .qf-dest-item")].map(l => [l.dataset.chave, l.querySelector("input").value]));
+  assert.deepEqual(marcados.sort(), [["ficha:10", "23"], ["ficha:12", "37"], ["subreceita:20", "0,5"], ["subreceita:21", "0,5"]].sort());
+  assert.equal(await a.page.locator("#qfBarra").count(), 1, "barra de itens marcados");
+  await a.page.locator("#qfDia button").nth(2).click(); await a.espera(200);
+  await a.page.click("#qfQuem .quem-chip[data-q='producao']"); await a.espera(150);
+  await a.page.click("#qfQuem .quem-chip[data-q='equipe']"); await a.espera(150);
+  assert.match(await a.texto("#qfMandar"), /Mandar 4 itens para .*, para Eliana e Yasmin/);
+  await a.page.click("#qfMandar"); await a.espera(700);
   assert.equal(a.confirms.length, 1, "pergunta antes de trocar o que já estava");
-  assert.match(a.confirms[0], /1 receita já estava no plano/);
+  assert.match(a.confirms[0], /Massa Brownie já estava no plano/);
   const itens = await a.db("jb_producao_item");
   const massa = itens.filter(i => i.data === quinta && i.tipo === "subreceita" && i.ref_id === 20);
   assert.equal(massa.length, 1, "não duplica a massa");
-  assert.equal(massa[0].qtd, 6.25, "2,5 massas de 2,5 kg");
+  assert.equal(massa[0].qtd, 1.25, "meia massa de 2,5 kg");
+  assert.deepEqual(massa[0].quem, ["producao", "equipe"]);
   const creme = itens.find(i => i.data === quinta && i.tipo === "subreceita" && i.ref_id === 21);
-  assert.equal(creme.qtd, 0.5); assert.equal(creme.para, "producao");
-  const brownie = itens.find(i => i.data === sexta && i.tipo === "ficha" && i.ref_id === 10);
-  assert.equal(brownie.qtd, 71); assert.equal(brownie.para, "todos");
+  assert.equal(creme.qtd, 0.5);
+  const brownie = itens.find(i => i.data === quinta && i.tipo === "ficha" && i.ref_id === 10);
+  assert.equal(brownie.qtd, 23, "71 da conta menos os 48 que já estavam no plano de hoje"); assert.deepEqual(brownie.quem, ["producao", "equipe"]);
   assert.ok(!itens.some(i => i.tipo === "ficha" && i.ref_id === null), "doce sem ficha fica de fora");
-  assert.match(await a.texto("#qfMsg"), /No plano: 2 massas e recheios .* e 2 doces para montar/);
+  assert.match(await a.texto("#qfMsg"), /Mandei 4 itens para .*, para Eliana e Yasmin/);
+  // a seleção limpa e o item mostra que já foi
+  assert.equal(await a.page.locator("#qfMarcados").count(), 0);
+  assert.match(await a.texto("#qfCorpo .qf-item[data-chave='ficha:10'] .qf-plano"), /48 un para todo mundo; .* 23 un para Eliana e Yasmin\. Falta mandar: nada/);
+  semErros(a); await a.fechar();
+});
+
+test("mandar para uma freela da lista, e depois outro item para outra pessoa em outro dia", async () => {
+  const a = await abrir("uJes", { db: db => { conta(db); db.jb_freela_pessoa = [{ id: 1, nome: "Markus Porthos", ativo: true }, { id: 2, nome: "Edclecia Silva", ativo: true }]; return db; } });
+  await a.page.click("#btnQuanto"); await a.espera(500);
+  await a.page.click("#qfCorpo .qf-item[data-chave='ficha:10'] .qf-ck"); await a.espera(150);
+  await a.page.click("#qfQuem .quem-chip[data-q='fr:Markus Porthos']"); await a.espera(100);
+  await a.page.click("#qfQuem .quem-chip[data-q='fr:Edclecia Silva']"); await a.espera(100);
+  await a.page.click("#qfMandar"); await a.espera(600);
+  let it = (await a.db("jb_producao_item")).find(i => i.tipo === "ficha" && i.ref_id === 10 && i.data === diaMais(hojeSP(), 1));
+  assert.deepEqual(it.quem, ["fr:Markus Porthos", "fr:Edclecia Silva"]);
+  // segundo envio: outro item, outro dia, outra pessoa
+  await a.page.click("#qfCorpo .qf-item[data-chave='subreceita:21'] .qf-ck"); await a.espera(150);
+  await a.page.locator("#qfDia button").nth(3).click(); await a.espera(150);
+  await a.page.click("#qfQuem .quem-chip[data-q='fr:Markus Porthos']"); await a.espera(100);
+  await a.page.click("#qfQuem .quem-chip[data-q='fr:Edclecia Silva']"); await a.espera(100);
+  await a.page.click("#qfMandar"); await a.espera(600);
+  it = (await a.db("jb_producao_item")).find(i => i.tipo === "subreceita" && i.ref_id === 21);
+  assert.equal(it.data, diaMais(hojeSP(), 3));
+  assert.deepEqual(it.quem, ["fr:Edclecia Silva"]);
+  assert.equal(it.para_freela, "Edclecia Silva");
   semErros(a); await a.fechar();
 });
 
