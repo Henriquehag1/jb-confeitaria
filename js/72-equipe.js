@@ -441,10 +441,31 @@ function blocoFreelaAcesso(){
       novo.setAttribute("aria-label", "Gerar um código novo para " + ac.nome);
       novo.onclick = () => abrirFormFreelaAcesso(ac.nome);
       const enc = botaoCancelar("fracesso:" + ac.id, "Encerrar o acesso de " + ac.nome, () => encerrarFreelaAcesso(ac.id), "encerrar");
-      l.append(n, novo, enc);
+      l.append(n, novo);
+      if(ac.token_em){
+        /* abriram o código no celular errado (por exemplo, num teste): o código volta a valer para ela */
+        const solta = botaoCancelar("frsolta:" + ac.id, "Soltar o celular de " + ac.nome, () => soltarCelularFreela(ac.id, ac.nome), "soltar celular");
+        solta.classList.add("fr-ac-solta");
+        l.appendChild(solta);
+      }
+      l.appendChild(enc);
       lista.appendChild(l);
     });
     box.appendChild(lista);
+  }
+
+  /* conferência: ver o app como cada freela vê, sem código e sem ocupar o celular dela */
+  const nomesConf = [...new Set([...(FREELAS_FIXAS || []), ...FR_ACS.map(a => limpaNome(a.nome))].filter(Boolean))];
+  if(nomesConf.length){
+    const cf = document.createElement("div"); cf.className = "fr-ac-conf"; cf.id = "frAcConf";
+    const r = document.createElement("span"); r.className = "rot"; r.textContent = "Ver o app como a freela vê (só para conferir, nada é salvo):";
+    cf.appendChild(r);
+    nomesConf.forEach(n => {
+      const b = document.createElement("button"); b.type = "button"; b.className = "quem-chip"; b.textContent = n; b.dataset.nome = n;
+      b.onclick = travar(b, () => entrarConferencia(n));
+      cf.appendChild(b);
+    });
+    box.appendChild(cf);
   }
 
   const acs = document.createElement("div"); acs.className = "enc-acoes";
@@ -455,7 +476,7 @@ function blocoFreelaAcesso(){
   box.appendChild(acs);
   if(FR_ACS.length){
     const n = document.createElement("p"); n.className = "nota";
-    n.textContent = "Cada freela tem o seu código e pode estar no app ao mesmo tempo. Perdeu a mensagem ou entrou no celular errado? Toque em novo código: o celular antigo dela perde o acesso.";
+    n.textContent = "Cada freela tem o seu código e pode estar no app ao mesmo tempo. O código abriu no celular errado? Toque em soltar celular: o mesmo código volta a valer para ela. Perdeu a mensagem? Toque em novo código.";
     box.appendChild(n);
   }
   return box;
@@ -580,6 +601,14 @@ async function liberarFreelaAcesso(){
             : registro === "falhou" ? "O acesso foi liberado, mas não consegui registrar a diária. Use Registrar freela."
             : registro === "ja" ? "A diária dela de hoje já estava registrada, não lancei outra."
             : "Diária não registrada: quando souber o valor, use Registrar freela.";
+  await recarregarEquipe();
+}
+
+async function soltarCelularFreela(id, nome){
+  const { error } = await sb.rpc("jb_freela_soltar_celular", { p_id: id });
+  EQ_CANCELA = null;
+  if(error){ toast("Não consegui agora. Tente de novo.", "err"); return; }
+  toast("Pronto: o código de " + nome + " volta a valer. Ela entra pelo celular dela com o mesmo código.");
   await recarregarEquipe();
 }
 

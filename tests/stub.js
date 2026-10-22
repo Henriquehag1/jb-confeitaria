@@ -608,8 +608,14 @@ ${agora ? "window.__AGORA=" + JSON.stringify(agora) + ";" : ""}
       base.margem_pct = args && args.p_margem_pct != null ? args.p_margem_pct : (base.margem_pct != null ? base.margem_pct : prm.margem_pct);
       return { data: base, error:null };
     }
-    if(nome === "jb_freela_producao" || nome === "jb_freela_marcar" || nome === "jb_freela_registrar"){
-      const a = frPorToken(args.p_token);
+    if(nome === "jb_freela_soltar_celular"){
+      if(!gestor()) return { data:null, error:{ message:"so gestor", code:"42501" } };
+      (DB.jb_freela_acesso || []).filter(a => !a.encerrado_em && a.id === args.p_id).forEach(a => { a.token = null; a.token_em = null; a.erros = 0; });
+      return { data:null, error:null };
+    }
+    if(nome === "jb_freela_producao" || nome === "jb_freela_marcar" || nome === "jb_freela_registrar" || nome === "jb_freela_espiar"){
+      if(nome === "jb_freela_espiar" && !gestor()) return { data:null, error:{ message:"so gestor", code:"42501" } };
+      const a = nome === "jb_freela_espiar" ? { nome: String(args.p_nome || "").trim() } : frPorToken(args.p_token);
       if(!a){ return nome === "jb_freela_producao" ? { data:{ ok:false }, error:null } : { data:null, error:{ message:"sem acesso", code:"42501" } }; }
       const hoje = hojeSP();
       const ve = p => itemVisivel(p, null, a.nome);

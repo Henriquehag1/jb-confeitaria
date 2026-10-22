@@ -170,3 +170,105 @@ async function entrarFreela(codigo){
     erroLogin(msgEntradaFreela("fechado"));
   }
 }
+
+/* ============================================================
+   CONFERÊNCIA DOS DONOS
+   A Jessica e o Henrique veem o app exatamente como uma freela vê (pelo nome),
+   sem código e sem ocupar o celular dela. Nada é gravado: qualquer gravação é
+   recusada aqui mesmo, e o banco só devolve o dia dela para quem é gestor.
+   ============================================================ */
+let ESPIAO = null;   // { nome, eu } enquanto a conferência está aberta
+
+function clienteConferencia(real, nome){
+  const C = { itens: [], fichas: [], ficha_itens: [], subs: [], sub_itens: [] };
+  const TAB = { jb_producao_dia: "itens", jb_receita_ficha: "fichas", jb_receita_ficha_item: "ficha_itens",
+                jb_receita_sub: "subs", jb_receita_sub_item: "sub_itens" };
+  const RECUSA = { data: null, error: { message: "conferencia", code: "conferencia" } };
+  const avisar = () => { toast("Conferência: aqui nada é salvo. Saia da conferência para voltar ao seu app."); return RECUSA; };
+
+  async function carregarProducao(){
+    const { data, error } = await real.rpc("jb_freela_espiar", { p_nome: nome });
+    if(error || !data || !data.ok) return { rede: true };
+    Object.keys(C).forEach(k => { C[k] = data[k] || []; });
+    return { ok: true };
+  }
+
+  /* qualquer gravação vira uma corrente que termina na recusa */
+  function correnteRecusada(){
+    const c = new Proxy(function(){}, {
+      get(_, p){ if(p === "then") return (res, rej) => Promise.resolve(avisar()).then(res, rej); return () => c; },
+      apply(){ return c; }
+    });
+    return c;
+  }
+
+  function from(t){
+    if(TAB[t]){
+      const filtros = []; let ordem = null;
+      async function exec(){
+        if(t === "jb_producao_dia"){ const r = await carregarProducao(); if(r.rede) return { data: null, error: { message: "rede" } }; }
+        let out = C[TAB[t]].filter(r => filtros.every(f => f(r))).map(r => ({ ...r }));
+        if(ordem) out.sort((a, b) => (a[ordem.c] < b[ordem.c] ? -1 : a[ordem.c] > b[ordem.c] ? 1 : 0) * (ordem.asc ? 1 : -1));
+        return { data: out, error: null };
+      }
+      const q = {
+        select(){ return q; },
+        eq(c, v){ filtros.push(r => String(r[c]) === String(v)); return q; },
+        in(c, vs){ const s = (vs || []).map(String); filtros.push(r => s.includes(String(r[c]))); return q; },
+        gte(c, v){ filtros.push(r => r[c] != null && String(r[c]) >= String(v)); return q; },
+        lte(c, v){ filtros.push(r => r[c] != null && String(r[c]) <= String(v)); return q; },
+        order(c, o){ ordem = { c, asc: !(o && o.ascending === false) }; return q; },
+        limit(){ return q; },
+        maybeSingle: async () => { const r = await exec(); return { data: (r.data || [])[0] || null, error: r.error }; },
+        single: async () => { const r = await exec(); const d = (r.data || [])[0]; return d ? { data: d, error: null } : { data: null, error: r.error || { message: "no rows" } }; },
+        then(res, rej){ return exec().then(res, rej); },
+        insert: correnteRecusada, update: correnteRecusada, upsert: correnteRecusada, delete: correnteRecusada
+      };
+      return q;
+    }
+    /* o resto (contagens, produtos) é leitura normal do gestor; gravar é recusado */
+    const q = real.from(t);
+    return new Proxy(q, { get(alvo, p){
+      if(p === "insert" || p === "update" || p === "upsert" || p === "delete") return correnteRecusada;
+      const v = alvo[p]; return typeof v === "function" ? v.bind(alvo) : v;
+    } });
+  }
+
+  return {
+    conferencia: true, nome, carregarProducao, from,
+    rpc: async () => avisar(),
+    storage: real.storage,
+    auth: {
+      getSession: (...a) => real.auth.getSession(...a),
+      signOut: async () => { await sairDaConferencia(); return {}; },
+      onAuthStateChange: (cb) => real.auth.onAuthStateChange(cb)
+    }
+  };
+}
+
+async function entrarConferencia(nome){
+  if(!EU || EU.papel !== "gestor" || ESPIAO) return;
+  const n = limpaNome(nome);
+  const cli = clienteConferencia(SB_REAL, n);
+  const r = await cli.carregarProducao();
+  if(r.rede){ toast("Não consegui abrir a conferência agora. Tente de novo.", "err"); return; }
+  const ac = (FR_ACS || []).find(a => limpaNome(a.nome).toLowerCase() === n.toLowerCase());
+  ESPIAO = { nome: n, eu: EU };
+  sb = cli;
+  EU = { user_id: "conferencia:" + n, nome: n + " (freela)", apelido: n, papel: "freela", ativo: true, conferencia: true,
+         freela_ate: ac ? ac.valido_ate : new Date(agora().getTime() + 6 * 3600000).toISOString() };
+  $("espiaoTx").textContent = "Você está vendo o app como " + n + ". Nada é salvo.";
+  $("espiaoBar").classList.remove("hide");
+  document.body.classList.add("em-conferencia");
+  await carregarHome();
+}
+
+async function sairDaConferencia(){
+  if(!ESPIAO) return;
+  sb = SB_REAL;
+  EU = ESPIAO.eu;
+  ESPIAO = null;
+  $("espiaoBar").classList.add("hide");
+  document.body.classList.remove("em-conferencia");
+  await carregarHome();
+}
