@@ -376,10 +376,28 @@ function frAcOpcoes(){
   let seis = Date.parse(hojeSP() + "T06:00:00-03:00");
   while(seis < t + 2 * 3600000) seis += 86400000;
   return [
+    { id: "dias",  rotulo: "Até o fim do último dia de trabalho", ate: null },
     { id: "turno", rotulo: "Até " + quandoAte(new Date(seis).toISOString()), ate: new Date(seis).toISOString() },
     { id: "24h",   rotulo: "24 horas", ate: new Date(t + 86400000).toISOString() },
     { id: "3d",    rotulo: "3 dias",   ate: new Date(t + 3 * 86400000).toISOString() }
   ];
+}
+
+/* "Até o fim do último dia de trabalho": a saída do último dia mais 1 hora (sem horário, até as 6h do dia
+   seguinte). Nunca passa de 4 dias a partir de agora, que é o limite do banco. */
+function frAcAteDosDias(st){
+  const ult = (st.dias || []).slice().sort().pop() || diaDoTurnoSP();
+  let fim;
+  if(st.saida){
+    fim = Date.parse(ult + "T" + st.saida + ":00-03:00") + 3600000;
+    if(st.entrada && st.saida < st.entrada) fim += 86400000;   // passa da meia-noite
+  } else {
+    fim = Date.parse(ult + "T06:00:00-03:00") + 86400000;
+  }
+  const t = agora().getTime();
+  fim = Math.min(fim, t + 4 * 86400000 - 300000);
+  if(fim < t + 2 * 3600000) fim = t + 2 * 3600000;
+  return new Date(fim).toISOString();
 }
 
 function frAcMensagem(nome, ate, codigo){
@@ -483,7 +501,8 @@ function blocoFreelaAcesso(){
 }
 
 function abrirFormFreelaAcesso(nome){
-  FR_AC_FORM = { nome: nome || "", op: "turno", ops: frAcOpcoes(), valor: "", entrada: "", saida: "", no_lugar_de: "", nova: false };
+  FR_AC_FORM = { nome: nome || "", op: "dias", ops: frAcOpcoes(), valor: "", entrada: "", saida: "", no_lugar_de: "", nova: false,
+                 dias: [diaDoTurnoSP()] };
   EQ_CANCELA = null; montarCalendarioDias();
   const f = $("frAcForm"); if(f && f.scrollIntoView) f.scrollIntoView({ block: "start" });
 }
@@ -527,17 +546,38 @@ function formFreelaAcesso(){
 
   /* A diária vai junto: com o valor preenchido, o app já registra a freela do dia
      e lança a conta a pagar, como em "Registrar freela". Só o gestor vê esta parte. */
-  const jaTem = frDiariaDoDia(st.nome);
+  /* Dias de trabalho: um ou mais. A diária entra em cada dia escolhido (não no dia em que liberou). */
+  if(!st.dias || !st.dias.length) st.dias = [diaDoTurnoSP()];
+  const base = diaDoTurnoSP();
+  const opDias = [0, 1, 2, 3].map(n => { const d = new Date(base + "T12:00:00Z"); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); });
+  const gd = document.createElement("div"); gd.className = "fr-ac-dias"; gd.id = "frAcDias";
+  opDias.forEach((iso, i) => {
+    const b = document.createElement("button"); b.type = "button"; b.className = "quem-chip"; b.dataset.dia = iso;
+    b.textContent = i === 0 ? "Hoje" : i === 1 ? "Amanhã" : dataCurta(iso);
+    b.setAttribute("aria-pressed", String(st.dias.includes(iso)));
+    b.onclick = () => {
+      const tem = st.dias.includes(iso);
+      if(tem && st.dias.length === 1) return;          // pelo menos um dia
+      st.dias = tem ? st.dias.filter(x => x !== iso) : [...st.dias, iso].sort();
+      montarCalendarioDias();
+    };
+    gd.appendChild(b);
+  });
+  f.appendChild(campo("Dias de trabalho", gd));
+
+  const jaDias = st.dias.filter(d => frDiariaDoDia(st.nome, d));
+  const novosDias = st.dias.filter(d => !jaDias.includes(d));
   const tit = document.createElement("p"); tit.className = "fr-ac-sub"; tit.textContent = "Diária combinada";
   f.appendChild(tit);
-  if(jaTem){
+  if(jaDias.length){
     const p = document.createElement("p"); p.className = "nota"; p.id = "frAcJaTem";
-    p.textContent = "A diária de " + jaTem.nome + " de " + dataCurta(jaTem.data) + " já está registrada (R$ " + moeda(Number(jaTem.valor)) + "). Não vou lançar outra.";
+    p.textContent = "A diária de " + limpaNome(st.nome) + " de " + jaDias.map(dataCurta).join(", ") + (jaDias.length === 1 ? " já está registrada" : " já estão registradas") + ". Não vou lançar outra" + (jaDias.length === 1 ? "." : "s.");
     f.appendChild(p);
-  } else {
+  }
+  if(novosDias.length){
     const l1 = document.createElement("div"); l1.className = "eq-linha";
     l1.append(
-      campo("Valor combinado (R$)", entrada("text", st.valor, v => { st.valor = v; }, { id: "frAcValor", inputmode: "decimal", placeholder: "ex.: 120" })),
+      campo("Valor por dia (R$)", entrada("text", st.valor, v => { st.valor = v; }, { id: "frAcValor", inputmode: "decimal", placeholder: "ex.: 120" })),
       campo("Das", entrada("time", st.entrada, v => { st.entrada = v; }, { id: "frAcEnt" })),
       campo("Até", entrada("time", st.saida, v => { st.saida = v; }, { id: "frAcSai" }))
     );
@@ -550,7 +590,7 @@ function formFreelaAcesso(){
     lugar.onchange = () => { st.no_lugar_de = lugar.value; };
     f.append(l1, campo("No lugar de", lugar));
     const nv = document.createElement("p"); nv.className = "nota";
-    nv.textContent = "Com o valor, a diária de " + dataCurta(diaDoTurnoSP()) + " entra em Quem veio e em Contas a pagar. Sem valor, libero só o acesso e a diária você registra depois.";
+    nv.textContent = "Com o valor, entra uma diária em cada dia (" + novosDias.map(dataCurta).join(", ") + ") em Quem veio e em Contas a pagar. Sem valor, libero só o acesso e a diária você registra depois.";
     f.appendChild(nv);
   }
 
@@ -569,10 +609,10 @@ function formFreelaAcesso(){
 }
 
 /* a diária desta pessoa no dia do turno, se já foi lançada */
-function frDiariaDoDia(nome){
+function frDiariaDoDia(nome, diaPedido){
   const n = (nome || "").trim().toLowerCase();
   if(!n) return null;
-  const dia = diaDoTurnoSP();
+  const dia = diaPedido || diaDoTurnoSP();
   return FREELAS.find(f => f.data === dia && (f.nome || "").trim().toLowerCase() === n) || null;
 }
 
@@ -580,27 +620,34 @@ async function liberarFreelaAcesso(){
   const st = FR_AC_FORM;
   const nome = (st.nome || "").trim().replace(/\s+/g, " ");
   if(!nome){ aviso("frAcErr", "Escreva o nome da freela.", "err"); return; }
-  const jaTem = frDiariaDoDia(nome);
-  const temValor = !jaTem && String(st.valor || "").trim() !== "";
+  const dias = (st.dias && st.dias.length ? st.dias : [diaDoTurnoSP()]).slice().sort();
+  const novosDias = dias.filter(d => !frDiariaDoDia(nome, d));
+  const temValor = novosDias.length > 0 && String(st.valor || "").trim() !== "";
   const valor = temValor ? numBR(st.valor) : null;
   if(temValor && (valor == null || !(valor > 0) || valor > 2000)){ aviso("frAcErr", "Confira o valor combinado.", "err"); return; }
   if(temValor && (!!st.entrada !== !!st.saida)){ aviso("frAcErr", "Preencha o horário de começo e de fim, ou deixe os dois em branco.", "err"); return; }
   const op = st.ops.find(o => o.id === st.op) || st.ops[0];
-  const { data, error } = await sb.rpc("jb_freela_liberar", { p_nome: nome, p_ate: op.ate });
+  const ate = op.id === "dias" ? frAcAteDosDias({ ...st, dias }) : op.ate;
+  const { data, error } = await sb.rpc("jb_freela_liberar", { p_nome: nome, p_ate: ate });
   if(error || !data || !data.codigo){ aviso("frAcErr", "Não consegui liberar agora. Confira a internet e tente de novo.", "err"); return; }
   if(st.nova) await guardarFreelaFixa(nome).catch(() => null);
-  let registro = jaTem ? "ja" : "";
+  let ok = 0, falhou = 0;
   if(temValor){
-    const ok = await criarFreela({ nome, data: diaDoTurnoSP(), entrada: st.entrada || "", saida: st.saida || "", valor,
-                                   no_lugar_de: st.no_lugar_de || null, obs: "Liberada com código no app.", acesso_id: data.id });
-    registro = ok ? "ok" : "falhou";
+    for(const d of novosDias){
+      const r = await criarFreela({ nome, data: d, entrada: st.entrada || "", saida: st.saida || "", valor,
+                                    no_lugar_de: st.no_lugar_de || null, obs: "Liberada com código no app.", acesso_id: data.id });
+      if(r) ok++; else falhou++;
+    }
   }
   FR_AC_FORM = null;
-  FR_AC_MSG = frAcMensagem(nome, op.ate, data.codigo);
-  FR_AC_REG = registro === "ok" ? "Diária de R$ " + moeda(valor) + " registrada e lançada em Contas a pagar."
-            : registro === "falhou" ? "O acesso foi liberado, mas não consegui registrar a diária. Use Registrar freela."
-            : registro === "ja" ? "A diária dela de hoje já estava registrada, não lancei outra."
-            : "Diária não registrada: quando souber o valor, use Registrar freela.";
+  FR_AC_MSG = frAcMensagem(nome, ate, data.codigo);
+  const jaTinha = dias.length - novosDias.length;
+  FR_AC_REG = (ok ? (ok === 1 ? "Diária de R$ " + moeda(valor) + " registrada" : ok + " diárias de R$ " + moeda(valor) + " registradas")
+                    + " (" + novosDias.slice(0, ok).map(dataCurta).join(", ") + ") e lançada" + (ok === 1 ? "" : "s") + " em Contas a pagar." : "")
+            + (falhou ? " Não consegui registrar " + falhou + (falhou === 1 ? " diária" : " diárias") + ": use Registrar freela." : "")
+            + (jaTinha ? " " + (jaTinha === 1 ? "Um dia já estava registrado" : jaTinha + " dias já estavam registrados") + ", não lancei de novo." : "")
+            + (!temValor && novosDias.length ? " Diária não registrada: quando souber o valor, use Registrar freela." : "");
+  FR_AC_REG = FR_AC_REG.trim();
   await recarregarEquipe();
 }
 
