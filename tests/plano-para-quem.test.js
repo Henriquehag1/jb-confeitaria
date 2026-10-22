@@ -187,3 +187,66 @@ test("Yasmin e Eliana não veem Liberar freela", async () => {
     semErros(a); await a.fechar();
   }
 });
+
+/* ---------- conferência: o dono vê como a freela vê ---------- */
+const comPlanoMarkus = db => { casa(db);
+  db.jb_producao_item = [
+    { id: 1, data: db.jb_producao_item[0].data, tipo: "ficha", ref_id: 10, qtd: 48, feito: false, obs: "capricha", para: "todos", quem: ["fr:Markus Porthos"] },
+    { id: 2, data: db.jb_producao_item[0].data, tipo: "subreceita", ref_id: 20, qtd: 3, feito: false, obs: null, para: "producao", quem: ["producao"] }
+  ];
+  db.jb_freela_acesso.push({ id: 20, nome: "Markus Porthos", valido_de: new Date(Date.now() - 3600e3).toISOString(), valido_ate: new Date(Date.now() + 5 * 3600e3).toISOString(),
+    codigo: "111222", erros: 0, token: "tok" + "m".repeat(40), token_em: new Date(Date.now() - 600e3).toISOString(), criado_em: new Date().toISOString(), encerrado_em: null });
+  return db; };
+
+test("Jessica confere o app como o Markus vê, sem salvar nada, e volta para o dela", async () => {
+  const a = await abrir("uJes", { db: comPlanoMarkus });
+  await a.page.click("#btnDias"); await a.espera(600);
+  const nomes = await a.page.evaluate(() => [...document.querySelectorAll("#frAcConf .quem-chip")].map(b => b.textContent));
+  assert.deepEqual(nomes, ["Edclecia Silva", "Isabella Freitas", "Markus Porthos"]);
+  await a.page.click("#frAcConf .quem-chip[data-nome='Markus Porthos']"); await a.espera(800);
+  assert.equal(await a.tela(), "scHome");
+  const barra = () => a.page.evaluate(() => !document.getElementById("espiaoBar").classList.contains("hide"));
+  assert.equal(await barra(), true, "a faixa de conferência aparece (fixa no rodapé)");
+  assert.match(await a.texto("#espiaoTx"), /vendo o app como Markus Porthos\. Nada é salvo/);
+  assert.equal(await a.texto("#whoName"), "Markus Porthos");
+  assert.equal(await a.visivel("btnCustos"), false, "nada do gestor aparece");
+  await a.page.click("#btnProducao"); await a.espera(600);
+  const itens = await a.page.evaluate(() => [...document.querySelectorAll("#prodLista .prod .n")].map(x => x.childNodes[0].textContent.trim()));
+  assert.deepEqual(itens, ["Brownie Brigadeiro"], "só o que é dele");
+  await a.page.evaluate(() => document.querySelector("#prodLista .prod .n").click()); await a.espera(500);
+  assert.match(await a.texto("#recCorpo"), /Recado: capricha/);
+  await a.page.click("#btnRecFeito"); await a.espera(400);
+  assert.equal((await a.log("rpc")).filter(x => x[1] === "jb_producao_registrar" || x[1] === "jb_freela_registrar").length, 0, "não grava nada");
+  assert.equal((await a.db("jb_producao_registro") || []).length, 0);
+  // sair volta para a Jessica
+  await a.page.click("#espiaoSair"); await a.espera(700);
+  assert.equal(await barra(), false);
+  assert.equal(await a.texto("#whoName"), "Jessica");
+  assert.equal(await a.visivel("btnCustos"), true);
+  semErros(a); await a.fechar();
+});
+
+test("soltar o celular: o mesmo código volta a valer para a freela", async () => {
+  const a = await abrir("uJes", { db: comPlanoMarkus });
+  await a.page.click("#btnDias"); await a.espera(600);
+  const linha = "#frAcLista .fr-ac-linha[data-id='20']";
+  await a.page.click(linha + " .fr-ac-solta"); await a.espera(150);
+  await a.page.click(linha + " .fr-ac-solta"); await a.espera(500);
+  const ac = (await a.db("jb_freela_acesso")).find(x => x.id === 20);
+  assert.equal(ac.token, null); assert.equal(ac.encerrado_em, null, "continua liberado");
+  semErros(a); await a.fechar();
+  // e o código entra no celular dela
+  const f = await abrir(null, { semSessao: true, db: db => { comPlanoMarkus(db); const x = db.jb_freela_acesso.find(y => y.id === 20); x.token = null; x.token_em = null; return db; } });
+  await f.page.locator("#pickWho button", { hasText: "Freela" }).click();
+  await f.page.fill("#pin", "111222");
+  await f.page.click("#btnEntrar"); await f.espera(600);
+  assert.equal(await f.texto("#whoName"), "Markus Porthos");
+  semErros(f); await f.fechar();
+});
+
+test("Yasmin não consegue conferir como freela", async () => {
+  const a = await abrir("uYas", { db: comPlanoMarkus });
+  const r = await a.page.evaluate(async () => (await sb.rpc("jb_freela_espiar", { p_nome: "Markus Porthos" })).error);
+  assert.equal(r.code, "42501");
+  semErros(a); await a.fechar();
+});

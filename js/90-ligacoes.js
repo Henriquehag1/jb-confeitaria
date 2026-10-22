@@ -42,6 +42,7 @@ sb.auth.onAuthStateChange((evento) => {
 $("btnEntrar").onclick = entrar;
 $("pin").addEventListener("keydown", e => { if(e.key === "Enter") entrar(); });
 $("btnSair").onclick = async () => {
+  if(ESPIAO){ await sairDaConferencia(); return; }
   if(!confirm("Sair do app?\n\nPara entrar de novo vai precisar " + (EU && EU.papel === "freela" ? "de um código novo." : "do PIN."))) return;
   await sb.auth.signOut(); montarLogin(); show("scLogin");
 };
@@ -100,6 +101,7 @@ $("abaGeladeira").onclick = () => trocarAba("geladeira");
 
 $("btnProducao").onclick = abrirProducao;
 $("btnFreelaHoje").onclick = async () => { await abrirDias(); abrirFormFreelaAcesso(""); };
+$("espiaoSair").onclick = () => sairDaConferencia();
 $("btnQuanto").onclick = () => { QF_ABERTO = null; abrirQuanto(); };
 $("addProd").onchange = () => addReceitaAoDia($("addProd").value);
 $("btnRecFeito").onclick = marcarFeito;
