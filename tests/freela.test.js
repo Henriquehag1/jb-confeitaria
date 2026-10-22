@@ -144,7 +144,8 @@ test("gestor libera, a mensagem já leva o código, e depois encerra", async () 
 
   await a.page.click("#frAcAbre"); await a.espera(150);
   assert.deepEqual(await a.page.evaluate(() => [...document.querySelectorAll("#frAcNomes option")].map(o => o.value)), ["Bia"], "sugere quem já foi freela");
-  assert.match(await a.page.locator("#frAcAte option").first().innerText(), /Até amanhã às 06:00/);
+  assert.match(await a.page.locator("#frAcAte option").first().innerText(), /Até o fim do último dia de trabalho/);
+  assert.match(await a.page.locator("#frAcAte option").nth(1).innerText(), /Até amanhã às 06:00/);
   await a.page.click("#frAcSalvar"); await a.espera(200);
   assert.match(await a.texto("#frAcErr"), /Escreva o nome/);
 
@@ -270,5 +271,30 @@ test("celular de alguém da equipe usado no teste: quando o acesso acaba, volta 
   assert.equal(await a.tela(), "scHome");
   assert.equal(await a.page.evaluate(() => EU.nome), "Henrique");
   assert.equal(await a.page.evaluate(() => localStorage.getItem("jb_freela_token")), null);
+  semErros(a); await a.fechar();
+});
+
+test("liberar para dias à frente: uma diária em cada dia escolhido e acesso até o fim do último dia", async () => {
+  const a = await abrir("uJes", { agora: AGORA });   // quinta 08/10 às 20:30
+  await a.page.click("#btnDias"); await a.espera(500);
+  await a.page.click("#frAcAbre"); await a.espera(150);
+  await a.page.fill("#frAcNome", "Markus Porthos");
+  // tira hoje, marca sexta e sábado
+  await a.page.click("#frAcDias .quem-chip[data-dia='2026-10-09']"); await a.espera(100);
+  await a.page.click("#frAcDias .quem-chip[data-dia='2026-10-10']"); await a.espera(100);
+  await a.page.click("#frAcDias .quem-chip[data-dia='2026-10-08']"); await a.espera(100);
+  assert.deepEqual(await a.page.evaluate(() => [...document.querySelectorAll("#frAcDias .quem-chip[aria-pressed='true']")].map(b => b.dataset.dia)), ["2026-10-09", "2026-10-10"]);
+  await a.page.fill("#frAcNome", "Markus Porthos");
+  await a.page.fill("#frAcValor", "130");
+  await a.page.fill("#frAcEnt", "11:00");
+  await a.page.fill("#frAcSai", "18:00");
+  await a.page.click("#frAcSalvar"); await a.espera(700);
+  const fr = (await a.db("jb_freela")).filter(f => f.nome === "Markus Porthos");
+  assert.deepEqual(fr.map(f => [f.data, f.valor, f.entrada, f.saida]), [["2026-10-09", 130, "11:00", "18:00"], ["2026-10-10", 130, "11:00", "18:00"]]);
+  const contas = (await a.db("jb_conta")).filter(c => /Markus/.test(c.descricao || ""));
+  assert.deepEqual(contas.map(c => c.vencimento).sort(), ["2026-10-09", "2026-10-10"]);
+  const ac = (await a.db("jb_freela_acesso")).find(x => x.nome === "Markus Porthos");
+  assert.equal(ac.valido_ate, new Date(Date.parse("2026-10-10T19:00:00-03:00")).toISOString(), "até sábado às 19h (saída + 1h)");
+  assert.match(await a.texto("#frAcReg"), /2 diárias de R\$ 130,00 registradas \(sex\., 09\/10, sáb\., 10\/10\)/);
   semErros(a); await a.fechar();
 });
