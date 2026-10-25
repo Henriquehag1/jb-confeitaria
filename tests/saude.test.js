@@ -262,3 +262,29 @@ test("ajuda extra no lucro: só até ontem na conta de agora, falta descontada v
   assert.equal(r.pFa, -137.55, "desconto de falta não se projeta");
   await a.fechar();
 });
+
+test("ponte Caixa → lucro com os números reais de setembro: fecha centavo a centavo", async () => {
+  const a = await abrir("uJes");
+  const r = await a.page.evaluate(() => {
+    const D = { mes: "2026-09-01", bruto_estimado: 56124.08, app: 0.5147, imposto: 0.0636, ingrediente: 0.2422 };
+    const fixos = [{ nome: "Fixas", valor: 9181.5, origem: "item" }];
+    const L = saudeLucroMes(D, fixos, [{ nome: "Eliana", valor: 980 }, { nome: "Freelas", valor: 260 }]);
+    const it = (v, extra) => Object.assign({ valor: v, previsto: false }, extra || {});
+    const detalhe = { grupos: [
+      { nome: "Insumos e materia-prima", itens: [it(2414.84)] }, { nome: "Mercado", itens: [it(1773.45)] }, { nome: "Embalagens", itens: [it(1601.32)] },
+      { nome: "Pessoas", itens: [it(1287)] }, { nome: "Impostos", itens: [it(1045.5)] },
+      { nome: "Estorno a cliente", itens: [it(35)] }, { nome: "Gas e manutencao", itens: [it(28.14)] }, { nome: "Extras", itens: [it(12.95)] },
+      { nome: "Contas fixas", itens: [it(4233.22), it(999, { previsto: true })] } ] };
+    const P = saudePonte(L, { entradas: 31169.15, saidas: 12431.42 }, detalhe);
+    return { P, lucro: L.lucro };
+  });
+  assert.equal(r.P.sobrou, 18737.73);
+  const soma = Math.round((r.P.sobrou + r.P.linhas.reduce((s, x) => s + x.v, 0)) * 100) / 100;
+  assert.equal(soma, r.lucro, "a ponte chega no lucro");
+  assert.ok(!r.P.linhas.some(x => x.id === "resto"), "sem diferença sobrando");
+  const v = id => r.P.linhas.find(x => x.id === id).v;
+  assert.ok(v("ingrediente") < -7000, "a maior diferença é o ingrediente pelas receitas");
+  assert.ok(v("venda") < 0 && v("imposto") < 0 && v("equipe") < 0);
+  assert.equal(v("outros"), 76.09);
+  await a.fechar();
+});

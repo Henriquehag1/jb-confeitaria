@@ -77,7 +77,7 @@ test("Home da Jessica mostra o freezer; a da Yasmin não", async () => {
   const hoje = hojeSP();
   let a = await abrir("uJes", { db: db => comAbertura(db, hoje) });
   assert.match(await a.texto("#freezerCard"), /No freezer · 74/);
-  assert.match(await a.texto("#freezerCard"), /74 Bolo Gelado Supreme/);
+  assert.match(await a.texto("#fzLista"), /Bolo gelado\s*74\s*74\s*Supreme/i, "item por item, agrupado");
   assert.match(await a.texto("#freezerCard"), /Contado na abertura de hoje/);
   semErros(a); await a.fechar();
   a = await abrir("uYas", { db: db => comAbertura(db, hoje) });

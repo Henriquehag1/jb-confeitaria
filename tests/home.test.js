@@ -218,3 +218,22 @@ test("todo script do app carrega com a versão atual no endereço (senão o celu
   const noDisco = fs.readdirSync(path.join(raiz, "js")).filter(f => f.endsWith(".js")).sort();
   assert.deepEqual(tags.map(t => t[1].replace("js/", "")).sort(), noDisco, "todo arquivo de js/ está no index.html");
 });
+
+test("pendências: duas do mesmo tipo (Pluxee PAT e Auxílio) saem cada uma com o seu ok", async () => {
+  const a = await abrir("uJes", { db: db => {
+    db.jb_pendencias.push({ grupo: "taxa", ordem: 16, texto: "Pluxee Refeição PAT descontando mais que o contrato", dica: "", qtd: 1 },
+                          { grupo: "taxa", ordem: 16, texto: "Pluxee Refeição Auxílio descontando mais que o contrato", dica: "", qtd: 1 });
+    return db; } });
+  await a.page.click("#cardPend .cab"); await a.espera(200);
+  const n0 = await a.page.locator("#cardPend .p").count();
+  const ok = txt => a.page.evaluate(t => [...document.querySelectorAll("#cardPend .p")].find(r => r.textContent.includes(t)).querySelector(".ok").click(), txt);
+  await ok("Pluxee Refeição PAT"); await a.espera(600);
+  await a.page.evaluate(() => { const c = document.querySelector("#cardPend .corpo"); if(c && c.classList.contains("hide")) document.querySelector("#cardPend .cab").click(); }); await a.espera(150);
+  await ok("Pluxee Refeição Auxílio"); await a.espera(600);
+  await a.page.evaluate(() => { const c = document.querySelector("#cardPend .corpo"); if(c && c.classList.contains("hide")) document.querySelector("#cardPend .cab").click(); }); await a.espera(150);
+  const t = await a.page.evaluate(() => [...document.querySelectorAll("#cardPend .p:not(.guardada) .t")].map(e => e.textContent).join(" | "));
+  assert.doesNotMatch(t, /Pluxee/, "as duas saíram: " + t);
+  assert.equal(await a.page.locator("#cardPend .p").count(), n0 - 2);
+  assert.equal((await a.db("jb_pendencia_ok")).filter(g => /^taxa:16:/.test(g.chave)).length, 2);
+  semErros(a); await a.fechar();
+});

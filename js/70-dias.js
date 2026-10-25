@@ -56,12 +56,42 @@ async function avisarPendencias(){
       .gte("data", mes).lte("data", ultimoDia(mes));
     if(!error && data) n = data.length;
   } catch(e){}
-  const bo = await resumoBolsaHome().catch(() => null);
-  const txBolsa = bo ? "Bolsa extra: " + reais(bo.disponivel) + (bo.disponivel < 0 ? ", passou" : " · " + bo.noites + (bo.noites === 1 ? " noite" : " noites") + " de freela") : null;
-  b.className = n > 0 || (bo && bo.disponivel < 0) ? "big" : "big ghost";
+  const ap = await resumoAPagarHome().catch(() => null);
+  const txPagar = ap ? (ap.total > 0 ? "A pagar agora: R$ " + moeda(ap.total) + " (" + ap.quem.join(", ") + ")" : "Nada a pagar agora") : null;
+  /* só fica cheio quando pede ação: dia esperando confirmar */
+  b.className = n > 0 ? "big" : "big ghost";
   b.querySelector(".s").textContent = n === 0
-    ? (txBolsa || "Os dias da Eliana e da Yasmin no mês")
-    : (n === 1 ? "1 dia esperando você confirmar" : n + " dias esperando você confirmar") + (txBolsa ? " · " + txBolsa : "");
+    ? (txPagar || "Dias de cada pessoa, faltas e o que falta pagar")
+    : (n === 1 ? "1 dia esperando você confirmar" : n + " dias esperando você confirmar") + (txPagar ? " · " + txPagar : "");
+}
+
+/* o que está em aberto no mês: dias da diarista sem pagamento e diárias de freela sem pagamento */
+async function resumoAPagarHome(){
+  const mes = primeiroDia(hojeSP()), fim = ultimoDia(mes);
+  const [ac, dt, dp, fr, us] = await Promise.all([
+    sb.from("jb_acordo").select("user_id,regime,valor,inicio,fim").eq("regime", "diaria"),
+    sb.from("jb_dia_trabalhado").select("id,user_id").eq("status", "confirmado").gte("data", mes).lte("data", fim),
+    sb.from("jb_dia_pago").select("id").gte("data", mes).lte("data", fim),
+    sb.from("jb_freela").select("nome,valor,conta_id").eq("cancelada", false).gte("data", mes).lte("data", fim),
+    sb.from("jb_usuario").select("user_id,nome")
+  ]);
+  if(dt.error || fr.error) return null;
+  const pagos = new Set(((dp && dp.data) || []).map(x => x.id));
+  const nomes = {}; ((us && us.data) || []).forEach(u => { nomes[u.user_id] = u.nome; });
+  const quem = {}; let total = 0;
+  ((ac && ac.data) || []).filter(a => a.inicio <= fim && (!a.fim || a.fim >= mes)).forEach(a => {
+    const n = (dt.data || []).filter(d => d.user_id === a.user_id && !pagos.has(d.id)).length;
+    if(n){ const v = n * Number(a.valor); total += v; quem[nomes[a.user_id] || "Diarista"] = (quem[nomes[a.user_id]] || 0) + v; }
+  });
+  const ids = (fr.data || []).map(f => f.conta_id).filter(Boolean);
+  if(ids.length){
+    const c = await sb.from("jb_conta").select("id,pago_em").in("id", ids);
+    const pagas = new Set(((c && c.data) || []).filter(k => k.pago_em).map(k => k.id));
+    (fr.data || []).filter(f => f.conta_id && !pagas.has(f.conta_id)).forEach(f => {
+      const n = String(f.nome || "freela").split(" ")[0]; total += Number(f.valor); quem[n] = (quem[n] || 0) + Number(f.valor);
+    });
+  }
+  return { total: Math.round(total * 100) / 100, quem: Object.keys(quem) };
 }
 
 /* ---------- o ponto da Eliana e da Yasmin: "Cheguei" e "Saí" ----------

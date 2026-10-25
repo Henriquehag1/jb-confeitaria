@@ -9,8 +9,8 @@
 
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#F8F0EA">
-<link rel="icon" href="icon-192.png?v=2026-10-25b" type="image/png">
-<link rel="apple-touch-icon" href="icon-180.png?v=2026-10-25b">
+<link rel="icon" href="icon-192.png?v=2026-10-25c" type="image/png">
+<link rel="apple-touch-icon" href="icon-180.png?v=2026-10-25c">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -272,9 +272,23 @@ button{font-family:inherit;font-size:inherit;cursor:pointer;}
 .item.dois .step button{width:34px;}
 .repor-fz{display:flex;align-items:center;gap:8px;margin:0 2px 12px;padding:10px 12px;border-radius:12px;background:var(--creme);border:1px solid var(--linha);font-size:.88rem;color:var(--tinta);}
 .repor-fz input{width:20px;height:20px;accent-color:var(--coral);}
+.g-encomendas{margin-top:4px;}
+#btnEncomendas.enc-nova{background:var(--rosa);border:2px solid var(--ponto);color:var(--tinta);box-shadow:0 0 0 3px rgba(212,104,90,.18);animation:encPulso 1.6s ease-in-out 3;}
+#btnEncomendas.enc-nova .s{color:var(--coral-forte);font-weight:600;}
+#btnEncomendas.enc-nova .ic{background:var(--ponto);color:var(--creme);}
+#btnEncomendas.enc-nova .t::after{content:"nova";display:inline-block;margin-left:8px;padding:1px 8px;border-radius:999px;background:var(--ponto);color:var(--creme);font-family:var(--corpo);font-size:.62rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;vertical-align:3px;}
+#btnEncomendas.enc-logo{border-color:var(--ambar-linha);background:var(--ambar-veu);}
+#btnEncomendas.enc-logo .s{color:var(--ambar);font-weight:500;}
+@keyframes encPulso{0%,100%{box-shadow:0 0 0 3px rgba(212,104,90,.18);}50%{box-shadow:0 0 0 8px rgba(212,104,90,.10);}}
+@media (prefers-reduced-motion:reduce){#btnEncomendas.enc-nova{animation:none;}}
 .freezer-card{margin:8px 0 0;padding:12px 14px;border-radius:14px;background:var(--creme);border:1px solid var(--linha);text-transform:none;letter-spacing:normal;font-family:var(--sans,inherit);}
 .freezer-card h4{margin:0 0 4px;font-size:.8rem;letter-spacing:.06em;text-transform:uppercase;color:var(--tinta-3);font-weight:600;}
 .freezer-card p{margin:0;font-size:.9rem;color:var(--tinta);line-height:1.45;text-transform:none;letter-spacing:normal;font-weight:400;}
+.fz-lista{margin:6px 0 2px;}
+.fz-grupo{display:flex;justify-content:space-between;margin:8px 0 2px;font-size:.7rem;letter-spacing:.08em;text-transform:uppercase;color:var(--tinta-3);font-weight:600;border-bottom:1px solid var(--linha);padding-bottom:2px;}
+.fz-grupo:first-child{margin-top:2px;}
+.fz-item{display:flex;align-items:baseline;gap:10px;padding:3px 0;font-size:.9rem;color:var(--tinta);}
+.fz-item b{min-width:2.4em;text-align:right;font-variant-numeric:tabular-nums;font-weight:700;}
 .freezer-card p.s{font-size:.76rem;color:var(--tinta-3);margin-top:4px;}
 .freezer-card .fz-bt{margin-top:10px;width:100%;min-height:44px;border-radius:12px;border:1px solid var(--coral);background:var(--branco,#fff);color:var(--coral-forte);font-weight:600;font-size:.92rem;font-family:inherit;cursor:pointer;}
 #fzList .item .fz{display:block;font-size:.74rem;color:var(--tinta-3);margin-top:2px;font-weight:400;}
@@ -1043,6 +1057,17 @@ button.fotobt:disabled{color:var(--tinta-3);}
 .cal button.veio.atraso::after{background:var(--creme);}
 .cal button.pago::before{content:"✓";position:absolute;top:1px;right:3px;font-size:.58rem;line-height:1;font-weight:700;}
 .legenda i.pg{background:var(--coral-acao);position:relative;}
+.fr-pessoa{margin:14px 0 4px;padding:12px 12px 6px;border:1px solid var(--linha);border-radius:14px;background:#fff;}
+.fr-pessoa h4{margin:0;font-family:var(--display);font-size:1.02rem;font-weight:600;color:var(--tinta);}
+.fr-pessoa .sub{margin-top:2px;}
+.fr-pessoa .fr-cal{margin-top:10px;}
+.fr-pessoa .eq-ln{flex-wrap:wrap;}
+.fr-origem{flex-basis:100%;font-size:.76rem;color:var(--tinta-3);line-height:1.35;padding-left:2px;}
+.fr-destaque{background:var(--ambar-veu);border-radius:8px;transition:background .3s;}
+.fr-reg{margin-top:8px;min-height:40px;width:100%;border-radius:10px;border:1px dashed var(--linha-2);background:#fff;color:var(--tinta-2);font:inherit;font-size:.84rem;}
+.fr-pagar{margin:6px 0 4px;}
+.fr-pagar summary{cursor:pointer;font-size:.84rem;font-weight:600;color:var(--coral-forte);padding:6px 0;}
+.cal button.cobre::after{content:"";position:absolute;left:4px;bottom:4px;width:5px;height:5px;border-radius:50%;background:var(--creme);opacity:.9;}
 .cal button.falta{background:#fff;border:1.5px solid var(--tinta-3);color:var(--tinta-3);text-decoration:line-through;font-weight:600;}
 .legenda i.flt{background:#fff;border:1.5px solid var(--tinta-3);}
 .eq-sug,.eq-faltas{margin-top:14px;padding-top:12px;border-top:1px solid var(--linha);}
@@ -1101,6 +1126,7 @@ button.fotobt:disabled{color:var(--tinta-3);}
 .sd-ln span{color:var(--tinta-2);min-width:0;}
 .sd-ln span small{display:block;font-size:.72rem;color:var(--tinta-3);margin-top:1px;}
 .sd-ln b{font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap;}
+.sd-ln.sd-total{border-bottom:0;border-top:1.5px solid var(--tinta-3);font-weight:600;} .sd-ln.sd-total b{font-size:1rem;}
 .sd-ln.alerta b{color:var(--coral-fundo);} .sd-ln.bom b{color:var(--verde);}
 .sd-pilha{display:flex;height:16px;border-radius:8px;overflow:hidden;margin:2px 0 8px;gap:2px;background:var(--linha);}
 .sd-pilha i{display:block;height:100%;}
@@ -1573,7 +1599,7 @@ body.em-conferencia main, body.em-conferencia section{padding-bottom:84px;}
   <!-- ================= LOGIN ================= -->
   <section id="scLogin" class="login hide">
     <div class="mark">
-      <img class="marca-jb" src="marca-jb.png?v=2026-10-25b" alt="Jessica Ballassa Confeitaria" width="210" height="191">
+      <img class="marca-jb" src="marca-jb.png?v=2026-10-25c" alt="Jessica Ballassa Confeitaria" width="210" height="191">
       <p class="slogan">aqui tem amor<span class="pt">.</span></p>
       <div class="versao" id="loginVersao"></div>
     </div>
@@ -1590,7 +1616,7 @@ body.em-conferencia main, body.em-conferencia section{padding-bottom:84px;}
   <section id="scHome" class="hide">
     <div class="top">
       <div class="marca">
-        <img class="selo" src="selo-192.png?v=2026-10-25b" alt="" width="34" height="34">
+        <img class="selo" src="selo-192.png?v=2026-10-25c" alt="" width="34" height="34">
         <div><b>Jessica Ballassa</b><span id="homeSub">Ateliê</span></div>
       </div>
       <button class="recarregar" id="homeRecarregar" type="button" aria-label="Atualizar" title="Atualizar">&#8635;</button>
@@ -1602,6 +1628,14 @@ body.em-conferencia main, body.em-conferencia section{padding-bottom:84px;}
     </div>
     <div id="homeMsg"></div>
     <div id="cardPend"></div>
+    <div class="grupo g-encomendas">
+    <button class="big ghost hide" id="btnEncomendas">
+      <span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 13.2h15v6.3a1.3 1.3 0 0 1-1.3 1.3H5.8a1.3 1.3 0 0 1-1.3-1.3z"/><path d="M4.5 13.2c1.3 0 1.3 1.3 2.5 1.3s1.3-1.3 2.5-1.3 1.3 1.3 2.5 1.3 1.3-1.3 2.5-1.3 1.3 1.3 2.5 1.3 1.2-1.3 2.5-1.3"/><path d="M6.2 13.2V9.7h11.6v3.5"/><path d="M12 9.7V6.4"/><path d="M12 3.4c.9.9.9 2 0 3-.9-1-.9-2.1 0-3z"/></svg></span>
+      <span class="tx"><span class="t">Encomendas de bolo</span><span class="s" id="encSub">Pedidos do site, por data de retirada</span></span>
+      <span class="seta" aria-hidden="true">&#8250;</span>
+    </button>
+    </div>
+
     <div class="grupo g-turno">
       <h3>O turno de hoje</h3>
     <button class="big" id="btnAbertura">
@@ -1625,18 +1659,18 @@ body.em-conferencia main, body.em-conferencia section{padding-bottom:84px;}
       <span class="tx"><span class="t">Promo&ccedil;&atilde;o do dia</span><span class="s">O que pode ficar na campanha sem dar preju&iacute;zo</span></span>
       <span class="seta" aria-hidden="true">&#8250;</span>
     </button>
+    <button class="big ghost" id="btnHist">
+      <span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3.4" y="5.1" width="17.2" height="15.5" rx="2.6"/><path d="M3.4 10.1h17.2"/><path d="M8.1 3v4.1"/><path d="M15.9 3v4.1"/></svg></span>
+      <span class="tx"><span class="t">&Uacute;ltimos dias</span><span class="s">O que saiu em cada dia</span></span>
+      <span class="seta" aria-hidden="true">&#8250;</span>
+    </button>
     </div>
 
-    <div class="grupo g-atelie">
-      <h3>O ateli&ecirc;</h3>
+    <div class="grupo g-producao">
+      <h3>Produ&ccedil;&atilde;o</h3>
     <button class="big hide" id="btnProducao">
       <span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3.4 11.4h17.2a8.6 8.6 0 0 1-8.6 8.6 8.6 8.6 0 0 1-8.6-8.6Z"/><path d="M9.2 8.5c0-1.6 1.3-1.9 1.3-3.2"/><path d="M13.1 8.5c0-1.6 1.3-1.9 1.3-3.2"/></svg></span>
       <span class="tx"><span class="t">Plano de produ&ccedil;&atilde;o</span><span class="s">Diga o que precisa ser feito e em que quantidade</span></span>
-      <span class="seta" aria-hidden="true">&#8250;</span>
-    </button>
-    <button class="big ghost hide" id="btnFreelaHoje">
-      <span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.3"/><path d="M3.3 20.3a5.8 5.8 0 0 1 11.4 0"/><path d="M18 8v6"/><path d="M15 11h6"/></svg></span>
-      <span class="tx"><span class="t">Liberar freela</span><span class="s" id="frHojeSub">Escolha quem vem hoje e mande o código</span></span>
       <span class="seta" aria-hidden="true">&#8250;</span>
     </button>
     <button class="big ghost hide" id="btnQuanto">
@@ -1644,19 +1678,23 @@ body.em-conferencia main, body.em-conferencia section{padding-bottom:84px;}
       <span class="tx"><span class="t">Quanto fazer</span><span class="s" id="qfSub">A conta da semana pela venda, pela geladeira e pelo freezer</span></span>
       <span class="seta" aria-hidden="true">&#8250;</span>
     </button>
-    <button class="big ghost hide" id="btnEncomendas">
-      <span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 13.2h15v6.3a1.3 1.3 0 0 1-1.3 1.3H5.8a1.3 1.3 0 0 1-1.3-1.3z"/><path d="M4.5 13.2c1.3 0 1.3 1.3 2.5 1.3s1.3-1.3 2.5-1.3 1.3 1.3 2.5 1.3 1.3-1.3 2.5-1.3 1.3 1.3 2.5 1.3 1.2-1.3 2.5-1.3"/><path d="M6.2 13.2V9.7h11.6v3.5"/><path d="M12 9.7V6.4"/><path d="M12 3.4c.9.9.9 2 0 3-.9-1-.9-2.1 0-3z"/></svg></span>
-      <span class="tx"><span class="t">Encomendas de bolo</span><span class="s" id="encSub">Pedidos do site, por data de retirada</span></span>
-      <span class="seta" aria-hidden="true">&#8250;</span>
-    </button>
     <button class="big ghost hide" id="btnAfazeres">
       <span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9.3 6.4h10.9"/><path d="M9.3 12h10.9"/><path d="M9.3 17.6h10.9"/><path d="M3.6 6.2l1.3 1.3 2.2-2.5"/><path d="M3.6 11.8l1.3 1.3 2.2-2.5"/><path d="M3.6 17.4l1.3 1.3 2.2-2.5"/></svg></span>
       <span class="tx"><span class="t">Afazeres</span><span class="s">Sua lista de tarefas</span></span>
       <span class="seta" aria-hidden="true">&#8250;</span>
     </button>
+    </div>
+
+    <div class="grupo g-equipe">
+      <h3 id="tituloEquipe">Colaboradores</h3>
     <button class="big ghost hide" id="btnDias">
       <span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="9.1" cy="8" r="3.3"/><path d="M3.3 20.3a5.8 5.8 0 0 1 11.6 0"/><path d="M16.3 5.1a3.3 3.3 0 0 1 0 6.3"/><path d="M17.7 15a5.8 5.8 0 0 1 3.1 5.3"/></svg></span>
-      <span class="tx"><span class="t">Quem veio no ateli&ecirc;</span><span class="s" id="diasSub">Os dias da Eliana e da Yasmin no m&ecirc;s</span></span>
+      <span class="tx"><span class="t">Quem veio no ateli&ecirc;</span><span class="s" id="diasSub">Dias de cada pessoa, faltas e o que falta pagar</span></span>
+      <span class="seta" aria-hidden="true">&#8250;</span>
+    </button>
+    <button class="big ghost hide" id="btnFreelaHoje">
+      <span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.3"/><path d="M3.3 20.3a5.8 5.8 0 0 1 11.4 0"/><path d="M18 8v6"/><path d="M15 11h6"/></svg></span>
+      <span class="tx"><span class="t">Liberar freela</span><span class="s" id="frHojeSub">Escolha quem vem hoje e mande o código</span></span>
       <span class="seta" aria-hidden="true">&#8250;</span>
     </button>
       <div id="cardCheguei"></div>
@@ -1664,20 +1702,15 @@ body.em-conferencia main, body.em-conferencia section{padding-bottom:84px;}
     </div>
 
     <div class="grupo g-numero">
-      <h3>Os n&uacute;meros</h3>
+      <h3>O dinheiro</h3>
     <button class="big hide" id="btnSaude">
       <span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20.3s-7.6-4.6-7.6-10.2A4.3 4.3 0 0 1 12 7.4a4.3 4.3 0 0 1 7.6 2.7c0 5.6-7.6 10.2-7.6 10.2Z"/><path d="M6.4 12.4h3l1.4-2.6 2.2 4.6 1.4-2h3.2"/></svg></span>
       <span class="tx"><span class="t">Sa&uacute;de do neg&oacute;cio <i class="sd-ponto" id="saudePonto"></i></span><span class="s" id="saudeSub">Se d&aacute; lucro, quanto, e se cabe contratar</span></span>
       <span class="seta" aria-hidden="true">&#8250;</span>
     </button>
-    <button class="big ghost" id="btnHist">
-      <span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3.4" y="5.1" width="17.2" height="15.5" rx="2.6"/><path d="M3.4 10.1h17.2"/><path d="M8.1 3v4.1"/><path d="M15.9 3v4.1"/></svg></span>
-      <span class="tx"><span class="t">&Uacute;ltimos dias</span><span class="s">O que saiu em cada dia</span></span>
-      <span class="seta" aria-hidden="true">&#8250;</span>
-    </button>
     <button class="big ghost hide" id="btnResultado">
       <span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3.8 20.4h16.4"/><rect x="5.4" y="11.2" width="3.5" height="6.4" rx="1.1"/><rect x="10.2" y="6.6" width="3.5" height="11" rx="1.1"/><rect x="15" y="13.6" width="3.5" height="4" rx="1.1"/></svg></span>
-      <span class="tx"><span class="t">Caixa do m&ecirc;s</span><span class="s">O dinheiro que entrou e saiu, lan&ccedil;amento por lan&ccedil;amento</span></span>
+      <span class="tx"><span class="t">Caixa do m&ecirc;s</span><span class="s">O mesmo n&uacute;mero do Nosso Financeiro: o que entrou e saiu da conta</span></span>
       <span class="seta" aria-hidden="true">&#8250;</span>
     </button>
     <button class="big ghost hide" id="btnContas">
@@ -1690,6 +1723,10 @@ body.em-conferencia main, body.em-conferencia section{padding-bottom:84px;}
       <span class="tx"><span class="t">Dados para o contador</span><span class="s" id="contadorSub">Venda do mês e impostos, numa mensagem pronta</span></span>
       <span class="seta" aria-hidden="true">&#8250;</span>
     </button>
+    </div>
+
+    <div class="grupo g-cadastro">
+      <h3>Receitas e estoque</h3>
     <button class="big ghost hide" id="btnCustos">
       <span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2.8" width="14" height="18.4" rx="2.6"/><rect x="8" y="5.9" width="8" height="3.3" rx="1"/><path d="M8.7 13.2h.01"/><path d="M12 13.2h.01"/><path d="M15.3 13.2h.01"/><path d="M8.7 17.2h.01"/><path d="M12 17.2h.01"/><path d="M15.3 17.2h.01"/></svg></span>
       <span class="tx"><span class="t">Custos e pre&ccedil;os</span><span class="s">Receitas, insumos e quanto sobra em cada canal</span></span>
@@ -1989,25 +2026,25 @@ body.em-conferencia main, body.em-conferencia section{padding-bottom:84px;}
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.116.0/dist/umd/supabase.min.js"></script>
-<script src="js/00-base.js?v=2026-10-25b"></script>
-<script src="js/10-entrada.js?v=2026-10-25b"></script>
-<script src="js/12-freela.js?v=2026-10-25b"></script>
-<script src="js/20-custos.js?v=2026-10-25b"></script>
-<script src="js/25-promo.js?v=2026-10-25b"></script>
-<script src="js/30-mes.js?v=2026-10-25b"></script>
-<script src="js/35-saude.js?v=2026-10-25b"></script>
-<script src="js/40-producao.js?v=2026-10-25b"></script>
-<script src="js/42-quanto.js?v=2026-10-25b"></script>
-<script src="js/50-contagem.js?v=2026-10-25b"></script>
-<script src="js/60-afazeres.js?v=2026-10-25b"></script>
-<script src="js/70-dias.js?v=2026-10-25b"></script>
-<script src="js/72-equipe.js?v=2026-10-25b"></script>
-<script src="js/74-bolsa.js?v=2026-10-25b"></script>
-<script src="js/76-conferencia.js?v=2026-10-25b"></script>
-<script src="js/80-estoque.js?v=2026-10-25b"></script>
-<script src="js/85-encomendas.js?v=2026-10-25b"></script>
-<script src="js/88-contas.js?v=2026-10-25b"></script>
-<script src="js/89-contador.js?v=2026-10-25b"></script>
-<script src="js/90-ligacoes.js?v=2026-10-25b"></script>
+<script src="js/00-base.js?v=2026-10-25c"></script>
+<script src="js/10-entrada.js?v=2026-10-25c"></script>
+<script src="js/12-freela.js?v=2026-10-25c"></script>
+<script src="js/20-custos.js?v=2026-10-25c"></script>
+<script src="js/25-promo.js?v=2026-10-25c"></script>
+<script src="js/30-mes.js?v=2026-10-25c"></script>
+<script src="js/35-saude.js?v=2026-10-25c"></script>
+<script src="js/40-producao.js?v=2026-10-25c"></script>
+<script src="js/42-quanto.js?v=2026-10-25c"></script>
+<script src="js/50-contagem.js?v=2026-10-25c"></script>
+<script src="js/60-afazeres.js?v=2026-10-25c"></script>
+<script src="js/70-dias.js?v=2026-10-25c"></script>
+<script src="js/72-equipe.js?v=2026-10-25c"></script>
+<script src="js/74-bolsa.js?v=2026-10-25c"></script>
+<script src="js/76-conferencia.js?v=2026-10-25c"></script>
+<script src="js/80-estoque.js?v=2026-10-25c"></script>
+<script src="js/85-encomendas.js?v=2026-10-25c"></script>
+<script src="js/88-contas.js?v=2026-10-25c"></script>
+<script src="js/89-contador.js?v=2026-10-25c"></script>
+<script src="js/90-ligacoes.js?v=2026-10-25c"></script>
 </body>
 </html>

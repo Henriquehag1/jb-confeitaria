@@ -47,7 +47,7 @@ test("conta da bolsa: metade da sobra antes da ajuda extra; Eliana e freela tira
 test("bolsa na tela Quem veio no ateliê, no formulário de freela e na Home", async () => {
   const a = await abrir("uHen", { agora: AGORA, db: comDados });
   a.texto = sel => a.page.locator(sel).first().innerText();
-  assert.match(await a.texto("#diasSub"), /Bolsa extra: R\$ 566,95 · 4 noites de freela/);
+  assert.match(await a.texto("#frHojeSub"), /Bolsa extra: R\$ 566,95 · 4 noites de freela/);
   await a.page.click("#btnDias"); await a.espera(700);
   const b = await a.texto("#bolsaCard");
   assert.match(b, /Bolsa de ajuda extra · outubro/i);
