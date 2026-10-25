@@ -16,6 +16,15 @@ const PAG_ABERTO = {};   // por pessoa: a lista de pagamento fica aberta depois 
 
 const DOW = ["dom","seg","ter","qua","qui","sex","sáb"];
 
+/* "15, 16, 22 e 23/10" (mesmo mês) ou "30/09 e 01/10" */
+function listaDiasTx(isos){
+  const s = [...new Set(isos)].sort();
+  if(!s.length) return "";
+  const mesmo = s.every(i => i.slice(0, 7) === s[0].slice(0, 7));
+  const p = s.map(i => mesmo ? i.slice(8, 10) : i.slice(8, 10) + "/" + i.slice(5, 7));
+  const tx = p.length > 1 ? p.slice(0, -1).join(", ") + " e " + p[p.length - 1] : p[0];
+  return mesmo ? tx + "/" + s[0].slice(5, 7) : tx;
+}
 function ultimoDia(iso){
   const [a,m] = iso.split("-").map(Number);
   const d = new Date(Date.UTC(a, m, 0));
@@ -691,11 +700,13 @@ function montarCalendarioDias(){
     sub.className = "sub";
     const veio = res ? res.dias_veio : 0;
     const comb = res ? res.dias_combinados : 0;
+    /* diarista não tem mais dias fixos: conta só os dias que veio e o que está em aberto */
+    const diarista = !!(ac && ac.regime === "diaria");
     sub.innerHTML = "";
     const s1 = document.createElement("b");
-    s1.textContent = veio + " de " + comb;
+    s1.textContent = diarista ? veio + (veio === 1 ? " dia" : " dias") : veio + " de " + comb;
     sub.appendChild(s1);
-    sub.appendChild(document.createTextNode(" dias combinados no mês"));
+    sub.appendChild(document.createTextNode(diarista ? " no mês, sem dias fixos" : " dias combinados no mês"));
     if(res && res.dias_pendentes > 0){
       sub.appendChild(document.createElement("br"));
       const s2 = document.createElement("span");
@@ -703,12 +714,18 @@ function montarCalendarioDias(){
         ? " dia esperando você confirmar" : " dias esperando você confirmar");
       sub.appendChild(s2);
     }
-    if(res && res.custo != null){
+    if(diarista && ac.valor != null){
+      const abertos = DIAS.filter(d => d.user_id === uid && d.status === "confirmado" && !PAGOS.some(p => p.id === d.id)).map(d => d.data);
+      sub.appendChild(document.createElement("br"));
+      const s3 = document.createElement("span"); s3.className = "a-pagar";
+      s3.textContent = abertos.length
+        ? "A pagar agora: R$ " + moeda(abertos.length * Number(ac.valor)) + " (" + listaDiasTx(abertos) + ")"
+        : (veio ? "Nada em aberto: tudo o que veio está pago." : "");
+      sub.appendChild(s3);
+    } else if(res && res.custo != null){
       sub.appendChild(document.createElement("br"));
       const s3 = document.createElement("span");
-      s3.textContent = (ac && ac.regime === "diaria")
-        ? "Total pelos dias que veio: R$ " + moeda(res.custo)
-        : "A pagar pelo combinado do mês: R$ " + moeda(res.custo);
+      s3.textContent = "A pagar pelo combinado do mês: R$ " + moeda(res.custo);
       sub.appendChild(s3);
     }
     if(ac && ac.a_confirmar){
@@ -736,7 +753,7 @@ function montarCalendarioDias(){
       const iso = ini.slice(0,8) + String(d).padStart(2,"0");
       const reg = DIAS.find(x => x.user_id === uid && x.data === iso);
       const acd = acordoDoDia(uid, iso);
-      const combinado = !!(acd && acd.dias_semana.includes(diaDaSemana(iso)));
+      const combinado = !!(acd && acd.regime !== "diaria" && acd.dias_semana.includes(diaDaSemana(iso)));
 
       const b = document.createElement("button");
       b.type = "button";

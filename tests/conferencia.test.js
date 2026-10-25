@@ -147,3 +147,24 @@ test("conferência: Pix repetido sem dia registrado vira um aviso de duplicado s
   assert.equal(r.avisos, 1);
   await a.fechar();
 });
+
+test("Eliana sem dias fixos: mostra só o que está em aberto, com os dias", async () => {
+  const a = await abrir("uHen", { agora: "2026-10-25T15:00:00Z", db: db => {
+    db.jb_pessoal_mes = [{ user_id: "uEli", nome: "Eliana", mes: "2026-10-01", dias_combinados: 10, dias_veio: 6, dias_pendentes: 0, custo: 840 }];
+    db.jb_dia_trabalhado = ["2026-10-01", "2026-10-02", "2026-10-15", "2026-10-16", "2026-10-22", "2026-10-23"].map((d, i) => ({
+      id: 900 + i, user_id: "uEli", data: d, status: "confirmado", origem: "manual", pago_em: i < 2 ? "2026-10-06T15:00:00Z" : null }));
+    db.jb_mes = [{ mes: "2026-10-01", saidas: 1000, saidas_manual: false, obs: "", detalhe: { grupos: [{ nome: "Contas fixas", total: 280, itens: [
+      { data: "2026-10-07", desc: "Funcionaria do atelie Eliana, acerto das semanas extras do mes fechado", valor: 280, ref: "pagamento_conta 50", previsto: false } ] }] } }];
+    return db; } });
+  await a.page.click("#btnDias"); await a.espera(1200);
+  const t = await a.page.locator(`.pessoa:has(h3:text-is("Eliana"))`).first().innerText();
+  assert.match(t, /6 dias no mês, sem dias fixos/);
+  assert.match(t, /A pagar agora: R\$ 560,00 \(15, 16, 22 e 23\/10\)/);
+  assert.doesNotMatch(t, /combinados/);
+  assert.equal(await a.page.locator(`.pessoa:has(h3:text-is("Eliana")) .cal button.combinado`).count(), 0, "sem dia combinado tracejado");
+  const c = await a.page.locator("#confCard").innerText();
+  assert.match(c, /Eliana: falta pagar R\$ 560,00/);
+  assert.match(c, /Em aberto: 15, 16, 22 e 23\/10 \(4 × R\$ 140,00\)\. Já pagos: 01 e 02\/10, Pix de R\$ 280,00 em 07\/10\./);
+  assert.deepEqual(a.erros, []);
+  await a.fechar();
+});

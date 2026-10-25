@@ -107,7 +107,10 @@ function conferirEquipe(x){
     const pago = confR2(seus.reduce((s, p) => s + p.valor, 0));
     /* dias ainda sem Pix só viram aviso depois do dia 10 do mês seguinte, quando o acerto já devia ter saído */
     const fechou = confDias(fimMes, x.hoje) > 10;
-    if(d.dias.length || seus.length) r.diarias.push({ nome: d.nome, valor: d.valor, dias: d.dias.length, devido, pago, pags: seus, anteriores, dif: confR2(pago - devido), fechou });
+    const pagosDias = (d.pagos || []).map(g => g.data).filter(x => d.dias.includes(x));
+    const abertos = d.dias.filter(x => !pagosDias.includes(x));
+    if(d.dias.length || seus.length) r.diarias.push({ nome: d.nome, valor: d.valor, dias: d.dias.length, devido, pago, pags: seus, anteriores, dif: confR2(pago - devido), fechou,
+                                                      abertos, pagosDias, aPagar: confR2(abertos.length * d.valor) });
   });
 
   /* quem ganha por semana: cada quinzena casada pelo nf_ref, ou pelo valor (até R$ 1) e pela data */
@@ -254,13 +257,20 @@ function blocoConferencia(){
   r.valorDif.forEach(v => linha("aviso", "Valor diferente: " + (v.pag.pessoa || ""), pix(v.pag) + " para " + v.contas.length + (v.contas.length === 1 ? " dia registrado" : " dias registrados") + " que somam " + reais(v.soma) + ". Diferença de " + reais(confR2(v.pag.valor - v.soma)) + ".",
     ["Confirmar (hora extra ou acerto)", () => confirmarValorDif(v)]));
   r.esquecidos.forEach(e => linha("aviso", "Registrado e ainda sem Pix", e.nome + ", " + dd(e.conta.vencimento) + ", " + reais(e.conta.valor) + ". Passou de 7 dias e não achei o pagamento no Nosso Financeiro."));
+  /* diarista sem dias fixos: o que importa é o que está em aberto agora */
   r.diarias.forEach(d => {
-    const ok = Math.abs(d.dif) <= 1 || (d.dif < 0 && !d.fechou);
-    linha(ok ? "ok" : "aviso", d.nome + ": " + d.dias + (d.dias === 1 ? " dia" : " dias") + " × " + reais(d.valor) + " = " + reais(d.devido),
-      (d.pags.length ? "Pago no Financeiro: " + d.pags.map(p => reais(p.valor) + " em " + dd(p.data)).join(" + ") + " = " + reais(d.pago) + ". " : "Nenhum Pix deste mês ainda. ")
+    const ok = Math.abs(d.dif) <= CONF_TOL || (d.dif < 0 && !d.fechou);
+    const abertos = d.abertos || [], pagosDias = d.pagosDias || [];
+    const titulo = d.nome + ": " + (abertos.length ? "falta pagar " + reais(d.aPagar) : "nada em aberto");
+    const pixTx = d.pags.length ? "Pix de " + d.pags.map(p => reais(p.valor) + " em " + dd(p.data)).join(" e ") : "";
+    linha(ok ? "ok" : "aviso", titulo,
+      (abertos.length ? "Em aberto: " + listaDiasTx(abertos) + " (" + abertos.length + " × " + reais(d.valor) + "). " : "")
+      + (pagosDias.length ? "Já pagos: " + listaDiasTx(pagosDias) + (pixTx ? ", " + pixTx : "") + ". " : (pixTx ? pixTx + " no Financeiro. " : ""))
       + (d.anteriores && d.anteriores.length ? (d.anteriores.length === 1 ? "O Pix de " : "Os Pix de ") + d.anteriores.map(p => reais(p.valor) + " em " + dd(p.data)).join(" e ")
           + (d.anteriores.length === 1 ? " é o acerto do mês anterior. " : " são o acerto do mês anterior. ") : "")
-      + (Math.abs(d.dif) <= 1 ? "Bate." : d.dif < 0 && !d.fechou ? "Faltam " + reais(-d.dif) + " a pagar; o acerto pode sair até o dia 10 do mês seguinte." : d.dif > 0 ? "Pagou " + reais(d.dif) + " a mais que os dias registrados: falta registrar dia, ou foi acerto." : "Faltam " + reais(-d.dif) + " para pagar os dias registrados."));
+      + (d.dif > CONF_TOL ? "Pagou " + reais(d.dif) + " a mais que os dias registrados: falta registrar dia, ou foi acerto."
+         : d.dif < -CONF_TOL && d.fechou ? "Já passou do dia 10 do mês seguinte e ainda faltam " + reais(-d.dif) + "."
+         : abertos.length ? "O acerto pode sair até o dia 10 do mês seguinte." : ""));
   });
   r.semanais.forEach(s => {
     const vence = s.conta.vencimento;
