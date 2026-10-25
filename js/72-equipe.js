@@ -264,16 +264,12 @@ function formFalta(uid, ac){
   f.appendChild(ck);
   if(st.temFreela){
     const lf = document.createElement("div"); lf.className = "eq-linha";
-    lf.append(
-      campo("Nome da freela", entrada("text", st.nome, v => { st.nome = v; }, { id: "eqFreelaNome", maxlength: "60", autocomplete: "off", list: "eqFreelaNomes" })),
+    lf.append(...campoNomeFreela(st, "eqFreelaNome", "Nome da freela"),
       campo("Valor combinado (R$)", entrada("text", st.valor, v => { st.valor = v; }, { id: "eqFreelaValor", inputmode: "decimal" }))
     );
     f.appendChild(lf);
-    const dlf = document.createElement("datalist"); dlf.id = "eqFreelaNomes";
-    (FREELAS_FIXAS || []).forEach(n => { const o = document.createElement("option"); o.value = n; dlf.appendChild(o); });
-    f.appendChild(dlf);
     const n = document.createElement("p"); n.className = "eq-nota";
-    n.textContent = "A freela entra em Contas a pagar no mesmo dia, com o horário da falta.";
+    n.textContent = "A freela entra em Contas a pagar no mesmo dia, com o horário da falta. Se a diária dela nesse dia já foi lançada em Freelas, o app liga essa diária à falta em vez de lançar outra.";
     f.appendChild(n);
   }
 
@@ -298,11 +294,22 @@ async function salvarFalta(uid, ac){
   if(st.modo !== "abona" && !vh){ aviso("diasMsg", "Não sei o valor da hora dela. Marque sem desconto ou complete a escala.", "warn"); return; }
   const saldo = eqSaldo(BANCO, uid);
   const comp = st.modo === "banco" ? eqCompensa(Math.round(h * 60), saldo, vh) : null;
-  let valorFreela = null;
+  let valorFreela = null, jaLancada = null;
   if(st.temFreela){
     if(!st.nome.trim()){ aviso("diasMsg", "Diga o nome da freela.", "warn"); return; }
-    valorFreela = numBR(st.valor);
-    if(valorFreela == null || !(valorFreela >= 0)){ aviso("diasMsg", "Diga o valor combinado com a freela.", "warn"); return; }
+    jaLancada = diariaRepetida(st.nome, st.data);
+    if(jaLancada && jaLancada.falta_id){
+      if(st.confirmaDup !== st.nome + st.data){
+        st.confirmaDup = st.nome + st.data;
+        aviso("diasMsg", jaLancada.nome + " já tem diária em " + diaCurto(st.data) + " (" + reais(jaLancada.valor) + "), ligada a outra falta. Se foi outro turno, toque em Salvar falta de novo.", "warn");
+        return;
+      }
+      jaLancada = null;
+    }
+    if(!jaLancada){
+      valorFreela = numBR(st.valor);
+      if(valorFreela == null || !(valorFreela >= 0)){ aviso("diasMsg", "Diga o valor combinado com a freela.", "warn"); return; }
+    }
   }
   aviso("diasMsg", "", "");
 
@@ -320,7 +327,12 @@ async function salvarFalta(uid, ac){
     if(eb) aviso("diasMsg", "A falta ficou salva, mas não consegui tirar as horas do banco. Confira o saldo.", "warn");
   }
 
-  if(st.temFreela){
+  if(st.temFreela && st.nova) await guardarFreelaFixa(st.nome).catch(() => null);
+  if(jaLancada){
+    /* a diária já estava em Freelas: só passa a ser a de quem cobriu esta falta */
+    const { error: el } = await sb.from("jb_freela").update({ falta_id: fa.id, no_lugar_de: uid }).eq("id", jaLancada.id);
+    if(el) aviso("diasMsg", "A falta ficou salva, mas não consegui ligar a diária de " + jaLancada.nome + " a ela.", "warn");
+  } else if(st.temFreela){
     const ok = await criarFreela({ nome: st.nome.trim(), data: st.data, entrada: st.entrada, saida: st.saida,
                                    valor: valorFreela, no_lugar_de: uid, falta_id: fa.id });
     if(!ok){
@@ -331,7 +343,8 @@ async function salvarFalta(uid, ac){
   EQ_FORM = null;
   toast("Falta de " + dataCurta(st.data) + " salva"
     + (comp && comp.usa ? ": usou " + eqMinTx(comp.usa) + " do banco" : "")
-    + (linha.desconta ? (comp && comp.usa ? " e " : ": ") + "desconta R$ " + moeda(linha.valor_desconto) : "") + ".");
+    + (linha.desconta ? (comp && comp.usa ? " e " : ": ") + "desconta R$ " + moeda(linha.valor_desconto) : "") + "."
+    + (jaLancada ? " A diária de " + jaLancada.nome + " que já estava lançada ficou ligada a esta falta." : ""));
   await recarregarEquipe();
 }
 
@@ -736,17 +749,51 @@ function blocoFreelas(){
   return bloco;
 }
 
+/* nome da freela nos formulários: as da casa num seletor (o nome sai sempre igual), "Nova pessoa..." abre o campo.
+   Sem lista da casa, fica o campo de texto. idInp é o id do campo de texto (o seletor ganha idInp + "Sel"). */
+function campoNomeFreela(st, idInp, rotulo){
+  const fixas = FREELAS_FIXAS || [];
+  if(!fixas.length){
+    const inp = entrada("text", st.nome, v => { st.nome = v; }, { id: idInp, maxlength: "60", autocomplete: "off" });
+    return [campo(rotulo, inp)];
+  }
+  /* nome que veio de fora (o Pix diz "Markus"): se só uma da casa tem o mesmo primeiro nome, é ela */
+  if(st.nome && !st.nova && !fixas.some(n => n.toLowerCase() === limpaNome(st.nome).toLowerCase())){
+    const k = confChave(st.nome), mesmas = fixas.filter(n => confChave(n) === k);
+    if(k && mesmas.length === 1) st.nome = mesmas[0];
+  }
+  const naLista = fixas.find(n => n.toLowerCase() === limpaNome(st.nome).toLowerCase());
+  if(st.nome && !naLista) st.nova = true;
+  const sel = document.createElement("select"); sel.id = idInp + "Sel";
+  const o0 = document.createElement("option"); o0.value = ""; o0.textContent = "Escolha a freela"; sel.appendChild(o0);
+  fixas.forEach(n => { const o = document.createElement("option"); o.value = n; o.textContent = n; sel.appendChild(o); });
+  const on = document.createElement("option"); on.value = "__nova"; on.textContent = "Nova pessoa..."; sel.appendChild(on);
+  sel.value = st.nova ? "__nova" : (naLista || "");
+  if(naLista) st.nome = naLista;
+  sel.onchange = () => {
+    st.nova = sel.value === "__nova";
+    st.nome = st.nova ? "" : sel.value;
+    montarCalendarioDias();
+    if(st.nova){ const i = document.getElementById(idInp); if(i) i.focus(); }
+  };
+  const out = [campo(rotulo, sel)];
+  if(st.nova) out.push(campo("Nome da pessoa nova", entrada("text", st.nome, v => { st.nome = v; }, { id: idInp, maxlength: "60", autocomplete: "off", placeholder: "Nome e sobrenome" })));
+  return out;
+}
+
+/* diária da mesma pessoa no mesmo dia (mesmo primeiro nome: Bela e Bella são a mesma) */
+function diariaRepetida(nome, data){
+  const k = confChave(nome);
+  return k ? FREELAS.find(f => f.data === data && confChave(f.nome) === k) || null : null;
+}
+
 function formFreela(){
   const st = EQ_FORM;
   const f = document.createElement("div"); f.className = "eq-form"; f.id = "eqFormFreela";
   const l1 = document.createElement("div"); l1.className = "eq-linha";
-  l1.append(
-    campo("Nome", entrada("text", st.nome, v => { st.nome = v; }, { id: "eqFrNome", maxlength: "60", autocomplete: "off", list: "eqFrNomes" })),
+  l1.append(...campoNomeFreela(st, "eqFrNome", "Nome"),
     campo("Valor combinado (R$)", entrada("text", st.valor, v => { st.valor = v; }, { id: "eqFrValor", inputmode: "decimal" }))
   );
-  const dlr = document.createElement("datalist"); dlr.id = "eqFrNomes";
-  (FREELAS_FIXAS || []).forEach(n => { const o = document.createElement("option"); o.value = n; dlr.appendChild(o); });
-  l1.appendChild(dlr);
   const l2 = document.createElement("div"); l2.className = "eq-linha";
   l2.append(
     campo("Dia", entrada("date", st.data, v => { st.data = v; }, { id: "eqFrDia" })),
@@ -783,7 +830,14 @@ async function salvarFreela(){
   if(!st.nome.trim()){ aviso("diasMsg", "Diga o nome da freela.", "warn"); return; }
   if(!st.data){ aviso("diasMsg", "Diga o dia.", "warn"); return; }
   if(valor == null || !(valor >= 0)){ aviso("diasMsg", "Diga o valor combinado.", "warn"); return; }
+  const rep = diariaRepetida(st.nome, st.data);
+  if(rep && st.confirmaDup !== st.nome + st.data){
+    st.confirmaDup = st.nome + st.data;
+    aviso("diasMsg", rep.nome + " já tem diária em " + diaCurto(st.data) + " (" + reais(rep.valor) + (rep.falta_id ? ", lançada pela falta" : "") + "). Se é um segundo turno no mesmo dia, toque em Salvar freela de novo.", "warn");
+    return;
+  }
   aviso("diasMsg", "", "");
+  if(st.nova) await guardarFreelaFixa(st.nome).catch(() => null);
   const ok = await criarFreela({ nome: st.nome.trim(), data: st.data, entrada: st.entrada, saida: st.saida, valor,
                                  no_lugar_de: st.no_lugar_de || null, obs: st.obs.trim() || null });
   if(!ok){ aviso("diasMsg", "Não consegui salvar a freela agora.", "err"); return; }
@@ -821,7 +875,7 @@ function blocoBanco(uid){
   sm.className = saldo < 0 ? "neg" : saldo > 0 ? "pos" : "";
   if(saldo < 0){
     const n = document.createElement("small");
-    n.textContent = " · ainda não descontado nem compensado";
+    n.textContent = " · ainda sem decisão: abone o atraso aqui ou compense com horas a mais";
     sm.appendChild(n);
   }
   det.appendChild(sm);

@@ -808,6 +808,9 @@ async function salvarConta(c, d, file){
   if(c){
     const { error } = await sb.from("jb_conta").update(d).eq("id", id);
     if(error){ aviso("contasMsg", "Não consegui salvar.", "err"); return; }
+    /* diária de freela com valor corrigido aqui: a bolsa e Quem veio no ateliê passam a usar o valor novo */
+    if(c.tipo === "equipe" && d.valor != null && Number(d.valor) !== Number(c.valor))
+      await sb.from("jb_freela").update({ valor: d.valor }).eq("conta_id", id).eq("cancelada", false);
     Object.assign(c, d);
   } else {
     const { data, error } = await sb.from("jb_conta").insert(d).select().single();
