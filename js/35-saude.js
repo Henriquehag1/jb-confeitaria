@@ -282,12 +282,15 @@ function saudePonte(L, K, detalhe){
     else g.outros += v;
   }));
   Object.keys(g).forEach(k => { g[k] = r2(g[k]); });
+  const cheias = detalhe ? saudeComprasDoMes(detalhe) : g.compras;
   const sobrou = r2(entrou - saiu);
   const linhas = [
     { id: "venda", rot: "Venda do mês (já sem o app) × dinheiro que caiu", v: r2((L.bruto - L.app) - entrou),
       exp: "Os apps repassam com atraso: parte do que caiu na conta é venda do mês anterior, e parte da venda deste mês só cai no seguinte." },
-    { id: "ingrediente", rot: "Ingrediente pelas receitas × compras pagas no mês", v: r2(g.compras - L.ingrediente),
-      exp: "A Saúde conta o ingrediente de tudo que foi vendido, pela ficha técnica. O caixa só vê o que foi pago no mês: compra no cartão parcelado entra só a parcela, e o que sobrou de estoque não aparece." },
+    { id: "parcelado", rot: "Compras do mês parceladas no cartão", v: r2(g.compras - cheias),
+      exp: "No caixa entra só a parcela do mês; a compra inteira foi feita neste mês e vai sendo paga nos próximos (e parcelas de compras antigas entram aqui)." },
+    { id: "ingrediente", rot: "Ingrediente pelas receitas × compras do mês (valor cheio)", v: r2(cheias - L.ingrediente),
+      exp: "A Saúde conta o ingrediente de tudo que foi vendido, pela ficha técnica. A diferença para o que foi comprado no mês é estoque que já havia (ou que sobrou), perda, ou receita com custo diferente do real. Com a contagem de estoque no começo e no fim do mês, o app separa o que é o quê." },
     { id: "imposto", rot: "Imposto do mês × imposto pago no mês", v: r2(g.imposto - L.imposto),
       exp: "O DAS pago neste mês é o do mês anterior; a Saúde já conta o imposto da venda deste mês." },
     { id: "equipe", rot: "Equipe, contas fixas e pró-labore", v: r2(g.equipe - (L.fixo + L.extraTotal)),

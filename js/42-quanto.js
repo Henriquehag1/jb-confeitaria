@@ -344,7 +344,7 @@ async function mandarParaPlano(){
       : await sb.from("jb_producao_item").insert({ data: QF_DIA, tipo: l.tipo, ref_id: Number(l.ref_id), qtd, ...dest });
     if(r && r.error) erros++;
   }
-  if(erros){ aviso("qfMsg", "Mandei quase tudo, mas " + erros + " não entraram. Confira no Plano de produção.", "warn"); }
+  if(erros){ aviso("qfMsg", "Mandei quase tudo, mas " + erros + " não entraram. Confira em Tarefas da equipe.", "warn"); }
   const n = marcados.length - erros;
   QF_SEL.clear();
   await qfCarregarPlano();

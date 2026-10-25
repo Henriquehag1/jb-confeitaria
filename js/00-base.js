@@ -16,7 +16,7 @@ const LOGINS = [
 ];
 
 const TZ = "America/Sao_Paulo";
-const VERSAO = "2026-10-25c";   // aparece no login e no pé da Home, para saber qual versão cada celular tem
+const VERSAO = "2026-10-25d";   // aparece no login e no pé da Home, para saber qual versão cada celular tem
 const SB_REAL = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
   auth: { persistSession: true, autoRefreshToken: true }
 });
@@ -68,7 +68,7 @@ const NAV = {
   scFicha:   { titulo: () => (FICHA && FICHA.nome) ? FICHA.nome : "Receita nova",
                voltar: () => sairDaFicha(),
                recarregar: () => FICHA && FICHA.id ? abrirFicha(FICHA.id, TIPO) : null },
-  scProd:    { titulo: () => EU && EU.papel === "gestor" ? "Plano de produção" : "O que fazer hoje",
+  scProd:    { titulo: () => EU && EU.papel === "gestor" ? "Tarefas da equipe" : "O que fazer hoje",
                voltar: () => carregarHome(),
                recarregar: () => { RECEITAS = null; abrirProducao(); } },
   scQuanto:  { titulo: () => "Quanto fazer",

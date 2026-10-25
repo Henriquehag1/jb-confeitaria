@@ -138,10 +138,10 @@ async function carregarHome(){
      para a equipe quando a tarefa foi passada para ela (o banco garante). */
   $("btnProducao").className = "big" + (conta ? " ghost" : "");
   $("btnProducao").querySelector(".t").textContent =
-    EU.papel === "gestor" ? "Plano de produção" : "O que fazer hoje";
+    EU.papel === "gestor" ? "Tarefas da equipe" : "O que fazer hoje";
   $("btnProducao").querySelector(".s").textContent =
-    EU.papel === "gestor" ? "Diga o que precisa ser feito e em que quantidade"
-                          : "Suas receitas com as quantidades certas";
+    EU.papel === "gestor" ? "Produção do dia e outros afazeres, para cada pessoa"
+                          : "Suas receitas e tarefas do dia";
   $("homeTip").textContent = freela
     ? "Em O que fazer hoje está o que a Jessica mandou para você: abra a receita e, no fim, registre quanto fez. Na contagem, conte item por item, sem pressa. Seu acesso vale até " + quandoAte(EU.freela_ate) + "."
     : conta

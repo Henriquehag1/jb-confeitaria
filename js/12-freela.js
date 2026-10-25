@@ -21,7 +21,7 @@ function msgEntradaFreela(motivo){
 
 function clienteFreela(real, token, aoTerminar){
   const C = { ok: false, id: null, nome: "", valido_ate: null, produtos: [], contagens: [], itens: [], adendos: [],
-              producao: { itens: [], fichas: [], ficha_itens: [], subs: [], sub_itens: [] } };
+              producao: { itens: [], fichas: [], ficha_itens: [], subs: [], sub_itens: [], tarefas: [] } };
 
   async function carregar(){
     const { data, error } = await real.rpc("jb_freela_dados", { p_token: token });
@@ -38,7 +38,7 @@ function clienteFreela(real, token, aoTerminar){
     if(error) return { rede: true };
     if(!data || !data.ok) return { fim: true };
     C.producao = { itens: data.itens || [], fichas: data.fichas || [], ficha_itens: data.ficha_itens || [],
-                   subs: data.subs || [], sub_itens: data.sub_itens || [] };
+                   subs: data.subs || [], sub_itens: data.sub_itens || [], tarefas: data.tarefas || [] };
     return { ok: true };
   }
 
@@ -48,6 +48,7 @@ function clienteFreela(real, token, aoTerminar){
                     : t === "jb_receita_ficha_item" ? C.producao.ficha_itens
                     : t === "jb_receita_sub" ? C.producao.subs
                     : t === "jb_receita_sub_item" ? C.producao.sub_itens
+                    : t === "jb_tarefa_equipe" ? C.producao.tarefas
                     : t === "jb_contagem" ? C.contagens
                     : t === "jb_contagem_item" ? C.itens
                     : t === "jb_adendo" ? C.adendos
@@ -112,6 +113,9 @@ function clienteFreela(real, token, aoTerminar){
     }
     if(nome === "jb_producao_registrar"){
       return real.rpc("jb_freela_registrar", { p_token: token, p_id: args.p_id, p_qtd: args.p_qtd });
+    }
+    if(nome === "jb_tarefa_marcar"){
+      return real.rpc("jb_freela_tarefa", { p_token: token, p_id: args.p_id, p_feito: args.p_feito });
     }
     return { data: null, error: { message: "sem acesso", code: "42501" } };
   }
@@ -180,9 +184,9 @@ async function entrarFreela(codigo){
 let ESPIAO = null;   // { nome, eu } enquanto a conferência está aberta
 
 function clienteConferencia(real, nome){
-  const C = { itens: [], fichas: [], ficha_itens: [], subs: [], sub_itens: [] };
+  const C = { itens: [], fichas: [], ficha_itens: [], subs: [], sub_itens: [], tarefas: [] };
   const TAB = { jb_producao_dia: "itens", jb_receita_ficha: "fichas", jb_receita_ficha_item: "ficha_itens",
-                jb_receita_sub: "subs", jb_receita_sub_item: "sub_itens" };
+                jb_receita_sub: "subs", jb_receita_sub_item: "sub_itens", jb_tarefa_equipe: "tarefas" };
   const RECUSA = { data: null, error: { message: "conferencia", code: "conferencia" } };
   const avisar = () => { toast("Conferência: aqui nada é salvo. Saia da conferência para voltar ao seu app."); return RECUSA; };
 

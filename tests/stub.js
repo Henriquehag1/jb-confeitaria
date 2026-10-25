@@ -515,6 +515,7 @@ ${agora ? "window.__AGORA=" + JSON.stringify(agora) + ";" : ""}
     if(t === "jb_receita_sub") return viewReceitaSub();
     if(t === "jb_receita_sub_item") return viewReceitaSubItem();
     if(t === "jb_producao_dia") return viewProducaoDia();
+    if(t === "jb_tarefa_equipe"){ const u = eu(); return (DB.jb_tarefa_equipe || []).filter(r => gestor() || (u && membro() && itemVisivel(r, u.papel, null))).map(r => ({ ...r })); }
     if(t === "jb_ficha_custo") return viewFichaCusto();
     if(t === "jb_subreceita_custo") return viewSubCusto();
     // RLS de mentira: o que so gestor le
@@ -613,6 +614,19 @@ ${agora ? "window.__AGORA=" + JSON.stringify(agora) + ";" : ""}
       (DB.jb_freela_acesso || []).filter(a => !a.encerrado_em && a.id === args.p_id).forEach(a => { a.token = null; a.token_em = null; a.erros = 0; });
       return { data:null, error:null };
     }
+    if(nome === "jb_tarefa_marcar"){
+      const u = eu(); const t = (DB.jb_tarefa_equipe || []).find(x => x.id === args.p_id);
+      if(!t) return { data:null, error:{ message:"tarefa nao encontrada" } };
+      if(!(gestor() || (u && membro() && itemVisivel(t, u.papel, null)))) return { data:null, error:{ message:"tarefa de outra pessoa", code:"42501" } };
+      t.feito = args.p_feito !== false; t.feito_em = t.feito ? new Date(agoraMs()).toISOString() : null; t.feito_por = t.feito ? u.nome : null;
+      return { data:{ ok:true, feito:t.feito }, error:null };
+    }
+    if(nome === "jb_freela_tarefa"){
+      const a = frPorToken(args.p_token); const t = (DB.jb_tarefa_equipe || []).find(x => x.id === args.p_id);
+      if(!a || !t || t.data !== hojeSP() || !itemVisivel(t, null, a.nome)) return { data:null, error:{ message:"tarefa de outra pessoa", code:"42501" } };
+      t.feito = args.p_feito !== false; t.feito_em = t.feito ? new Date(agoraMs()).toISOString() : null; t.feito_por = t.feito ? a.nome : null;
+      return { data:{ ok:true, feito:t.feito }, error:null };
+    }
     if(nome === "jb_freela_producao" || nome === "jb_freela_marcar" || nome === "jb_freela_registrar" || nome === "jb_freela_espiar"){
       if(nome === "jb_freela_espiar" && !gestor()) return { data:null, error:{ message:"so gestor", code:"42501" } };
       const a = nome === "jb_freela_espiar" ? { nome: String(args.p_nome || "").trim() } : frPorToken(args.p_token);
@@ -647,7 +661,8 @@ ${agora ? "window.__AGORA=" + JSON.stringify(agora) + ";" : ""}
         fichas: DB.jb_ficha.filter(f => f.ativo && fichas.includes(f.id)).map(f => ({ ficha_id:f.id, nome:f.nome, rendimento_un:f.rendimento_un, tempo_mo_min:f.tempo_mo_min, modo_preparo:f.modo_preparo, preparo_conferido:f.preparo_conferido, rascunho:f.rascunho, foto_url:f.foto_url })),
         ficha_itens: DB.jb_ficha_item.filter(i => fichas.includes(i.ficha_id)).map(i => { const s3 = DB.jb_subreceita.find(s => s.nome === i.ingrediente && s.ativo); return { ...i, e_subreceita: !!s3, subreceita_id: s3 ? s3.id : null }; }),
         subs: DB.jb_subreceita.filter(s => s.ativo && subs.includes(s.id)).map(s => ({ subreceita_id:s.id, nome:s.nome, rendimento_kg:s.rendimento_kg, modo_preparo:s.modo_preparo, preparo_conferido:s.preparo_conferido, unidade_producao:s.unidade_producao })),
-        sub_itens: (DB.jb_subreceita_item || []).filter(i => subs.includes(i.subreceita_id)).map(i => ({ ...i })) }, error:null };
+        sub_itens: (DB.jb_subreceita_item || []).filter(i => subs.includes(i.subreceita_id)).map(i => ({ ...i })),
+        tarefas: (DB.jb_tarefa_equipe || []).filter(t => t.data === hoje && itemVisivel(t, null, a.nome)).map(t => ({ ...t })) }, error:null };
     }
     if(nome === "jb_freela_entrar"){
       /* igual ao banco: o código é procurado entre as liberações abertas */
