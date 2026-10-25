@@ -210,11 +210,17 @@ async function carregarHome(){
   HOME_DIA = hoje;
   CONTAGEM_HOJE = turnoDeOntem ? on : hj;
   montarPendencias(rp.data || [], rok.data || []);
+  /* Encomendas no topo: muda de cor quando entra bolo novo; âmbar quando tem bolo para retirar logo */
   const encNovas = (rp.data || []).find(p => p.grupo === "encomenda" && p.ordem === 3);
+  const encLogo = (rp.data || []).find(p => p.grupo === "encomenda" && p.ordem !== 3);
   $("encSub").textContent = encNovas
-    ? encNovas.qtd + (encNovas.qtd === 1 ? " nova esperando você" : " novas esperando você")
+    ? encNovas.qtd + (encNovas.qtd === 1 ? " encomenda nova esperando você" : " encomendas novas esperando você")
+    : encLogo ? encLogo.texto
     : "Pedidos do site, por data de retirada";
-  $("btnEncomendas").classList.toggle("ghost", !encNovas);
+  $("btnEncomendas").classList.toggle("ghost", !encNovas && !encLogo);
+  $("btnEncomendas").classList.toggle("enc-nova", !!encNovas);
+  $("btnEncomendas").classList.toggle("enc-logo", !encNovas && !!encLogo);
+  const te = $("tituloEquipe"); if(te) te.textContent = gestor ? "Colaboradores" : "Seus dias";
   const ab = CONTAGEM_HOJE.abertura, fe = CONTAGEM_HOJE.fechamento;
   const bAb = $("btnAbertura"), bFe = $("btnFechamento");
   /* Deixar a geladeira pronta é parte da Jessica. O cartão nem aparece para a
@@ -275,9 +281,12 @@ async function carregarHome(){
       $("btnContas").classList.add("ghost");
     }
     await carregarFreelaAcesso().catch(() => null);
+    /* a bolsa fica onde se decide chamar freela */
+    const bo = await resumoBolsaHome().catch(() => null);
+    const txBolsa = bo ? "Bolsa extra: " + reais(bo.disponivel) + (bo.disponivel < 0 ? ", acima da bolsa" : " · " + bo.noites + (bo.noites === 1 ? " noite" : " noites") + " de freela") : null;
     $("frHojeSub").textContent = FR_ACS && FR_ACS.length
-      ? "Liberadas: " + FR_ACS.map(a => a.nome).join(", ")
-      : "Escolha quem vem hoje e mande o código";
+      ? "Liberadas: " + FR_ACS.map(a => a.nome).join(", ") + (txBolsa ? " · " + txBolsa : "")
+      : (txBolsa || "Escolha quem vem hoje e mande o código");
     const qf = await resumoQuantoHome().catch(() => null);
     $("qfSub").textContent = qf || "A conta da semana pela venda, pela geladeira e pelo freezer";
     const ct = await resumoContadorHome().catch(() => null);
@@ -302,7 +311,18 @@ async function carregarHome(){
 /* ---------- pendências: o que o banco diz que está faltando ----------
    Uma lista só, gerada pelo dado, no topo da Home do gestor. Cada linha abre
    a tela onde se resolve. Nada aqui depende de alguém lembrar. */
-const chavePend = p => p.grupo + ":" + p.ordem;
+/* A chave é grupo:ordem. Quando duas pendências do mesmo tipo aparecem juntas (Pluxee PAT e Pluxee
+   Auxílio, por exemplo), cada uma ganha também o texto sem os números, senão o "ok" de uma
+   desfazia o da outra e a pendência nunca saía. */
+const chavePend = p => p._chave || (p.grupo + ":" + p.ordem);
+function marcarChavesPend(lista){
+  const n = {};
+  lista.forEach(p => { const k = p.grupo + ":" + p.ordem; n[k] = (n[k] || 0) + 1; });
+  lista.forEach(p => {
+    const k = p.grupo + ":" + p.ordem;
+    p._chave = n[k] > 1 ? k + ":" + String(p.texto || "").replace(/\d+([.,]\d+)?/g, "#").slice(0, 80) : k;
+  });
+}
 const PEND_FECHADO = "jb_pend_fechado";
 let PEND_VER_GUARDADAS = false;
 
@@ -310,6 +330,7 @@ function montarPendencias(lista, guardadas){
   const box = $("cardPend");
   box.innerHTML = "";
   if(!lista || !lista.length) return;
+  marcarChavesPend(lista);
 
   /* O que recebeu "ok" some por uma semana. Se a situação mudar, o texto muda
      junto (ele carrega a contagem) e a pendência volta na hora, sem depender
@@ -473,9 +494,32 @@ async function montarFreezerHome(gestor){
   const itens = (atual ? atual.itens : []).filter(i => (i.freezer || 0) > 0).sort((a, b) => b.freezer - a.freezer);
   const card = document.createElement("div"); card.className = "freezer-card"; card.id = "freezerCard";
   const total = itens.reduce((s, i) => s + i.freezer, 0);
-  const h = document.createElement("h4"); h.textContent = "No freezer · " + total;
-  const p = document.createElement("p");
-  p.textContent = itens.length ? itens.map(i => i.freezer + " " + (nomes[i.produto_id] || "item")).join(", ") : "Nada no freezer.";
+  const h = document.createElement("h4"); h.textContent = "No freezer · " + total + (total === 1 ? " unidade" : " unidades");
+  /* item por item, agrupado pelo tipo do produto ("No Pote | Bolo Kinder" fica em No Pote) */
+  const p = document.createElement("div"); p.className = "fz-lista"; p.id = "fzLista";
+  if(!itens.length){ const v = document.createElement("p"); v.textContent = "Nada no freezer."; p.appendChild(v); }
+  const grupos = [];
+  itens.forEach(i => {
+    const nome = nomes[i.produto_id] || "item";
+    let g = "Outros", rot = nome;
+    if(nome.includes("|")){ g = nome.split("|")[0].trim(); rot = nome.split("|").slice(1).join("|").trim(); }
+    else if(/^bolo gelado /i.test(nome)){ g = "Bolo gelado"; rot = nome.replace(/^bolo gelado /i, ""); }
+    else if(/^bolo /i.test(nome)){ g = "Bolo"; rot = nome.replace(/^bolo /i, ""); rot = rot.charAt(0).toUpperCase() + rot.slice(1); }
+    let gr = grupos.find(x => x.g === g); if(!gr) grupos.push(gr = { g, itens: [], tot: 0 });
+    gr.itens.push({ rot, q: i.freezer }); gr.tot += i.freezer;
+  });
+  grupos.sort((a, b) => b.tot - a.tot).forEach(gr => {
+    const gh = document.createElement("div"); gh.className = "fz-grupo";
+    const gn = document.createElement("span"); gn.textContent = gr.g;
+    const gt = document.createElement("span"); gt.textContent = String(gr.tot);
+    gh.append(gn, gt); p.appendChild(gh);
+    gr.itens.forEach(x => {
+      const ln = document.createElement("div"); ln.className = "fz-item";
+      const q = document.createElement("b"); q.textContent = String(x.q);
+      const n = document.createElement("span"); n.textContent = x.rot;
+      ln.append(q, n); p.appendChild(ln);
+    });
+  });
   const s = document.createElement("p"); s.className = "s";
   s.textContent = atual
     ? "Contado na " + (atual.c.momento === "fechamento" ? "contagem do fechamento" : "abertura") + (atual.c.data === hojeSP() ? " de hoje" : " de " + dataCurta(atual.c.data))

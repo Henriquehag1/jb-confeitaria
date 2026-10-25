@@ -76,7 +76,7 @@ test("falta da Yasmin hoje com freela no lugar: desconta 6h30 e a freela vira co
   assert.match(dia8, /falta/);
   assert.match(await a.texto(bloco("Yasmin") + " .eq-faltas"), /1 falta no mês, desconto de R\$ 137,55/);
   assert.match(await a.texto(bloco("Yasmin") + " .eq-faltas"), /Ana cobriu/);
-  assert.match(await a.texto("#eqFreelas"), /Ana, 16:30 às 23:00 · R\$ 120,00 · no lugar de Yasmin · a pagar/);
+  assert.match(await a.texto("#eqFreelas"), /Ana[\s\S]*16:30 às 23:00 · R\$ 120,00 · no lugar de Yasmin · a pagar/);
   semErros(a); await a.fechar();
 });
 
@@ -374,5 +374,51 @@ test("Registrar falta com freela que já tinha diária lançada no dia: liga a d
   assert.equal(fr[0].falta_id, fa[0].id); assert.equal(fr[0].no_lugar_de, "uYas");
   assert.equal((await a.db("jb_conta")).filter(c => c.tipo === "equipe").length, 1);
   assert.match(await a.texto(bloco("Yasmin") + " .eq-faltas"), /Bella cobriu/);
+  semErros(a); await a.fechar();
+});
+
+test("quadro de cada freela: calendário, a pagar, quem cobriu e marcar como pago", async () => {
+  const a = await abrirDiasDe("uHen", db => {
+    db.jb_freela_pessoa = [{ id: 1, nome: "Sabrina", ativo: true }, { id: 2, nome: "Isabella Freitas", ativo: true }];
+    db.jb_conta.push({ id: 81, tipo: "equipe", descricao: "Freela Sabrina, 02/10", competencia: "2026-10-01", vencimento: "2026-10-02", valor: 130, pago_em: "2026-10-03", arquivada: false },
+                     { id: 82, tipo: "equipe", descricao: "Freela Sabrina, 03/10", competencia: "2026-10-01", vencimento: "2026-10-03", valor: 130, pago_em: null, arquivada: false },
+                     { id: 83, tipo: "equipe", descricao: "Freela Sabrina, 06/10", competencia: "2026-10-01", vencimento: "2026-10-06", valor: 90, pago_em: null, arquivada: false });
+    db.jb_freela = [{ id: 1, nome: "Sabrina", data: "2026-10-02", valor: 130, conta_id: 81, cancelada: false, entrada: "11:00", saida: "18:00" },
+                    { id: 2, nome: "Sabrina", data: "2026-10-03", valor: 130, conta_id: 82, cancelada: false, entrada: "11:00", saida: "18:00" },
+                    { id: 3, nome: "Sabrina", data: "2026-10-06", valor: 90, conta_id: 83, cancelada: false }];
+  });
+  const q = `.fr-pessoa[data-pessoa="sabrina"]`;
+  const t = await a.texto(q);
+  assert.match(t, /3 dias no mês · R\$ 350,00/);
+  assert.match(t, /A pagar agora: R\$ 220,00 \(03 e 06\/10\)/);
+  assert.match(await a.page.locator(q + ' .cal button:text-is("2")').getAttribute("class"), /veio pago/);
+  assert.match(await a.page.locator(q + ' .cal button:text-is("3")').getAttribute("class"), /^veio$/);
+  assert.match(await a.texto(`.fr-pessoa[data-pessoa="isabela"]`), /Nenhum dia neste mês/);
+
+  /* toque num dia vazio: Registrar freela já com o nome, o dia e o valor de antes */
+  await a.page.locator(q + ' .cal button:text-is("7")').click(); await a.espera(250);
+  assert.equal(await a.page.inputValue("#eqFrDia"), "2026-10-07");
+  assert.equal(await a.page.inputValue("#eqFrNomeSel"), "Sabrina");
+  assert.equal(await a.page.inputValue("#eqFrValor"), "90,00");
+  await a.page.locator("#eqFormFreela button.sec").click(); await a.espera(250);
+
+  /* marcar os dois dias em aberto como pagos */
+  await a.page.locator(q + " .fr-pagar summary").click(); await a.espera(150);
+  assert.match(await a.texto(q + " .fr-pagar .pg-ok"), /Marcar 2 dias como pagos \(R\$ 220,00\)/);
+  await a.page.locator(q + " .fr-pagar .pg-ok").click(); await a.espera(500);
+  const cs = (await a.db("jb_conta")).filter(c => c.id === 82 || c.id === 83);
+  assert.deepEqual(cs.map(c => [c.pago_em, c.valor_pago, c.pago_por]), [["2026-10-08", 130, "manual"], ["2026-10-08", 90, "manual"]]);
+  assert.match(await a.texto(q), /Tudo pago/);
+  semErros(a); await a.fechar();
+});
+
+test("freela no lugar de quem faltou: mostra de onde sai o dinheiro", async () => {
+  const a = await abrirDiasDe("uHen");
+  await a.page.locator(bloco("Yasmin") + " .eq-faltas > .eq-abre").click(); await a.espera(200);
+  await a.page.check("#eqTemFreela"); await a.espera(150);
+  await a.page.fill("#eqFreelaNome", "Ana"); await a.page.fill("#eqFreelaValor", "120");
+  await a.page.click("#eqFaltaSalvar"); await a.espera(500);
+  assert.match(await a.texto(`.fr-pessoa[data-pessoa="ana"]`), /Cobriu a falta de Yasmin: R\$ 137,55 descontados da quinzena dela pagam esta diária; sobram R\$ 17,55 na bolsa/);
+  assert.match(await a.texto(bloco("Yasmin") + " .eq-faltas"), /Ana cobriu \(o desconto paga a diária dela, R\$ 120,00\)/);
   semErros(a); await a.fechar();
 });

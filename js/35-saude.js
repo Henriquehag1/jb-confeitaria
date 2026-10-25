@@ -266,6 +266,41 @@ function saudeComprasDoMes(detalhe){
   return r2(total);
 }
 
+/* Ponte entre o Caixa do mês (o Nosso Financeiro, dinheiro que entrou e saiu) e o lucro da Saúde
+   (a venda do mês menos o que ela custou). Os dois estão certos e medem coisas diferentes; a ponte
+   mostra, linha por linha, de onde vem a diferença. Só para mês fechado. */
+function saudePonte(L, K, detalhe){
+  if(!L || !K || K.entradas == null) return null;
+  const entrou = r2(Number(K.entradas)), saiu = r2(Number(K.saidas || 0));
+  const g = { compras: 0, imposto: 0, equipe: 0, outros: 0 };
+  ((detalhe && detalhe.grupos) || []).forEach(gr => (gr.itens || []).forEach(i => {
+    if(i.previsto) return;
+    const v = Number(i.valor) || 0;
+    if(/insumo|mercado|embalage/i.test(gr.nome)) g.compras += v;
+    else if(/imposto/i.test(gr.nome)) g.imposto += v;
+    else if(/pessoa|contas fixas/i.test(gr.nome)) g.equipe += v;
+    else g.outros += v;
+  }));
+  Object.keys(g).forEach(k => { g[k] = r2(g[k]); });
+  const sobrou = r2(entrou - saiu);
+  const linhas = [
+    { id: "venda", rot: "Venda do mês (já sem o app) × dinheiro que caiu", v: r2((L.bruto - L.app) - entrou),
+      exp: "Os apps repassam com atraso: parte do que caiu na conta é venda do mês anterior, e parte da venda deste mês só cai no seguinte." },
+    { id: "ingrediente", rot: "Ingrediente pelas receitas × compras pagas no mês", v: r2(g.compras - L.ingrediente),
+      exp: "A Saúde conta o ingrediente de tudo que foi vendido, pela ficha técnica. O caixa só vê o que foi pago no mês: compra no cartão parcelado entra só a parcela, e o que sobrou de estoque não aparece." },
+    { id: "imposto", rot: "Imposto do mês × imposto pago no mês", v: r2(g.imposto - L.imposto),
+      exp: "O DAS pago neste mês é o do mês anterior; a Saúde já conta o imposto da venda deste mês." },
+    { id: "equipe", rot: "Equipe, contas fixas e pró-labore", v: r2(g.equipe - (L.fixo + L.extraTotal)),
+      exp: "A Saúde conta o mês cheio de cada conta e o pró-labore. No caixa, a quinzena paga no começo do mês seguinte e o pró-labore não aparecem." },
+    { id: "outros", rot: "Outros gastos do caixa (gás, estorno, extras)", v: r2(g.outros),
+      exp: "Saem do caixa, mas a Saúde não tem linha para eles: estão dentro das porcentagens." }
+  ].filter(x => Math.abs(x.v) >= 1);
+  const soma = r2(sobrou + linhas.reduce((t, x) => t + x.v, 0));
+  const resto = r2(L.lucro - soma);
+  if(Math.abs(resto) >= 1) linhas.push({ id: "resto", rot: "Outras diferenças", v: resto, exp: "Lançamento que não se encaixa nas linhas acima." });
+  return { entrou, saiu, sobrou, linhas, lucro: L.lucro };
+}
+
 /* ============================================================
    CARREGAR
    ============================================================ */
@@ -383,8 +418,9 @@ async function carregarSaude(){
   } else {
     const Dm = destinos.find(d => d.mes === sel);
     const L = sel === D.mes ? r.conta : saudeLucroMes(Dm, fixos, await extrasDe(sel));
+    const Ksel = ((kpi && kpi.data) || []).find(k => k.mes === sel) || null;
     r.visao = visaoDe(L, { tipo: "mes", mes: sel, M: mesLongo(sel).split(" ")[0].toLowerCase(), titulo: mesLongo(sel), rotLucro: " de lucro no mês",
-      compras: detalhes[sel] ? saudeComprasDoMes(detalhes[sel]) : null });
+      compras: detalhes[sel] ? saudeComprasDoMes(detalhes[sel]) : null, ponte: saudePonte(L, Ksel, detalhes[sel]) });
   }
   return r;
 }
@@ -686,8 +722,20 @@ function montarSaude(){
     box.appendChild(r);
   }
 
-  /* 11. caixa */
-  if(S.caixa){
+  /* 11. caixa: no mês fechado, a ponte entre o que sobrou no caixa e o lucro */
+  if(V.ponte){
+    const P = V.ponte, mSel = mesLongo(V.mes).split(" ")[0].toLowerCase();
+    const c = sdCard("Por que o Caixa mostra outro número", "sdCaixa");
+    sdTexto(c, "O Caixa do mês é o mesmo número do Nosso Financeiro: dinheiro que entrou e saiu da conta em " + mSel + ". O lucro aqui em cima é a venda do mês menos o que ela custou. Os dois estão certos; a diferença vem destas linhas:", "nota");
+    sdLinha(c, "Sobrou no caixa", reais(P.sobrou), null, ["Caixa do mês", ["Entrou menos saiu no mês, como está no Nosso Financeiro."], "R$ " + moeda(P.entrou) + " − R$ " + moeda(P.saiu) + " = " + reais(P.sobrou)]);
+    P.linhas.forEach(x => sdLinha(c, x.rot, (x.v > 0 ? "+ " : "") + reais(x.v), null, [x.rot, [x.exp]]));
+    const tot = sdLinha(c, "= Lucro do mês", reais(P.lucro), null, ["Lucro do mês", ["É o número do topo da tela."]]);
+    if(tot && tot.classList) tot.classList.add("sd-total");
+    const bt = document.createElement("button"); bt.type = "button"; bt.className = "ct-env"; bt.id = "sdAbreCaixa"; bt.textContent = "Abrir o Caixa de " + mSel;
+    bt.onclick = () => { MES = V.mes; abrirMes(); };
+    c.appendChild(bt);
+    box.appendChild(c);
+  } else if(S.caixa){
     const c = sdCard("E o caixa?", "sdCaixa");
     sdLinha(c, "Sobrou no caixa", reais(S.caixa.sobrou), null, ["Caixa do Nosso Financeiro", ["Entrou menos saiu no mês, como está no banco.",
       "Não bate com o lucro: compra no cartão entra só a parcela do mês, parte do repasse é venda do mês anterior, e o pró-labore não sai da conta."],

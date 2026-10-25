@@ -32,7 +32,8 @@ test("a Home do gestor mostra Encomendas de bolo, e a equipe não", async () => 
 
 test("com encomenda nova, o botão da Home avisa quantas estão esperando", async () => {
   const a = await abrir("uJes", { db: db => { db.jb_pendencias.push({ grupo:"encomenda", ordem:3, texto:"1 encomenda nova esperando confirmação", dica:"Do site: Ana", qtd:1 }); return db; } });
-  assert.equal(await a.texto("#encSub"), "1 nova esperando você");
+  assert.equal(await a.texto("#encSub"), "1 encomenda nova esperando você");
+  assert.match(await a.page.getAttribute("#btnEncomendas", "class"), /enc-nova/, "muda de cor com bolo novo");
   semErros(a); await a.fechar();
 });
 

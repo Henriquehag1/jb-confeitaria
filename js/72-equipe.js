@@ -163,7 +163,7 @@ function blocoFaltas(uid, ac){
     info.textContent = (f.entrada && f.saida ? eqHHMM(f.entrada) + " às " + eqHHMM(f.saida) + ", " : "") + eqHorasTx(Number(f.horas))
       + (Number(f.banco_min) ? " · usou " + eqMinTx(Number(f.banco_min)) + " do banco" : "")
       + (f.desconta ? " · desconta R$ " + moeda(Number(f.valor_desconto)) : (Number(f.banco_min) ? "" : " · sem desconto"))
-      + (fr ? " · " + fr.nome + " cobriu" : "")
+      + (fr ? " · " + fr.nome + " cobriu" + (f.desconta ? " (o desconto paga a diária dela, R$ " + moeda(Number(fr.valor)) + ")" : "") : "")
       + (f.motivo ? " · " + f.motivo : "");
     ln.append(dia, info, botaoCancelar("falta:" + f.id, "Cancelar a falta de " + dataCurta(f.data), () => cancelarFalta(f)));
     wrap.appendChild(ln);
@@ -711,24 +711,15 @@ function blocoFreelas(){
   bloco.appendChild(h);
   const tot = FREELAS.reduce((s, f) => s + Number(f.valor || 0), 0);
   const sub = document.createElement("div"); sub.className = "sub";
+  const aPagarTot = FREELAS.filter(f => { const c = FREELA_CONTAS[f.conta_id]; return !(c && c.pago_em); }).reduce((t, f) => t + Number(f.valor || 0), 0);
   sub.textContent = FREELAS.length
     ? (FREELAS.length === 1 ? "1 diária de freela" : FREELAS.length + " diárias de freela") + " no mês, R$ " + moeda(tot)
+      + (aPagarTot > 0 ? " · a pagar R$ " + moeda(aPagarTot) : " · tudo pago")
     : "Nenhuma freela no mês.";
   bloco.appendChild(sub);
 
-  FREELAS.forEach(f => {
-    const ln = document.createElement("div"); ln.className = "eq-ln"; ln.dataset.freela = f.id;
-    const dia = document.createElement("span"); dia.className = "dia"; dia.textContent = dataCurta(f.data);
-    const c = f.conta_id ? FREELA_CONTAS[f.conta_id] : null;
-    const info = document.createElement("span"); info.className = "info";
-    info.textContent = f.nome + (f.entrada && f.saida ? ", " + eqHHMM(f.entrada) + " às " + eqHHMM(f.saida) : "")
-      + " · R$ " + moeda(Number(f.valor))
-      + (f.no_lugar_de ? " · no lugar de " + eqNome(f.no_lugar_de) : "")
-      + (c && c.pago_em ? " · paga" : " · a pagar");
-    ln.append(dia, info);
-    if(!(c && c.pago_em)) ln.appendChild(botaoCancelar("freela:" + f.id, "Cancelar a freela de " + dataCurta(f.data), () => cancelarFreela(f)));
-    bloco.appendChild(ln);
-  });
+  /* um quadro por pessoa, igual ao da Yasmin e da Eliana: dias que veio, pagos e a pagar */
+  freelaPessoas().forEach(fp => bloco.appendChild(blocoFreelaPessoa(fp)));
 
   if(EQ_FORM && EQ_FORM.tipo === "freela"){
     bloco.appendChild(formFreela());
@@ -747,6 +738,158 @@ function blocoFreelas(){
   }
   bloco.appendChild(blocoFreelaAcesso());
   return bloco;
+}
+
+/* as freelas do mês, uma por pessoa (Bela e Bella juntas), mais as da lista da casa sem dia no mês */
+function freelaPessoas(){
+  const porChave = {};
+  FREELAS.forEach(f => {
+    const k = confChave(f.nome); if(!k) return;
+    const p = porChave[k] || (porChave[k] = { chave: k, nome: f.nome, dias: [] });
+    p.dias.push(f);
+    if((FREELAS_FIXAS || []).includes(f.nome)) p.nome = f.nome;
+  });
+  (FREELAS_FIXAS || []).forEach(n => { const k = confChave(n); if(k && !porChave[k]) porChave[k] = { chave: k, nome: n, dias: [] }; });
+  return Object.values(porChave).sort((a, b) => b.dias.length - a.dias.length || a.nome.localeCompare(b.nome, "pt-BR"));
+}
+const FR_PAG_ABERTO = {};
+
+function blocoFreelaPessoa(fp){
+  const w = document.createElement("div"); w.className = "fr-pessoa"; w.dataset.pessoa = fp.chave;
+  const h = document.createElement("h4"); h.textContent = fp.nome; w.appendChild(h);
+  const pago = f => { const c = f.conta_id ? FREELA_CONTAS[f.conta_id] : null; return !!(c && c.pago_em); };
+  const dias = fp.dias.slice().sort((a, b) => a.data < b.data ? -1 : 1);
+  const abertos = dias.filter(f => !pago(f));
+  const tot = dias.reduce((t, f) => t + Number(f.valor || 0), 0), aPagar = abertos.reduce((t, f) => t + Number(f.valor || 0), 0);
+  const sub = document.createElement("div"); sub.className = "sub";
+  if(!dias.length) sub.textContent = "Nenhum dia neste mês.";
+  else {
+    const b = document.createElement("b"); b.textContent = dias.length + (dias.length === 1 ? " dia" : " dias");
+    sub.append(b, document.createTextNode(" no mês · R$ " + moeda(tot)));
+    sub.appendChild(document.createElement("br"));
+    const ap = document.createElement("span"); ap.className = "a-pagar";
+    ap.textContent = abertos.length ? "A pagar agora: R$ " + moeda(aPagar) + " (" + listaDiasTx(abertos.map(f => f.data)) + ")" : "Tudo pago.";
+    sub.appendChild(ap);
+  }
+  w.appendChild(sub);
+  if(!dias.length){
+    const r = document.createElement("button"); r.type = "button"; r.className = "fr-reg";
+    r.textContent = "Registrar um dia de " + fp.nome.split(" ")[0];
+    r.onclick = () => abrirFreelaNoDia(fp, hojeSP());
+    w.appendChild(r);
+    return w;
+  }
+
+  /* calendário do mês: toque num dia vazio registra a diária desse dia */
+  const ini = DIAS_MES, fim = ultimoDia(DIAS_MES), hoje = hojeSP();
+  const cal = document.createElement("div"); cal.className = "cal fr-cal";
+  ["D","S","T","Q","Q","S","S"].forEach(d => { const c = document.createElement("div"); c.className = "dow"; c.textContent = d; cal.appendChild(c); });
+  for(let i = 0; i < diaDaSemana(ini); i++){ const v = document.createElement("div"); v.className = "vazio"; cal.appendChild(v); }
+  for(let d = 1; d <= Number(fim.slice(8)); d++){
+    const iso = ini.slice(0, 8) + String(d).padStart(2, "0");
+    const doDia = dias.filter(f => f.data === iso);
+    const b = document.createElement("button"); b.type = "button"; b.textContent = String(d);
+    let cls = doDia.length ? "veio" : "";
+    if(doDia.length && doDia.every(pago)) cls += " pago";
+    if(doDia.some(f => f.no_lugar_de)) cls += " cobre";
+    if(iso > hoje) cls += " futuro";
+    b.className = cls.trim();
+    b.setAttribute("aria-label", DOW[diaDaSemana(iso)] + " " + diaCurto(iso) + ", "
+      + (doDia.length ? "veio" + (doDia.some(f => f.no_lugar_de) ? ", no lugar de " + eqNome(doDia.find(f => f.no_lugar_de).no_lugar_de) : "")
+                        + (doDia.every(pago) ? ", pago" : ", a pagar") : "não veio"));
+    b.onclick = () => {
+      if(doDia.length){
+        const ln = w.querySelector("[data-freela='" + doDia[0].id + "']");
+        if(ln){ ln.classList.add("fr-destaque"); if(ln.scrollIntoView) ln.scrollIntoView({ block: "center" }); setTimeout(() => ln.classList.remove("fr-destaque"), 1600); }
+      } else abrirFreelaNoDia(fp, iso);
+    };
+    cal.appendChild(b);
+  }
+  w.appendChild(cal);
+
+  /* os dias, um por linha: horário, valor, quem cobriu e de onde sai o dinheiro */
+  dias.forEach(f => {
+    const ln = document.createElement("div"); ln.className = "eq-ln"; ln.dataset.freela = f.id;
+    const dia = document.createElement("span"); dia.className = "dia"; dia.textContent = dataCurta(f.data);
+    const c = f.conta_id ? FREELA_CONTAS[f.conta_id] : null;
+    const info = document.createElement("span"); info.className = "info";
+    const cab = [f.nome !== fp.nome ? f.nome : "", f.entrada && f.saida ? eqHHMM(f.entrada) + " às " + eqHHMM(f.saida) : ""].filter(Boolean).join(", ");
+    info.textContent = (cab ? cab + " · " : "") + "R$ " + moeda(Number(f.valor))
+      + (f.no_lugar_de ? " · no lugar de " + eqNome(f.no_lugar_de) : "")
+      + (c && c.pago_em ? " · paga em " + diaCurto(String(c.pago_em).slice(0, 10)) : " · a pagar");
+    ln.append(dia, info);
+    const de = origemDoDinheiro(f);
+    if(de){ const o = document.createElement("span"); o.className = "fr-origem"; o.textContent = de; ln.appendChild(o); }
+    if(!(c && c.pago_em)) ln.appendChild(botaoCancelar("freela:" + f.id, "Cancelar a freela de " + dataCurta(f.data), () => cancelarFreela(f)));
+    w.appendChild(ln);
+  });
+
+  /* marcar como pago aqui mesmo, como na Eliana */
+  if(abertos.length){
+    const det = document.createElement("details"); det.className = "fr-pagar";
+    det.open = !!FR_PAG_ABERTO[fp.chave];
+    det.ontoggle = () => { FR_PAG_ABERTO[fp.chave] = det.open; };
+    const sm = document.createElement("summary"); sm.textContent = "Marcar dias como pagos"; det.appendChild(sm);
+    const esc = new Set(abertos.map(f => f.id));
+    const btn = document.createElement("button"); btn.type = "button"; btn.className = "pg-ok";
+    const rot = () => {
+      const v = abertos.filter(f => esc.has(f.id)).reduce((t, f) => t + Number(f.valor || 0), 0);
+      btn.disabled = !esc.size;
+      btn.textContent = esc.size ? "Marcar " + esc.size + (esc.size === 1 ? " dia como pago" : " dias como pagos") + " (R$ " + moeda(v) + ")" : "Escolha os dias pagos";
+    };
+    abertos.forEach(f => {
+      const l = document.createElement("label"); l.className = "pg-ln";
+      const cb = document.createElement("input"); cb.type = "checkbox"; cb.checked = true;
+      cb.onchange = () => { if(cb.checked) esc.add(f.id); else esc.delete(f.id); rot(); };
+      const d = document.createElement("span"); d.className = "dia"; d.textContent = dataCurta(f.data);
+      const i = document.createElement("span"); i.className = "info"; i.textContent = "R$ " + moeda(Number(f.valor));
+      l.append(cb, d, i); det.appendChild(l);
+    });
+    const q = document.createElement("label"); q.className = "pg-quando";
+    const qs = document.createElement("span"); qs.textContent = "Pago em";
+    const qi = document.createElement("input"); qi.type = "date"; qi.value = hoje; qi.max = hoje;
+    qi.className = "fr-pago-em";
+    q.append(qs, qi); det.appendChild(q);
+    rot();
+    btn.onclick = travar(btn, () => pagarFreelas(abertos.filter(f => esc.has(f.id)), qi.value));
+    det.appendChild(btn);
+    w.appendChild(det);
+  }
+  return w;
+}
+
+/* freela que cobriu falta: o desconto de quem faltou volta para a bolsa e paga quem cobriu */
+function origemDoDinheiro(f){
+  if(!f.no_lugar_de) return "";
+  const fa = f.falta_id ? FALTAS.find(x => x.id === f.falta_id) : null;
+  const quem = eqNome(f.no_lugar_de);
+  if(!fa) return "Cobriu " + quem + " (sem falta registrada): sai da bolsa de ajuda extra.";
+  if(!fa.desconta) return "Cobriu a falta de " + quem + ", que não foi descontada: sai da bolsa de ajuda extra.";
+  const desc = Number(fa.valor_desconto || 0), dif = Math.round((Number(f.valor) - desc) * 100) / 100;
+  return "Cobriu a falta de " + quem + ": R$ " + moeda(desc) + " descontados da quinzena dela pagam esta diária"
+    + (dif > 0 ? "; os R$ " + moeda(dif) + " que faltam saem da bolsa." : dif < 0 ? "; sobram R$ " + moeda(-dif) + " na bolsa." : ".");
+}
+
+function abrirFreelaNoDia(fp, iso){
+  const ult = fp.dias.slice().sort((a, b) => a.data < b.data ? 1 : -1)[0];
+  EQ_FORM = { tipo: "freela", data: iso, entrada: ult && ult.entrada ? eqHHMM(ult.entrada) : "", saida: ult && ult.saida ? eqHHMM(ult.saida) : "",
+              nome: fp.nome, valor: ult ? moeda(Number(ult.valor)) : "", no_lugar_de: "", obs: "" };
+  EQ_CANCELA = null; montarCalendarioDias();
+  const f = $("eqFormFreela"); if(f && f.scrollIntoView) f.scrollIntoView({ block: "start" });
+}
+
+async function pagarFreelas(lista, quando){
+  if(!lista.length) return;
+  if(!quando || quando > hojeSP()){ aviso("diasMsg", "Escolha o dia em que pagou (não pode ser no futuro).", "warn"); return; }
+  let ok = 0;
+  for(const f of lista){
+    if(!f.conta_id) continue;
+    const { error } = await sb.from("jb_conta").update({ pago_em: quando, valor_pago: Number(f.valor), pago_por: "manual" }).eq("id", f.conta_id);
+    if(!error) ok++;
+  }
+  if(ok < lista.length) aviso("diasMsg", "Não consegui marcar " + (lista.length - ok) + " dia(s). Tente de novo.", "err");
+  else toast(ok === 1 ? "Dia marcado como pago." : ok + " dias marcados como pagos.");
+  await recarregarEquipe();
 }
 
 /* nome da freela nos formulários: as da casa num seletor (o nome sai sempre igual), "Nova pessoa..." abre o campo.
