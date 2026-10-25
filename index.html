@@ -9,8 +9,8 @@
 
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#F8F0EA">
-<link rel="icon" href="icon-192.png?v=2026-10-25c" type="image/png">
-<link rel="apple-touch-icon" href="icon-180.png?v=2026-10-25c">
+<link rel="icon" href="icon-192.png?v=2026-10-25d" type="image/png">
+<link rel="apple-touch-icon" href="icon-180.png?v=2026-10-25d">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -284,6 +284,22 @@ button{font-family:inherit;font-size:inherit;cursor:pointer;}
 .freezer-card{margin:8px 0 0;padding:12px 14px;border-radius:14px;background:var(--creme);border:1px solid var(--linha);text-transform:none;letter-spacing:normal;font-family:var(--sans,inherit);}
 .freezer-card h4{margin:0 0 4px;font-size:.8rem;letter-spacing:.06em;text-transform:uppercase;color:var(--tinta-3);font-weight:600;}
 .freezer-card p{margin:0;font-size:.9rem;color:var(--tinta);line-height:1.45;text-transform:none;letter-spacing:normal;font-weight:400;}
+.prod-sec{margin:14px 2px 6px;font-size:.7rem;letter-spacing:.12em;text-transform:uppercase;color:var(--tinta-3);font-weight:600;}
+.tarefas-eq{margin-top:6px;}
+.tarefa-eq{display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:10px 12px;margin:0 0 8px;background:#fff;border:1px solid var(--linha);border-radius:14px;}
+.tarefa-eq .tf-ck{flex:none;width:34px;height:34px;border-radius:10px;border:1.5px solid var(--linha-2);background:#fff;color:var(--creme);font-weight:700;font-size:1rem;}
+.tarefa-eq.feito .tf-ck{background:var(--verde);border-color:var(--verde);}
+.tarefa-eq .tf-tx{flex:1 1 140px;min-width:0;}
+.tarefa-eq .tf-tx b{display:block;font-size:.92rem;font-weight:600;color:var(--tinta);}
+.tarefa-eq.feito .tf-tx b{text-decoration:line-through;color:var(--tinta-3);}
+.tarefa-eq .tf-tx small{display:block;font-size:.74rem;color:var(--tinta-3);}
+.tarefa-eq .quem-picker{flex-basis:100%;}
+.tarefa-eq .para-quem{min-height:32px;border-radius:999px;border:1px solid var(--linha-2);background:var(--areia);color:var(--tinta-2);font-family:inherit;font-size:.78rem;padding:0 12px;cursor:pointer;}
+.tarefa-eq .tirar{background:none;border:none;color:var(--tinta-3);font-family:inherit;font-size:.78rem;text-decoration:underline;cursor:pointer;}
+.tf-nova{display:flex;gap:8px;margin-top:6px;}
+.tf-nova input{flex:1;min-height:44px;}
+.tf-nova button{min-height:44px;padding:0 14px;border-radius:12px;border:0;background:var(--coral-acao);color:var(--creme);font:inherit;font-weight:600;}
+.tf-sug{margin-top:8px;}
 .fz-lista{margin:6px 0 2px;}
 .fz-grupo{display:flex;justify-content:space-between;margin:8px 0 2px;font-size:.7rem;letter-spacing:.08em;text-transform:uppercase;color:var(--tinta-3);font-weight:600;border-bottom:1px solid var(--linha);padding-bottom:2px;}
 .fz-grupo:first-child{margin-top:2px;}
@@ -1599,7 +1615,7 @@ body.em-conferencia main, body.em-conferencia section{padding-bottom:84px;}
   <!-- ================= LOGIN ================= -->
   <section id="scLogin" class="login hide">
     <div class="mark">
-      <img class="marca-jb" src="marca-jb.png?v=2026-10-25c" alt="Jessica Ballassa Confeitaria" width="210" height="191">
+      <img class="marca-jb" src="marca-jb.png?v=2026-10-25d" alt="Jessica Ballassa Confeitaria" width="210" height="191">
       <p class="slogan">aqui tem amor<span class="pt">.</span></p>
       <div class="versao" id="loginVersao"></div>
     </div>
@@ -1616,7 +1632,7 @@ body.em-conferencia main, body.em-conferencia section{padding-bottom:84px;}
   <section id="scHome" class="hide">
     <div class="top">
       <div class="marca">
-        <img class="selo" src="selo-192.png?v=2026-10-25c" alt="" width="34" height="34">
+        <img class="selo" src="selo-192.png?v=2026-10-25d" alt="" width="34" height="34">
         <div><b>Jessica Ballassa</b><span id="homeSub">Ateliê</span></div>
       </div>
       <button class="recarregar" id="homeRecarregar" type="button" aria-label="Atualizar" title="Atualizar">&#8635;</button>
@@ -1670,7 +1686,7 @@ body.em-conferencia main, body.em-conferencia section{padding-bottom:84px;}
       <h3>Produ&ccedil;&atilde;o</h3>
     <button class="big hide" id="btnProducao">
       <span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3.4 11.4h17.2a8.6 8.6 0 0 1-8.6 8.6 8.6 8.6 0 0 1-8.6-8.6Z"/><path d="M9.2 8.5c0-1.6 1.3-1.9 1.3-3.2"/><path d="M13.1 8.5c0-1.6 1.3-1.9 1.3-3.2"/></svg></span>
-      <span class="tx"><span class="t">Plano de produ&ccedil;&atilde;o</span><span class="s">Diga o que precisa ser feito e em que quantidade</span></span>
+      <span class="tx"><span class="t">Tarefas da equipe</span><span class="s">Produ&ccedil;&atilde;o do dia e outros afazeres, para cada pessoa</span></span>
       <span class="seta" aria-hidden="true">&#8250;</span>
     </button>
     <button class="big ghost hide" id="btnQuanto">
@@ -2026,25 +2042,25 @@ body.em-conferencia main, body.em-conferencia section{padding-bottom:84px;}
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.116.0/dist/umd/supabase.min.js"></script>
-<script src="js/00-base.js?v=2026-10-25c"></script>
-<script src="js/10-entrada.js?v=2026-10-25c"></script>
-<script src="js/12-freela.js?v=2026-10-25c"></script>
-<script src="js/20-custos.js?v=2026-10-25c"></script>
-<script src="js/25-promo.js?v=2026-10-25c"></script>
-<script src="js/30-mes.js?v=2026-10-25c"></script>
-<script src="js/35-saude.js?v=2026-10-25c"></script>
-<script src="js/40-producao.js?v=2026-10-25c"></script>
-<script src="js/42-quanto.js?v=2026-10-25c"></script>
-<script src="js/50-contagem.js?v=2026-10-25c"></script>
-<script src="js/60-afazeres.js?v=2026-10-25c"></script>
-<script src="js/70-dias.js?v=2026-10-25c"></script>
-<script src="js/72-equipe.js?v=2026-10-25c"></script>
-<script src="js/74-bolsa.js?v=2026-10-25c"></script>
-<script src="js/76-conferencia.js?v=2026-10-25c"></script>
-<script src="js/80-estoque.js?v=2026-10-25c"></script>
-<script src="js/85-encomendas.js?v=2026-10-25c"></script>
-<script src="js/88-contas.js?v=2026-10-25c"></script>
-<script src="js/89-contador.js?v=2026-10-25c"></script>
-<script src="js/90-ligacoes.js?v=2026-10-25c"></script>
+<script src="js/00-base.js?v=2026-10-25d"></script>
+<script src="js/10-entrada.js?v=2026-10-25d"></script>
+<script src="js/12-freela.js?v=2026-10-25d"></script>
+<script src="js/20-custos.js?v=2026-10-25d"></script>
+<script src="js/25-promo.js?v=2026-10-25d"></script>
+<script src="js/30-mes.js?v=2026-10-25d"></script>
+<script src="js/35-saude.js?v=2026-10-25d"></script>
+<script src="js/40-producao.js?v=2026-10-25d"></script>
+<script src="js/42-quanto.js?v=2026-10-25d"></script>
+<script src="js/50-contagem.js?v=2026-10-25d"></script>
+<script src="js/60-afazeres.js?v=2026-10-25d"></script>
+<script src="js/70-dias.js?v=2026-10-25d"></script>
+<script src="js/72-equipe.js?v=2026-10-25d"></script>
+<script src="js/74-bolsa.js?v=2026-10-25d"></script>
+<script src="js/76-conferencia.js?v=2026-10-25d"></script>
+<script src="js/80-estoque.js?v=2026-10-25d"></script>
+<script src="js/85-encomendas.js?v=2026-10-25d"></script>
+<script src="js/88-contas.js?v=2026-10-25d"></script>
+<script src="js/89-contador.js?v=2026-10-25d"></script>
+<script src="js/90-ligacoes.js?v=2026-10-25d"></script>
 </body>
 </html>

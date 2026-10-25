@@ -7,6 +7,9 @@
    ============================================================ */
 let PROD_DIA = null;      // data escolhida
 let PROD_ITENS = [];      // itens do dia
+let PROD_TAREFAS = [];    // tarefas do dia que não são receita (jb_tarefa_equipe): dobrar pano, limpar a geladeira
+let TAREFA_QUEM_ABERTO = null;
+const TAREFAS_SUGERIDAS = ["Dobrar os panos", "Limpar a geladeira expositora", "Lavar a louça", "Organizar o estoque", "Limpar o freezer", "Tirar o lixo"];
 let RECEITAS = null;      // { fichas:[], subs:[] } para o seletor do gestor
 let REC = null;           // receita aberta
 /* quem faz o quê: o gestor escolhe o destino de cada item do dia */
@@ -77,6 +80,9 @@ async function carregarDia(){
   if(error){ box.innerHTML=""; aviso("prodMsg","Não consegui carregar o dia agora.","err"); return; }
   PROD_ITENS = (data || []).sort((a,b) =>
     (a.tipo === b.tipo ? a.nome.localeCompare(b.nome) : (a.tipo === "subreceita" ? -1 : 1)));
+  /* as outras tarefas do dia: se a tabela ainda não existir ou não der para ler, a produção segue igual */
+  const t = await Promise.resolve(sb.from("jb_tarefa_equipe").select("*").eq("data", PROD_DIA)).catch(() => null);
+  PROD_TAREFAS = ((t && !t.error && t.data) || []).sort((a, b) => (a.feito === b.feito ? a.id - b.id : a.feito ? 1 : -1));
   montarProdLista();
 }
 
@@ -120,14 +126,22 @@ function montarProdLista(){
   const gestor = EU.papel === "gestor";
   box.innerHTML = "";
 
-  if(!PROD_ITENS.length){
+  if(!PROD_ITENS.length && !PROD_TAREFAS.length && !gestor){
     const p = document.createElement("p");
     p.className = "tip";
-    p.textContent = gestor
-      ? "Nada planejado para este dia ainda. Escolha uma receita abaixo e diga a quantidade."
-      : "Nada para fazer hoje. A Jessica ainda não montou a lista.";
+    p.textContent = "Nada para fazer hoje. A Jessica ainda não montou a lista.";
     box.appendChild(p);
     return;
+  }
+  if(PROD_ITENS.length || gestor){
+    const h = document.createElement("h3"); h.className = "prod-sec"; h.textContent = "Produção";
+    box.appendChild(h);
+  }
+  if(!PROD_ITENS.length && gestor){
+    const p = document.createElement("p");
+    p.className = "tip";
+    p.textContent = "Nenhuma receita para este dia ainda. Escolha uma receita abaixo e diga a quantidade.";
+    box.appendChild(p);
   }
 
   PROD_ITENS.forEach(it => {
@@ -207,6 +221,99 @@ function montarProdLista(){
     }
     box.appendChild(row);
   });
+  box.appendChild(blocoTarefasEquipe());
+  /* o seletor de receita do gestor fica logo depois da produção */
+  const add = $("addProd"); const sec = box.querySelector(".tarefas-eq");
+  if(add && sec && gestor) box.insertBefore(add, sec);
+}
+
+/* ---------- outras tarefas: o que não é receita ----------
+   Mesmo "para quem" do plano. Quem recebeu marca feito; o gestor cria, muda para quem e tira. */
+function blocoTarefasEquipe(){
+  const gestor = EU.papel === "gestor";
+  const w = document.createElement("div"); w.className = "tarefas-eq"; w.id = "tarefasEq";
+  if(!gestor && !PROD_TAREFAS.length) return w;
+  const h = document.createElement("h3"); h.className = "prod-sec"; h.textContent = "Outras tarefas"; w.appendChild(h);
+  if(!PROD_TAREFAS.length){
+    const p = document.createElement("p"); p.className = "tip";
+    p.textContent = "Dobrar pano, limpar a geladeira, organizar o estoque: escreva abaixo e escolha para quem.";
+    w.appendChild(p);
+  }
+  PROD_TAREFAS.forEach(t => {
+    const row = document.createElement("div"); row.className = "tarefa-eq" + (t.feito ? " feito" : ""); row.dataset.tarefa = t.id;
+    const ck = document.createElement("button"); ck.type = "button"; ck.className = "tf-ck";
+    ck.setAttribute("aria-pressed", String(!!t.feito));
+    ck.setAttribute("aria-label", (t.feito ? "Desfazer: " : "Feito: ") + t.texto);
+    ck.textContent = t.feito ? "✓" : "";
+    ck.onclick = travar(ck, () => marcarTarefaEquipe(t, !t.feito));
+    const tx = document.createElement("div"); tx.className = "tf-tx";
+    const b = document.createElement("b"); b.textContent = t.texto;
+    const sm = document.createElement("small");
+    const quem = t.quem && t.quem.length ? t.quem : ["todos"];
+    sm.textContent = t.feito ? "Feito" + (t.feito_em ? " às " + horaDe(t.feito_em) : "") + (t.feito_por ? " por " + t.feito_por : "")
+                   : (gestor ? "" : (quem.filter(q => q !== "todos").length > 1 ? "junto com " + nomeQuem(quem) : ""));
+    tx.append(b, sm);
+    row.append(ck, tx);
+    if(gestor){
+      const pq = document.createElement("button"); pq.type = "button"; pq.className = "para-quem";
+      pq.setAttribute("aria-label", "Para quem é " + t.texto);
+      pq.textContent = "Para: " + nomeQuem(quem) + (TAREFA_QUEM_ABERTO === t.id ? "  ▴" : "  ▾");
+      pq.onclick = () => { TAREFA_QUEM_ABERTO = TAREFA_QUEM_ABERTO === t.id ? null : t.id; montarProdLista(); };
+      const tirar = document.createElement("button"); tirar.type = "button"; tirar.className = "tirar"; tirar.textContent = "tirar";
+      tirar.setAttribute("aria-label", "Tirar a tarefa " + t.texto);
+      tirar.onclick = travar(tirar, async () => {
+        const { error } = await sb.from("jb_tarefa_equipe").delete().eq("id", t.id);
+        if(error){ aviso("prodMsg", "Não consegui tirar essa tarefa.", "err"); return; }
+        await carregarDia();
+      });
+      row.append(pq, tirar);
+      if(TAREFA_QUEM_ABERTO === t.id) row.appendChild(pickerQuem(quem, async arr => {
+        const { error } = await sb.from("jb_tarefa_equipe").update({ quem: arr }).eq("id", t.id);
+        if(error){ aviso("prodMsg", "Não consegui mudar para quem é essa tarefa.", "err"); return; }
+        t.quem = arr; pq.textContent = "Para: " + nomeQuem(arr) + "  ▴";
+        aviso("prodMsg", "\"" + t.texto + "\" agora aparece para " + nomeQuem(arr) + ".", "ok");
+      }, "quemTarefa" + t.id));
+    }
+    w.appendChild(row);
+  });
+  if(gestor){
+    const f = document.createElement("form"); f.className = "tf-nova"; f.id = "tfNova";
+    const inp = document.createElement("input"); inp.type = "text"; inp.maxLength = 160; inp.id = "tfTexto"; inp.className = "rec";
+    inp.placeholder = "Nova tarefa (ex.: dobrar os panos)"; inp.setAttribute("aria-label", "Nova tarefa para a equipe");
+    const ok = document.createElement("button"); ok.type = "submit"; ok.id = "tfAdd"; ok.textContent = "Adicionar";
+    f.append(inp, ok);
+    f.onsubmit = travarForm(ok, () => addTarefaEquipe(inp.value));
+    w.appendChild(f);
+    const sug = document.createElement("div"); sug.className = "chips tf-sug";
+    TAREFAS_SUGERIDAS.filter(x => !PROD_TAREFAS.some(t => t.texto.toLowerCase() === x.toLowerCase())).slice(0, 4).forEach(x => {
+      const c = document.createElement("button"); c.type = "button"; c.textContent = "+ " + x;
+      c.onclick = travar(c, () => addTarefaEquipe(x));
+      sug.appendChild(c);
+    });
+    w.appendChild(sug);
+    const n = document.createElement("p"); n.className = "tip"; n.style.margin = "6px 2px 0";
+    n.textContent = "A tarefa nasce para todos; toque em \"Para\" para escolher a pessoa. Quem recebe marca quando fizer.";
+    w.appendChild(n);
+  }
+  return w;
+}
+
+async function addTarefaEquipe(texto){
+  const tx = limpaNome(texto).slice(0, 160);
+  if(!tx){ aviso("prodMsg", "Escreva a tarefa.", "warn"); return; }
+  const { error } = await sb.from("jb_tarefa_equipe").insert({ data: PROD_DIA, texto: tx, quem: ["todos"] });
+  if(error){ aviso("prodMsg", "Não consegui adicionar a tarefa agora.", "err"); return; }
+  aviso("prodMsg", "Tarefa adicionada. Toque em \"Para\" para escolher quem faz.", "ok");
+  await carregarDia();
+}
+
+async function marcarTarefaEquipe(t, feito){
+  const { error } = await sb.rpc("jb_tarefa_marcar", { p_id: t.id, p_feito: feito });
+  if(error){
+    aviso("prodMsg", error.code === "conferencia" ? "Conferência: aqui nada é salvo." : error.code === "42501" ? "Essa tarefa não é sua hoje." : "Não consegui salvar agora. Tente de novo.", "err");
+    return;
+  }
+  await carregarDia();
 }
 
 /* Recado curto do gestor para quem vai fazer: o ponto do brigadeiro, um detalhe do dia.

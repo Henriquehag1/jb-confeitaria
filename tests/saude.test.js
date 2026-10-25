@@ -283,8 +283,22 @@ test("ponte Caixa → lucro com os números reais de setembro: fecha centavo a c
   assert.equal(soma, r.lucro, "a ponte chega no lucro");
   assert.ok(!r.P.linhas.some(x => x.id === "resto"), "sem diferença sobrando");
   const v = id => r.P.linhas.find(x => x.id === id).v;
-  assert.ok(v("ingrediente") < -7000, "a maior diferença é o ingrediente pelas receitas");
+  assert.ok(v("ingrediente") + (r.P.linhas.find(x => x.id === "parcelado") || { v: 0 }).v < -7000, "a maior diferença é o ingrediente");
   assert.ok(v("venda") < 0 && v("imposto") < 0 && v("equipe") < 0);
   assert.equal(v("outros"), 76.09);
+  await a.fechar();
+});
+
+test("ponte: compra parcelada no cartão separada do ingrediente", async () => {
+  const a = await abrir("uJes");
+  const r = await a.page.evaluate(() => {
+    const L = saudeLucroMes({ mes: "2026-09-01", bruto_estimado: 10000, app: 0.5, imposto: 0.06, ingrediente: 0.25 }, [{ nome: "F", valor: 1000, origem: "item" }], []);
+    const detalhe = { grupos: [{ nome: "Insumos e materia-prima", itens: [{ valor: 300, parcela: "1/5", previsto: false }, { valor: 500, previsto: false }] }] };
+    return saudePonte(L, { entradas: 5000, saidas: 800 }, detalhe);
+  });
+  const v = id => (r.linhas.find(x => x.id === id) || {}).v;
+  assert.equal(v("parcelado"), -1200, "compra de R$ 1.500 em 5x: no caixa só R$ 300");
+  assert.equal(v("ingrediente"), -500, "R$ 2.500 pelas receitas contra R$ 2.000 comprados");
+  assert.equal(Math.round((r.sobrou + r.linhas.reduce((t, x) => t + x.v, 0)) * 100) / 100, r.lucro);
   await a.fechar();
 });
