@@ -234,7 +234,7 @@ test("banco negativo: atrasos aparecem devendo, com etiqueta em Ver chegadas e a
   });
   const sm = await a.texto("#eqBanco-uYas summary");
   assert.match(sm, /Banco de horas: devendo 1h40/);
-  assert.match(sm, /ainda não descontado nem compensado/);
+  assert.match(sm, /ainda sem decisão: abone o atraso aqui ou compense com horas a mais/);
   assert.equal(await a.page.getAttribute("#eqBanco-uYas summary", "class"), "neg");
   await a.page.click("#eqBanco-uYas summary"); await a.espera(100);
   assert.match(await a.texto('#eqBanco-uYas [data-banco="2"] .ch-ed'), /abonar/);
@@ -327,5 +327,52 @@ test("Yasmin não tem o resumo do pagamento nem lê o que ele usa", async () => 
     banco: (await sb.from("jb_banco_horas").select("*")).data.length
   }));
   assert.deepEqual(r, { conta: 0, falta: 0, banco: 0 });
+  semErros(a); await a.fechar();
+});
+
+test("Registrar freela: nome pela lista da casa e aviso antes de lançar a segunda diária no mesmo dia", async () => {
+  const a = await abrirDiasDe("uHen", db => {
+    db.jb_freela_pessoa = [{ id: 1, nome: "Markus Porthos", ativo: true }, { id: 2, nome: "Sabrina", ativo: true }];
+    db.jb_conta.push({ id: 90, tipo: "equipe", descricao: "Freela Bella, 07/10", competencia: "2026-10-01", vencimento: "2026-10-07", valor: 120, pago_em: null, arquivada: false });
+    db.jb_freela = [{ id: 1, nome: "Bella", data: "2026-10-07", valor: 120, conta_id: 90, cancelada: false }];
+  });
+  await a.page.click("#eqFreelaAbre"); await a.espera(200);
+  assert.equal(await a.page.locator("#eqFrNomeSel").count(), 1, "seletor com as freelas da casa");
+  await a.page.selectOption("#eqFrNomeSel", "Sabrina"); await a.espera(150);
+  await a.page.fill("#eqFrValor", "130"); await a.page.fill("#eqFrDia", "2026-10-06");
+  await a.page.click("#eqFrSalvar"); await a.espera(400);
+  let fr = await a.db("jb_freela");
+  assert.ok(fr.some(f => f.nome === "Sabrina" && f.data === "2026-10-06"), "nome igual ao da lista");
+
+  /* pessoa nova com o mesmo primeiro nome de quem já tem diária no dia */
+  await a.page.click("#eqFreelaAbre"); await a.espera(200);
+  await a.page.selectOption("#eqFrNomeSel", "__nova"); await a.espera(150);
+  await a.page.fill("#eqFrNome", "Bela"); await a.page.fill("#eqFrValor", "120"); await a.page.fill("#eqFrDia", "2026-10-07");
+  await a.page.click("#eqFrSalvar"); await a.espera(300);
+  assert.match(await a.texto("#diasMsg"), /Bella já tem diária em 07\/10 \(R\$ 120,00\)\. Se é um segundo turno no mesmo dia, toque em Salvar freela de novo/);
+  fr = await a.db("jb_freela");
+  assert.equal(fr.filter(f => f.data === "2026-10-07").length, 1, "não lançou a repetida");
+  await a.page.click("#eqFrSalvar"); await a.espera(400);
+  fr = await a.db("jb_freela");
+  assert.equal(fr.filter(f => f.data === "2026-10-07").length, 2, "na segunda vez, lança");
+  assert.ok((await a.log("insert")).some(x => x[1] === "jb_freela_pessoa" && x[2][0].nome === "Bela"), "pessoa nova entra na lista");
+  semErros(a); await a.fechar();
+});
+
+test("Registrar falta com freela que já tinha diária lançada no dia: liga a diária à falta, não lança outra", async () => {
+  const a = await abrirDiasDe("uHen", db => {
+    db.jb_conta.push({ id: 91, tipo: "equipe", descricao: "Freela Bella, 08/10 no lugar de Yasmin", competencia: "2026-10-01", vencimento: "2026-10-08", valor: 120, pago_em: null, arquivada: false });
+    db.jb_freela = [{ id: 1, nome: "Bella", data: "2026-10-08", valor: 120, conta_id: 91, cancelada: false, entrada: "16:30", saida: "23:00" }];
+  });
+  await a.page.locator(bloco("Yasmin") + " .eq-faltas > .eq-abre").click(); await a.espera(200);
+  await a.page.check("#eqTemFreela"); await a.espera(150);
+  await a.page.fill("#eqFreelaNome", "Bella");
+  await a.page.click("#eqFaltaSalvar"); await a.espera(500);
+  const fa = await a.db("jb_falta"), fr = await a.db("jb_freela");
+  assert.equal(fa.length, 1);
+  assert.equal(fr.length, 1, "continua uma diária só");
+  assert.equal(fr[0].falta_id, fa[0].id); assert.equal(fr[0].no_lugar_de, "uYas");
+  assert.equal((await a.db("jb_conta")).filter(c => c.tipo === "equipe").length, 1);
+  assert.match(await a.texto(bloco("Yasmin") + " .eq-faltas"), /Bella cobriu/);
   semErros(a); await a.fechar();
 });

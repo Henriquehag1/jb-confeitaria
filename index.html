@@ -9,8 +9,8 @@
 
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#F8F0EA">
-<link rel="icon" href="icon-192.png?v=2026-10-22b" type="image/png">
-<link rel="apple-touch-icon" href="icon-180.png?v=2026-10-22b">
+<link rel="icon" href="icon-192.png?v=2026-10-25a" type="image/png">
+<link rel="apple-touch-icon" href="icon-180.png?v=2026-10-25a">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -1043,8 +1043,8 @@ button.fotobt:disabled{color:var(--tinta-3);}
 .cal button.veio.atraso::after{background:var(--creme);}
 .cal button.pago::before{content:"✓";position:absolute;top:1px;right:3px;font-size:.58rem;line-height:1;font-weight:700;}
 .legenda i.pg{background:var(--coral-acao);position:relative;}
-.cal button.falta{background:#fff;border:1.5px solid var(--coral-fundo);color:var(--coral-fundo);text-decoration:line-through;font-weight:600;}
-.legenda i.flt{background:#fff;border:1.5px solid var(--coral-fundo);}
+.cal button.falta{background:#fff;border:1.5px solid var(--tinta-3);color:var(--tinta-3);text-decoration:line-through;font-weight:600;}
+.legenda i.flt{background:#fff;border:1.5px solid var(--tinta-3);}
 .eq-sug,.eq-faltas{margin-top:14px;padding-top:12px;border-top:1px solid var(--linha);}
 .eq-sug{background:var(--ambar-veu);border:1px solid var(--ambar-linha);border-radius:12px;padding:10px 12px;}
 .eq-tit{margin:0 0 8px;font-size:.84rem;color:var(--tinta-2);}
@@ -1069,11 +1069,11 @@ button.fotobt:disabled{color:var(--tinta-3);}
 .eq-banco{margin-top:12px;}
 .eq-banco summary{cursor:pointer;font-size:.86rem;font-weight:600;color:var(--tinta);padding:6px 0;}
 .ch-banco{font-size:.76rem;color:var(--verde);font-weight:500;}
-.ch-banco.neg{color:var(--coral-fundo);}
-.eq-banco summary.neg{color:var(--coral-fundo);}
+.ch-banco.neg{color:var(--ambar);}
+.eq-banco summary.neg{color:var(--ambar);}
 .eq-banco summary.pos{color:var(--verde);}
 .eq-banco summary small{font-weight:400;font-size:.76rem;color:var(--tinta-3);}
-.eq-ln .info.neg{color:var(--coral-fundo);}
+.eq-ln .info.neg{color:var(--ambar);}
 .eq-ln .info.pos{color:var(--verde);}
 /* Saúde do negócio */
 .sd-ponto{display:inline-block;width:10px;height:10px;border-radius:50%;margin-left:6px;vertical-align:1px;background:transparent;}
@@ -1129,7 +1129,7 @@ button.fotobt:disabled{color:var(--tinta-3);}
 .bolsa-topo{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin-bottom:8px;}
 .bolsa-topo b{font-size:1.6rem;color:var(--verde);font-variant-numeric:tabular-nums;}
 .bolsa-topo span{font-size:.84rem;color:var(--tinta-2);}
-.bolsa-topo.neg b{color:var(--coral-fundo);}
+.bolsa-topo.neg b{color:var(--ambar);}
 .bolsa-barra{height:8px;border-radius:99px;background:var(--verde-veu);border:1px solid var(--verde-linha);overflow:hidden;margin-bottom:8px;}
 .bolsa-barra i{display:block;height:100%;background:var(--coral-acao);border-radius:99px;}
 .eq-bolsa{margin:0 0 10px;padding:9px 12px;border-radius:10px;background:var(--verde-veu);color:var(--verde);font-size:.84rem;font-weight:500;}
@@ -1573,7 +1573,7 @@ body.em-conferencia main, body.em-conferencia section{padding-bottom:84px;}
   <!-- ================= LOGIN ================= -->
   <section id="scLogin" class="login hide">
     <div class="mark">
-      <img class="marca-jb" src="marca-jb.png?v=2026-10-22b" alt="Jessica Ballassa Confeitaria" width="210" height="191">
+      <img class="marca-jb" src="marca-jb.png?v=2026-10-25a" alt="Jessica Ballassa Confeitaria" width="210" height="191">
       <p class="slogan">aqui tem amor<span class="pt">.</span></p>
       <div class="versao" id="loginVersao"></div>
     </div>
@@ -1590,7 +1590,7 @@ body.em-conferencia main, body.em-conferencia section{padding-bottom:84px;}
   <section id="scHome" class="hide">
     <div class="top">
       <div class="marca">
-        <img class="selo" src="selo-192.png?v=2026-10-22b" alt="" width="34" height="34">
+        <img class="selo" src="selo-192.png?v=2026-10-25a" alt="" width="34" height="34">
         <div><b>Jessica Ballassa</b><span id="homeSub">Ateliê</span></div>
       </div>
       <button class="recarregar" id="homeRecarregar" type="button" aria-label="Atualizar" title="Atualizar">&#8635;</button>
@@ -1989,25 +1989,25 @@ body.em-conferencia main, body.em-conferencia section{padding-bottom:84px;}
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.116.0/dist/umd/supabase.min.js"></script>
-<script src="js/00-base.js?v=2026-10-22b"></script>
-<script src="js/10-entrada.js?v=2026-10-22b"></script>
-<script src="js/12-freela.js?v=2026-10-22b"></script>
-<script src="js/20-custos.js?v=2026-10-22b"></script>
-<script src="js/25-promo.js?v=2026-10-22b"></script>
-<script src="js/30-mes.js?v=2026-10-22b"></script>
-<script src="js/35-saude.js?v=2026-10-22b"></script>
-<script src="js/40-producao.js?v=2026-10-22b"></script>
-<script src="js/42-quanto.js?v=2026-10-22b"></script>
-<script src="js/50-contagem.js?v=2026-10-22b"></script>
-<script src="js/60-afazeres.js?v=2026-10-22b"></script>
-<script src="js/70-dias.js?v=2026-10-22b"></script>
-<script src="js/72-equipe.js?v=2026-10-22b"></script>
-<script src="js/74-bolsa.js?v=2026-10-22b"></script>
-<script src="js/76-conferencia.js?v=2026-10-22b"></script>
-<script src="js/80-estoque.js?v=2026-10-22b"></script>
-<script src="js/85-encomendas.js?v=2026-10-22b"></script>
-<script src="js/88-contas.js?v=2026-10-22b"></script>
-<script src="js/89-contador.js?v=2026-10-22b"></script>
-<script src="js/90-ligacoes.js?v=2026-10-22b"></script>
+<script src="js/00-base.js?v=2026-10-25a"></script>
+<script src="js/10-entrada.js?v=2026-10-25a"></script>
+<script src="js/12-freela.js?v=2026-10-25a"></script>
+<script src="js/20-custos.js?v=2026-10-25a"></script>
+<script src="js/25-promo.js?v=2026-10-25a"></script>
+<script src="js/30-mes.js?v=2026-10-25a"></script>
+<script src="js/35-saude.js?v=2026-10-25a"></script>
+<script src="js/40-producao.js?v=2026-10-25a"></script>
+<script src="js/42-quanto.js?v=2026-10-25a"></script>
+<script src="js/50-contagem.js?v=2026-10-25a"></script>
+<script src="js/60-afazeres.js?v=2026-10-25a"></script>
+<script src="js/70-dias.js?v=2026-10-25a"></script>
+<script src="js/72-equipe.js?v=2026-10-25a"></script>
+<script src="js/74-bolsa.js?v=2026-10-25a"></script>
+<script src="js/76-conferencia.js?v=2026-10-25a"></script>
+<script src="js/80-estoque.js?v=2026-10-25a"></script>
+<script src="js/85-encomendas.js?v=2026-10-25a"></script>
+<script src="js/88-contas.js?v=2026-10-25a"></script>
+<script src="js/89-contador.js?v=2026-10-25a"></script>
+<script src="js/90-ligacoes.js?v=2026-10-25a"></script>
 </body>
 </html>

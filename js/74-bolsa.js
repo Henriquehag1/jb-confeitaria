@@ -105,7 +105,7 @@ function blocoBolsa(){
   const topo = document.createElement("div"); topo.className = "bolsa-topo" + (B.disponivel < 0 ? " neg" : "");
   const v = document.createElement("b"); v.id = "bolsaDisp"; v.textContent = reais(B.disponivel);
   const sm = document.createElement("span");
-  sm.textContent = B.disponivel < 0 ? "passou da bolsa: sai do lucro" : "disponível · " + B.noites + (B.noites === 1 ? " noite" : " noites") + " de freela de R$ " + moeda(B.freela);
+  sm.textContent = B.disponivel < 0 ? "acima da bolsa do mês: esse valor sai do lucro. Não é erro; é o sinal para segurar novas diárias até o fim do mês" : "disponível · " + B.noites + (B.noites === 1 ? " noite" : " noites") + " de freela de R$ " + moeda(B.freela);
   topo.append(v, sm); c.appendChild(topo);
   const barra = document.createElement("div"); barra.className = "bolsa-barra";
   const i = document.createElement("i"); i.style.width = Math.round(B.usadoPct * 100) + "%"; barra.appendChild(i); c.appendChild(barra);
