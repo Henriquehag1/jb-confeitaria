@@ -108,7 +108,7 @@ test("tela do contador: status, números, mensagem, relatório do app e marcar c
   await a.page.fill("#ctRel2", "5.012,40");
   await a.page.locator('#ctVendas .explica:not(.hide) button', { hasText: "Usar este" }).click(); await a.espera(500);
   assert.deepEqual((await a.db("jb_contador_mes")).find(r => r.mes === OUT).vendas, { 2: 5012.4 });
-  assert.match(await a.texto("#ctVendas"), /iFood[\s\S]*do relatório do app[\s\S]*R\$ 5\.012,40/);
+  assert.match(await a.texto("#ctVendas"), /iFood[\s\S]*colado à mão[\s\S]*R\$ 5\.012,40/);
   assert.match(await a.texto("#ctTexto"), /• iFood: R\$ 5\.012,40\n/);
 
   // marcar como enviado
@@ -136,4 +136,69 @@ test("só gestor vê os dados do contador", async () => {
     assert.equal(n, 0);
     semErros(a); await a.fechar();
   }
+});
+
+test("receita exata dos portais: substitui a estimativa, explica a nota e vai na mensagem", async () => {
+  const AP = {
+    canais: {
+      2: { nome: "iFood", itens: 6769.79, desconto_loja: 1118.45, receita: 5651.34, notas: 6100.10, como: "iFood, Financeiro, outubro: valor dos itens menos promoções incentivadas pela loja" },
+      3: { nome: "99Food", itens: 15889.13, desconto_loja: 4331.68, receita: 11557.45, notas: 12000, como: "99Food, cobranças semanais" },
+      4: { nome: "Keeta", itens: 27929.47, desconto_loja: 7192.04, receita: 20737.43, notas: 23100.50, como: "Keeta, Bill details 10-2026" }
+    },
+    observacoes: ["A Keeta pagou R$ 126,60 de indenização por produto danificado; não é venda."]
+  };
+  const a = await abrir("uHen", { agora: "2026-11-03T15:00:00Z", db: db => {
+    comDados(db);
+    db.jb_contador_mes.push({ mes: OUT, vendas: { 4: 27929.47 }, apuracao: AP, apurado_em: "2026-11-03T11:00:00Z" });
+    return db;
+  } });
+  a.texto = sel => a.page.locator(sel).first().innerText();
+  await a.page.click("#btnContador"); await a.espera(600);
+  const ap = await a.texto("#ctApuracao");
+  assert.match(ap, /Receita conferida nos portais em 03\/11/i);
+  assert.match(ap, /Notas fiscais emitidas[\s\S]*R\$ 41\.200,60/);
+  assert.match(ap, /Nota acima da receita[\s\S]*R\$ 3\.254,38/);
+  assert.match(ap, /indenização/);
+  const v = await a.texto("#ctVendas");
+  assert.match(v, /Receita de outubro/i);
+  assert.match(v, /iFood[\s\S]*conferido no portal[\s\S]*R\$ 5\.651,34/);
+  assert.match(v, /Keeta[\s\S]*conferido no portal[\s\S]*R\$ 20\.737,43/);
+  assert.match(v, /Venda direta[\s\S]*o que caiu na conta[\s\S]*R\$ 637,63/);
+  assert.match(v, /Total da receita[\s\S]*R\$ 38\.583,85/);
+  await a.page.click('#ctVendas [data-canal="4"]'); await a.espera(150);
+  assert.match(await a.page.locator('#ctVendas .explica:not(.hide)').innerText(), /Itens R\$ 27\.929,47 menos desconto da JB R\$ 7\.192,04 = R\$ 20\.737,43/);
+  const msg = await a.texto("#ctTexto");
+  assert.match(msg, /Receita de outubro\* \(valor dos itens vendidos menos os descontos que a própria JB deu; conferido nos portais em 03\/11\)/);
+  assert.match(msg, /• Keeta: R\$ 20\.737,43 \(itens R\$ 27\.929,47 menos desconto da JB R\$ 7\.192,04\)/);
+  assert.match(msg, /Total da receita: R\$ 38\.583,85/);
+  assert.match(msg, /Notas fiscais emitidas em outubro:\* R\$ 41\.200,60/);
+  assert.match(msg, /A diferença de R\$ 3\.254,38 é a taxa de entrega/);
+  assert.match(msg, /Pedimos que o PGDAS-D seja feito com a receita acima/);
+  assert.match(msg, /• A Keeta pagou R\$ 126,60/);
+  assert.doesNotMatch(msg, /\(estimado\)/);
+  assert.doesNotMatch(msg, /—|–/, "sem travessão");
+
+  // correção à mão fica dentro da apuração; apagar volta ao número do portal
+  await a.page.fill("#ctRel4", "20.700,00");
+  await a.page.locator('#ctVendas .explica:not(.hide) button', { hasText: "Usar este" }).click(); await a.espera(500);
+  let k = (await a.db("jb_contador_mes")).find(r => r.mes === OUT).apuracao.canais[4];
+  assert.equal(k.receita, 20700); assert.equal(k.receita_portal, 20737.43); assert.equal(k.manual, true);
+  assert.match(await a.texto("#ctVendas"), /Keeta[\s\S]*colado à mão[\s\S]*R\$ 20\.700,00/);
+  await a.page.click('#ctVendas [data-canal="4"]'); await a.espera(150);
+  assert.match(await a.page.locator('#ctVendas .explica:not(.hide)').innerText(), /O portal tinha dado R\$ 20\.737,43/);
+  await a.page.fill("#ctRel4", "");
+  await a.page.locator('#ctVendas .explica:not(.hide) button', { hasText: "Usar este" }).click(); await a.espera(500);
+  k = (await a.db("jb_contador_mes")).find(r => r.mes === OUT).apuracao.canais[4];
+  assert.equal(k.receita, 20737.43); assert.equal(k.manual, false);
+  assert.match(await a.texto("#ctVendas"), /Keeta[\s\S]*conferido no portal[\s\S]*R\$ 20\.737,43/);
+  semErros(a); await a.fechar();
+});
+
+test("antes do dia 3 a tela avisa que a receita ainda não foi conferida", async () => {
+  const a = await abrir("uHen", { agora: "2026-11-02T15:00:00Z", db: comDados });
+  a.texto = sel => a.page.locator(sel).first().innerText();
+  await a.page.click("#btnContador"); await a.espera(600);
+  assert.match(await a.texto("#ctApuracao"), /ainda não foi conferida nos portais/);
+  assert.match(await a.texto("#ctVendas"), /Vendas de outubro/i);
+  semErros(a); await a.fechar();
 });
