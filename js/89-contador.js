@@ -3,7 +3,10 @@
    o que ele precisa para o PGDAS-D e o DAS do mês anterior: a venda de cada canal
    (valor dos pedidos, antes da comissão do app), o que caiu na conta e os impostos pagos.
    Tudo sai sozinho do que o app já tem. A venda exata vem do relatório de cada app:
-   quando a Jessica copia o número de lá, ele substitui a estimativa. */
+   quando a Jessica copia o número de lá, ele substitui a estimativa.
+   Desde 26/10/2026: no dia 3, o Claude lê os portais e grava em jb_contador_mes.apuracao a
+   RECEITA EXATA de cada canal (valor dos itens menos o desconto que a própria JB deu) e o total
+   das notas emitidas. Quando a apuração existe, a tela e a mensagem usam a receita exata. */
 
 let CONTADOR_MES = null;
 let CONTADOR = null;
@@ -47,13 +50,22 @@ function contadorPacote(x){
   const fat = {}; (x.fat || []).forEach(f => { fat[f.canal_id] = (fat[f.canal_id] || 0) + Number(f.valor || 0); });
   const canais = (x.canais || []).slice().sort((a, b) => (a.ordem || 0) - (b.ordem || 0));
 
+  const ap = reg.apuracao && reg.apuracao.canais ? reg.apuracao : null;
   const vendas = canais.filter(c => c.ativo).map(c => {
     const recebido = r2c(fat[c.id] || 0);
     const fatia = contadorFatiaConta(c, P.taxa_pluxee);
     const estimado = fatia > 0 ? r2c(recebido / fatia) : null;
     const rel = relat[c.id] != null ? Number(relat[c.id]) : null;
+    const ex = ap && ap.canais[c.id] && ap.canais[c.id].receita != null ? ap.canais[c.id] : null;
+    const exata = ex ? r2c(Number(ex.receita)) : null;
+    /* ordem: o número que a Jessica colou à mão vale; depois a receita exata dos portais; depois a estimativa */
+    let valor, origem;
+    if(rel != null){ valor = rel; origem = exata != null && Math.abs(rel - exata) < 0.005 ? "exata" : "relatorio"; }
+    else if(exata != null){ valor = exata; origem = "exata"; }
+    else { valor = estimado || 0; origem = fatia >= 0.999 ? "conta" : "estimado"; }
     return { canal_id: c.id, nome: c.nome, rot: nomeCanalContador(c.nome), recebido, fatia, estimado, relatorio: rel, vale: Number(c.vale_fatia || 0) > 0,
-             valor: rel != null ? rel : (estimado || 0), origem: rel != null ? "relatorio" : (fatia >= 0.999 ? "conta" : "estimado") };
+             valor, origem, exata: ex ? { receita: exata, itens: ex.itens != null ? Number(ex.itens) : null,
+               desconto: ex.desconto_loja != null ? Number(ex.desconto_loja) : null, notas: ex.notas != null ? Number(ex.notas) : null, como: ex.como || "" } : null };
   });
   const recebidos = canais.filter(c => (fat[c.id] || 0) > 0)
     .map(c => ({ canal_id: c.id, nome: c.nome, rot: nomeCanalContador(c.nome), valor: r2c(fat[c.id]) }));
@@ -70,6 +82,16 @@ function contadorPacote(x){
     enviado: reg.enviado_em ? diaSPde(reg.enviado_em) : null,
     conferido: reg.conferido_em ? diaSPde(reg.conferido_em) : null, conferencia: reg.conferencia || null
   };
+  if(ap){
+    const notas = vendas.filter(v => v.exata && v.exata.notas != null);
+    p.apuracao = {
+      apurado: reg.apurado_em ? diaSPde(reg.apurado_em) : null,
+      totalNotas: ap.total_notas != null ? r2c(Number(ap.total_notas)) : (notas.length ? r2c(notas.reduce((s, v) => s + v.exata.notas, 0)) : null),
+      receitaComNota: r2c(notas.reduce((s, v) => s + v.valor, 0)),
+      observacoes: (ap.observacoes || []).filter(Boolean)
+    };
+    p.apuracao.diferenca = p.apuracao.totalNotas != null ? r2c(p.apuracao.totalNotas - p.apuracao.receitaComNota) : null;
+  }
   p.mensagem = contadorMensagem(p);
   return p;
 }
@@ -82,9 +104,31 @@ function contadorMensagem(p){
   L.push("Olá! Tudo bem?");
   L.push("Seguem os dados da JB Confeitaria de " + M + " para o PGDAS-D e o DAS.");
   L.push("");
-  L.push("*Vendas de " + m + "* (valor dos pedidos, antes da comissão dos aplicativos):");
-  p.vendas.filter(v => v.valor > 0).forEach(v => L.push("• " + v.rot + ": R$ " + moeda(v.valor) + (v.origem === "estimado" ? " (estimado)" : "")));
-  L.push("Total de vendas: R$ " + moeda(p.totalVendas));
+  if(p.apuracao){
+    L.push("*Receita de " + m + "* (valor dos itens vendidos menos os descontos que a própria JB deu" + (p.apuracao.apurado ? "; conferido nos portais em " + ddmm(p.apuracao.apurado) : "") + "):");
+    p.vendas.filter(v => v.valor > 0).forEach(v => {
+      const e = v.exata;
+      const conta = e && e.itens != null && e.desconto != null && v.origem === "exata"
+        ? " (itens R$ " + moeda(e.itens) + " menos desconto da JB R$ " + moeda(e.desconto) + ")" : (v.origem === "estimado" ? " (estimado)" : "");
+      L.push("• " + v.rot + ": R$ " + moeda(v.valor) + conta);
+    });
+    L.push("Total da receita: R$ " + moeda(p.totalVendas));
+    L.push("Os cupons pagos pelos aplicativos estão dentro da receita, porque o aplicativo repassa esse valor para a JB. O frete grátis que a JB banca é despesa e não entra.");
+    const a = p.apuracao;
+    if(a.totalNotas != null){
+      L.push("");
+      L.push("*Notas fiscais emitidas em " + m + ":* R$ " + moeda(a.totalNotas));
+      if(a.diferenca > 0.009)
+        L.push("A diferença de R$ " + moeda(a.diferenca) + " é a taxa de entrega e de serviço dos aplicativos: o sistema de pedidos coloca na nota, mas quem entrega é o aplicativo e esse valor fica com ele.");
+      else if(a.diferenca < -0.009)
+        L.push("As notas somaram R$ " + moeda(-a.diferenca) + " a menos que a receita, porque o sistema de pedidos tirou da nota o frete grátis que a JB banca. A receita acima é a correta.");
+      L.push("Pedimos que o PGDAS-D seja feito com a receita acima. Se você entender diferente, nos avise antes de transmitir.");
+    }
+  } else {
+    L.push("*Vendas de " + m + "* (valor dos pedidos, antes da comissão dos aplicativos):");
+    p.vendas.filter(v => v.valor > 0).forEach(v => L.push("• " + v.rot + ": R$ " + moeda(v.valor) + (v.origem === "estimado" ? " (estimado)" : "")));
+    L.push("Total de vendas: R$ " + moeda(p.totalVendas));
+  }
   const comVale = p.vendas.filter(v => v.vale && v.valor > 0).map(v => v.nome);
   if(comVale.length && p.recebidos.some(v => v.nome === "Vale-refeição"))
     L.push("O vale-refeição (Pluxee) é forma de pagamento de pedidos do " + comVale.join(" e do ") + ": já está dentro dessas vendas.");
@@ -96,6 +140,11 @@ function contadorMensagem(p){
     L.push("");
     L.push("*Impostos pagos em " + m + ":*");
     p.impostos.forEach(i => L.push("• " + i.descricao + ": R$ " + moeda(i.valor) + " em " + ddmm(i.pago_em)));
+  }
+  if(p.apuracao && p.apuracao.observacoes.length){
+    L.push("");
+    L.push("*Observações:*");
+    p.apuracao.observacoes.forEach(o => L.push("• " + o));
   }
   if(p.estimados){
     L.push("");
@@ -196,11 +245,36 @@ function montarContador(){
     : dias < 0 ? "Atrasado: era até " + dataCurta(P.prazo)
     : dias === 0 ? "Mandar hoje" : "Mandar até " + dataCurta(P.prazo);
   const s = document.createElement("p");
-  s.textContent = "Dados de " + mesLongo(P.mes).toLowerCase() + ". Todo mês, no dia 5 (ou no próximo dia útil). O DAS vence no dia 20.";
+  s.textContent = "Dados de " + mesLongo(P.mes).toLowerCase() + ". No dia 3 a receita é conferida nos portais; a Jessica manda até o dia 5 (ou o próximo dia útil). O DAS vence no dia 20.";
   st.append(t, s);
-  explicar(st, "Por que o dia 5", ["O contador precisa da venda do mês anterior para fazer o PGDAS-D e gerar o DAS, que vence no dia 20.",
-    "No dia 5 os relatórios dos aplicativos do mês anterior já fecharam, e ele ainda tem duas semanas."], { tudoClicavel: true });
+  explicar(st, "Por que dia 3 e dia 5", ["O contador precisa da receita do mês anterior para fazer o PGDAS-D e gerar o DAS, que vence no dia 20.",
+    "No dia 3 os aplicativos já fecharam o mês anterior: o Claude lê cada portal e deixa aqui a receita exata.",
+    "Vocês conferem e a Jessica manda até o dia 5. O contador ainda tem duas semanas."], { tudoClicavel: true });
   box.appendChild(st);
+
+  /* 1a. receita exata, conferida nos portais no dia 3 */
+  if(P.apuracao){
+    const A = P.apuracao;
+    const ca = sdCard("Receita conferida nos portais" + (A.apurado ? " em " + ddmm(A.apurado) : ""), "ctApuracao");
+    sdTexto(ca, "Valor dos itens menos o desconto que a própria JB deu, lido em cada aplicativo. É o que a JB vendeu de verdade, nem um centavo a mais nem a menos.");
+    if(A.totalNotas != null){
+      sdLinha(ca, "Notas fiscais emitidas", "R$ " + moeda(A.totalNotas), null, ["Notas fiscais emitidas", [
+        "Soma das notas que o sistema de pedidos emitiu no mês, nos canais que têm nota.",
+        "Nos aplicativos, a nota sai com a taxa de entrega e de serviço que o cliente paga ao app. Esse dinheiro não é da JB."]]);
+      if(A.diferenca != null && Math.abs(A.diferenca) > 0.009)
+        sdLinha(ca, A.diferenca > 0 ? "Nota acima da receita" : "Nota abaixo da receita", "R$ " + moeda(Math.abs(A.diferenca)), A.diferenca > 0 ? null : "ruim",
+          [A.diferenca > 0 ? "Nota acima da receita" : "Nota abaixo da receita", A.diferenca > 0
+            ? ["É a taxa de entrega e de serviço dos aplicativos que entrou na nota.", "A mensagem explica isso ao contador e pede o PGDAS pela receita."]
+            : ["O sistema tirou da nota o frete grátis que a JB banca.", "A receita é a correta; a mensagem explica ao contador."],
+           "Notas R$ " + moeda(A.totalNotas) + " menos receita R$ " + moeda(A.receitaComNota) + " = R$ " + moeda(A.diferenca)]);
+    }
+    A.observacoes.forEach(o => sdTexto(ca, o, "nota"));
+    box.appendChild(ca);
+  } else if(contaDias(P.prazo) >= 0 && !P.enviado){
+    const ca = sdCard(null, "ctApuracao");
+    sdTexto(ca, "A receita exata ainda não foi conferida nos portais. Isso é feito no dia 3; até lá, os canais dos aplicativos aparecem estimados.", "nota");
+    box.appendChild(ca);
+  }
 
   /* 1b. conferência nos portais (tarefa do dia 5) */
   if(P.conferido){
@@ -210,17 +284,24 @@ function montarContador(){
   }
 
   /* 2. vendas */
-  const v = sdCard("Vendas de " + m, "ctVendas");
-  sdTexto(v, "Valor dos pedidos, antes da comissão do app. É sobre isso que o Simples é calculado.", "nota");
+  const v = sdCard((P.apuracao ? "Receita de " : "Vendas de ") + m, "ctVendas");
+  sdTexto(v, P.apuracao ? "Itens vendidos menos o desconto que a JB deu, antes da comissão do app. É sobre isso que o Simples é calculado."
+                        : "Valor dos pedidos, antes da comissão do app. É sobre isso que o Simples é calculado.", "nota");
   P.vendas.forEach(x => {
     const l = sdLinha(v, x.rot, "R$ " + moeda(x.valor), x.origem === "relatorio" ? "bom" : "", null);
     l.dataset.canal = x.canal_id;
     const sm = document.createElement("small");
-    sm.textContent = x.origem === "relatorio" ? "do relatório do app" : x.origem === "conta" ? "o que caiu na conta" : x.valor > 0 ? "estimado pelo repasse" : "sem venda no mês";
+    sm.textContent = x.origem === "exata" ? "conferido no portal" : x.origem === "relatorio" ? "colado à mão" : x.origem === "conta" ? "o que caiu na conta" : x.valor > 0 ? "estimado pelo repasse" : "sem venda no mês";
     if(x.origem === "estimado" && x.valor > 0) sm.className = "est";
     l.querySelector("span").appendChild(sm);
-    const linhas = [CONTADOR_DICA[x.nome] || "", x.origem === "relatorio" ? "Número copiado do relatório. Para voltar à estimativa, apague o campo." : "Para usar o número exato, copie do relatório e cole aqui."];
-    const conta = x.fatia < 0.999 ? "Recebido R$ " + moeda(x.recebido) + " ÷ " + pct(x.fatia) + " que cai na conta = R$ " + moeda(x.estimado || 0) : null;
+    const e = x.exata;
+    const linhas = x.origem === "exata" && e
+      ? [e.como || "Lido no portal do aplicativo.", "Itens vendidos menos o desconto que a JB deu. Cupom pago pelo app fica dentro (o app repassa); frete grátis da JB fica fora (é despesa).",
+         e.notas != null ? "Notas emitidas neste canal: R$ " + moeda(e.notas) + "." : ""]
+      : [CONTADOR_DICA[x.nome] || "", x.origem === "relatorio" ? "Número colado à mão. Para voltar ao número conferido, apague o campo." : "Para usar o número exato, copie do relatório e cole aqui."];
+    const conta = x.origem === "exata" && e && e.itens != null && e.desconto != null
+      ? "Itens R$ " + moeda(e.itens) + " menos desconto da JB R$ " + moeda(e.desconto) + " = R$ " + moeda(x.valor)
+      : x.fatia < 0.999 ? "Recebido R$ " + moeda(x.recebido) + " ÷ " + pct(x.fatia) + " que cai na conta = R$ " + moeda(x.estimado || 0) : null;
     const cx = explicar(l, x.rot, linhas, { conta, tudoClicavel: true });
     if(x.fatia < 0.999){
       const f = document.createElement("div"); f.className = "ct-rel";
@@ -233,7 +314,7 @@ function montarContador(){
       f.append(inp, ok); cx.appendChild(f);
     }
   });
-  sdLinha(v, "Total de vendas", "R$ " + moeda(P.totalVendas), "ct-total", ["Total de vendas", ["A soma dos canais acima."],
+  sdLinha(v, P.apuracao ? "Total da receita" : "Total de vendas", "R$ " + moeda(P.totalVendas), "ct-total", [P.apuracao ? "Total da receita" : "Total de vendas", ["A soma dos canais acima."],
     P.vendas.filter(x => x.valor > 0).map(x => moeda(x.valor)).join(" + ") + " = R$ " + moeda(P.totalVendas)]);
   box.appendChild(v);
 
