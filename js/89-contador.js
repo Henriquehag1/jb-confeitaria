@@ -58,14 +58,15 @@ function contadorPacote(x){
     const rel = relat[c.id] != null ? Number(relat[c.id]) : null;
     const ex = ap && ap.canais[c.id] && ap.canais[c.id].receita != null ? ap.canais[c.id] : null;
     const exata = ex ? r2c(Number(ex.receita)) : null;
-    /* ordem: o número que a Jessica colou à mão vale; depois a receita exata dos portais; depois a estimativa */
+    /* ordem: a receita exata dos portais (ou a correção feita nela à mão); sem apuração, o número colado
+       do relatório; sem nada, a estimativa pelo repasse */
     let valor, origem;
-    if(rel != null){ valor = rel; origem = exata != null && Math.abs(rel - exata) < 0.005 ? "exata" : "relatorio"; }
-    else if(exata != null){ valor = exata; origem = "exata"; }
+    if(exata != null){ valor = exata; origem = ex.manual ? "relatorio" : "exata"; }
+    else if(rel != null){ valor = rel; origem = "relatorio"; }
     else { valor = estimado || 0; origem = fatia >= 0.999 ? "conta" : "estimado"; }
     return { canal_id: c.id, nome: c.nome, rot: nomeCanalContador(c.nome), recebido, fatia, estimado, relatorio: rel, vale: Number(c.vale_fatia || 0) > 0,
              valor, origem, exata: ex ? { receita: exata, itens: ex.itens != null ? Number(ex.itens) : null,
-               desconto: ex.desconto_loja != null ? Number(ex.desconto_loja) : null, notas: ex.notas != null ? Number(ex.notas) : null, como: ex.como || "" } : null };
+               desconto: ex.desconto_loja != null ? Number(ex.desconto_loja) : null, portal: ex.receita_portal != null ? Number(ex.receita_portal) : null, notas: ex.notas != null ? Number(ex.notas) : null, como: ex.como || "" } : null };
   });
   const recebidos = canais.filter(c => (fat[c.id] || 0) > 0)
     .map(c => ({ canal_id: c.id, nome: c.nome, rot: nomeCanalContador(c.nome), valor: r2c(fat[c.id]) }));
@@ -196,7 +197,17 @@ async function salvarContador(campos){
 }
 
 async function guardarRelatorio(canalId, valor){
-  const atual = (await sb.from("jb_contador_mes").select("vendas").eq("mes", CONTADOR_MES).maybeSingle()).data;
+  const atual = (await sb.from("jb_contador_mes").select("vendas,apuracao").eq("mes", CONTADOR_MES).maybeSingle()).data;
+  /* com apuração dos portais, a correção à mão fica dentro dela; apagar volta ao número do portal */
+  const ap = atual && atual.apuracao && atual.apuracao.canais && atual.apuracao.canais[canalId] ? atual.apuracao : null;
+  if(ap){
+    const c = Object.assign({}, ap.canais[canalId]);
+    if(c.receita_portal == null) c.receita_portal = c.receita;
+    if(valor == null){ c.receita = c.receita_portal; c.manual = false; } else { c.receita = valor; c.manual = true; }
+    const apuracao = Object.assign({}, ap, { canais: Object.assign({}, ap.canais, { [canalId]: c }) });
+    if(await salvarContador({ apuracao })) await abrirContador(CONTADOR_MES);
+    return;
+  }
   const vendas = Object.assign({}, (atual && atual.vendas) || {});
   if(valor == null) delete vendas[canalId]; else vendas[canalId] = valor;
   if(await salvarContador({ vendas })) await abrirContador(CONTADOR_MES);
@@ -298,7 +309,7 @@ function montarContador(){
     const linhas = x.origem === "exata" && e
       ? [e.como || "Lido no portal do aplicativo.", "Itens vendidos menos o desconto que a JB deu. Cupom pago pelo app fica dentro (o app repassa); frete grátis da JB fica fora (é despesa).",
          e.notas != null ? "Notas emitidas neste canal: R$ " + moeda(e.notas) + "." : ""]
-      : [CONTADOR_DICA[x.nome] || "", x.origem === "relatorio" ? "Número colado à mão. Para voltar ao número conferido, apague o campo." : "Para usar o número exato, copie do relatório e cole aqui."];
+      : [CONTADOR_DICA[x.nome] || "", x.origem === "relatorio" ? (e ? "Corrigido à mão. O portal tinha dado R$ " + moeda(e.portal != null ? e.portal : x.valor) + ". Para voltar a ele, apague o campo." : "Número colado à mão. Para voltar à estimativa, apague o campo.") : "Para usar o número exato, copie do relatório e cole aqui."];
     const conta = x.origem === "exata" && e && e.itens != null && e.desconto != null
       ? "Itens R$ " + moeda(e.itens) + " menos desconto da JB R$ " + moeda(e.desconto) + " = R$ " + moeda(x.valor)
       : x.fatia < 0.999 ? "Recebido R$ " + moeda(x.recebido) + " ÷ " + pct(x.fatia) + " que cai na conta = R$ " + moeda(x.estimado || 0) : null;
@@ -307,7 +318,7 @@ function montarContador(){
       const f = document.createElement("div"); f.className = "ct-rel";
       const inp = document.createElement("input"); inp.type = "text"; inp.inputMode = "decimal";
       inp.placeholder = "Valor do relatório"; inp.id = "ctRel" + x.canal_id;
-      if(x.relatorio != null) inp.value = moeda(x.relatorio);
+      if(x.origem === "relatorio") inp.value = moeda(x.valor);
       const ok = document.createElement("button"); ok.type = "button"; ok.textContent = "Usar este";
       ok.onclick = travar(ok, () => guardarRelatorio(x.canal_id, numBR(inp.value)));
       inp.addEventListener("click", e => e.stopPropagation());

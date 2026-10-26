@@ -149,7 +149,7 @@ test("receita exata dos portais: substitui a estimativa, explica a nota e vai na
   };
   const a = await abrir("uHen", { agora: "2026-11-03T15:00:00Z", db: db => {
     comDados(db);
-    db.jb_contador_mes.push({ mes: OUT, vendas: { 4: 20737.43 }, apuracao: AP, apurado_em: "2026-11-03T11:00:00Z" });
+    db.jb_contador_mes.push({ mes: OUT, vendas: { 4: 27929.47 }, apuracao: AP, apurado_em: "2026-11-03T11:00:00Z" });
     return db;
   } });
   a.texto = sel => a.page.locator(sel).first().innerText();
@@ -177,6 +177,20 @@ test("receita exata dos portais: substitui a estimativa, explica a nota e vai na
   assert.match(msg, /• A Keeta pagou R\$ 126,60/);
   assert.doesNotMatch(msg, /\(estimado\)/);
   assert.doesNotMatch(msg, /—|–/, "sem travessão");
+
+  // correção à mão fica dentro da apuração; apagar volta ao número do portal
+  await a.page.fill("#ctRel4", "20.700,00");
+  await a.page.locator('#ctVendas .explica:not(.hide) button', { hasText: "Usar este" }).click(); await a.espera(500);
+  let k = (await a.db("jb_contador_mes")).find(r => r.mes === OUT).apuracao.canais[4];
+  assert.equal(k.receita, 20700); assert.equal(k.receita_portal, 20737.43); assert.equal(k.manual, true);
+  assert.match(await a.texto("#ctVendas"), /Keeta[\s\S]*colado à mão[\s\S]*R\$ 20\.700,00/);
+  await a.page.click('#ctVendas [data-canal="4"]'); await a.espera(150);
+  assert.match(await a.page.locator('#ctVendas .explica:not(.hide)').innerText(), /O portal tinha dado R\$ 20\.737,43/);
+  await a.page.fill("#ctRel4", "");
+  await a.page.locator('#ctVendas .explica:not(.hide) button', { hasText: "Usar este" }).click(); await a.espera(500);
+  k = (await a.db("jb_contador_mes")).find(r => r.mes === OUT).apuracao.canais[4];
+  assert.equal(k.receita, 20737.43); assert.equal(k.manual, false);
+  assert.match(await a.texto("#ctVendas"), /Keeta[\s\S]*conferido no portal[\s\S]*R\$ 20\.737,43/);
   semErros(a); await a.fechar();
 });
 
