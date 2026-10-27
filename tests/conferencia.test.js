@@ -168,3 +168,20 @@ test("Eliana sem dias fixos: mostra só o que está em aberto, com os dias", asy
   assert.deepEqual(a.erros, []);
   await a.fechar();
 });
+
+test("Bela e Bella são a Isabella Freitas: o Pix com o apelido casa com a diária dela", async () => {
+  const a = await abrir("uHen", { agora: AGORA });
+  const r = await a.page.evaluate(() => ({
+    chaves: [confChave("Bela"), confChave("Bella"), confChave("Isabella Freitas"), confChave("Isabela")],
+    pix: [confPessoaDoTexto("Bela, freela da noite", ["Isabella Freitas"]), confPessoaDoTexto("Freela Isabela", ["Isabella Freitas"])],
+    conf: conferirEquipe({ mes: "2026-10-01", hoje: "2026-10-20", nomes: ["Isabella Freitas"],
+      pagamentos: [{ ref: "evento x", data: "2026-10-17", desc: "Bella", valor: 120 }],
+      freelas: [{ nome: "Isabella Freitas", data: "2026-10-17", valor: 120, conta_id: 36 }],
+      contas: { 36: { id: 36, valor: 120, vencimento: "2026-10-17", pago_em: null, nf_ref: null } }, diarias: [], semanais: [] })
+  }));
+  assert.deepEqual(r.chaves, ["isabela", "isabela", "isabela", "isabela"]);
+  assert.deepEqual(r.pix, ["Isabella Freitas", "Isabella Freitas"]);
+  assert.equal(r.conf.semRegistro.length, 0);
+  assert.equal(r.conf.marcar.length, 1);
+  await a.fechar();
+});
