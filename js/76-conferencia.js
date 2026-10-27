@@ -11,12 +11,14 @@ function confNorm(s){
   return String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase()
     .replace(/ph/g, "f").replace(/k/g, "c").replace(/y/g, "i").replace(/([a-z])\1+/g, "$1");
 }
+/* apelido que é a mesma pessoa (26/10: Bela e Bella são a Isabella Freitas) */
+const CONF_APELIDO = { bela: "isabela" };
 function confPessoaDoTexto(texto, nomes){
-  const palavras = confNorm(texto).split(/[^a-z]+/).filter(Boolean);
+  const palavras = confNorm(texto).split(/[^a-z]+/).filter(Boolean).map(w => CONF_APELIDO[w] || w);
   return nomes.find(n => { const p = confChave(n); return p && palavras.includes(p); }) || null;
 }
 /* a mesma pessoa escrita de jeitos diferentes (Marcus, Markus, Markus Porthos; Bela, Bella) tem a mesma chave: o primeiro nome comparável */
-function confChave(nome){ return confNorm(nome).split(/[^a-z]+/).filter(Boolean)[0] || ""; }
+function confChave(nome){ const k = confNorm(nome).split(/[^a-z]+/).filter(Boolean)[0] || ""; return CONF_APELIDO[k] || k; }
 const confDias = (a, b) => Math.round((Date.UTC(...b.split("-").map((x, i) => i === 1 ? x - 1 : +x)) - Date.UTC(...a.split("-").map((x, i) => i === 1 ? x - 1 : +x))) / 864e5);
 const confR2 = v => Math.round(v * 100) / 100;
 /* quinzena e diária: diferença de até R$ 1 é arredondamento, não é outro pagamento */
