@@ -619,12 +619,30 @@ ${agora ? "window.__AGORA=" + JSON.stringify(agora) + ";" : ""}
       if(!t) return { data:null, error:{ message:"tarefa nao encontrada" } };
       if(!(gestor() || (u && membro() && itemVisivel(t, u.papel, null)))) return { data:null, error:{ message:"tarefa de outra pessoa", code:"42501" } };
       t.feito = args.p_feito !== false; t.feito_em = t.feito ? new Date(agoraMs()).toISOString() : null; t.feito_por = t.feito ? u.nome : null;
+      if(t.feito) t.nao_deu = false;
       return { data:{ ok:true, feito:t.feito }, error:null };
+    }
+    if(nome === "jb_tarefa_retorno" || nome === "jb_freela_retorno"){
+      const fr = nome === "jb_freela_retorno" ? frPorToken(args.p_token) : null;
+      const u = eu();
+      if(nome === "jb_freela_retorno" ? !fr : !(u && membro())) return { data:null, error:{ message:"sem acesso", code:"42501" } };
+      const tab = args.p_tipo === "tarefa" ? (DB.jb_tarefa_equipe || []) : args.p_tipo === "producao" ? DB.jb_producao_item : null;
+      if(!tab) return { data:null, error:{ message:"tipo invalido" } };
+      const x = tab.find(r => r.id === args.p_id);
+      const ve = x && (fr ? (x.data === hojeSP() && itemVisivel(x, null, fr.nome)) : (gestor() || itemVisivel(x, u.papel, null)));
+      if(!ve) return { data:null, error:{ message:"tarefa de outra pessoa", code:"42501" } };
+      const nota = String(args.p_nota || "").trim().slice(0, 200) || null;
+      const nao = !!args.p_nao_deu;
+      x.nao_deu = nao && !x.feito; x.nota = nota;
+      x.nota_por = (nota || nao) ? (fr ? fr.nome : u.nome) : null;
+      x.nota_em = (nota || nao) ? new Date(agoraMs()).toISOString() : null;
+      return { data:{ ok:true }, error:null };
     }
     if(nome === "jb_freela_tarefa"){
       const a = frPorToken(args.p_token); const t = (DB.jb_tarefa_equipe || []).find(x => x.id === args.p_id);
       if(!a || !t || t.data !== hojeSP() || !itemVisivel(t, null, a.nome)) return { data:null, error:{ message:"tarefa de outra pessoa", code:"42501" } };
       t.feito = args.p_feito !== false; t.feito_em = t.feito ? new Date(agoraMs()).toISOString() : null; t.feito_por = t.feito ? a.nome : null;
+      if(t.feito) t.nao_deu = false;
       return { data:{ ok:true, feito:t.feito }, error:null };
     }
     if(nome === "jb_freela_producao" || nome === "jb_freela_marcar" || nome === "jb_freela_registrar" || nome === "jb_freela_espiar"){

@@ -9,6 +9,7 @@ let PROD_DIA = null;      // data escolhida
 let PROD_ITENS = [];      // itens do dia
 let PROD_TAREFAS = [];    // tarefas do dia que não são receita (jb_tarefa_equipe): dobrar pano, limpar a geladeira
 let TAREFA_QUEM_ABERTO = null;
+let RET_ABERTO = null;       // { k: "tarefa7" | "producao12", modo: "nao" | "nota" }: o bilhete aberto agora
 const TAREFAS_SUGERIDAS = ["Dobrar os panos", "Limpar a geladeira expositora", "Lavar a louça", "Organizar o estoque", "Limpar o freezer", "Tirar o lixo"];
 let RECEITAS = null;      // { fichas:[], subs:[] } para o seletor do gestor
 let REC = null;           // receita aberta
@@ -213,12 +214,21 @@ function montarProdLista(){
       const qt = document.createElement("span"); qt.className = "qt";
       qt.textContent = emLotes ? loteTx(lotesDe(it), it.unidade_producao) : qtdBonita(it.qtd, it.unidade);
       row.appendChild(qt);
+      /* marcar feito numa receita é dizer quanto fez: o botão abre a receita já no "Quanto você fez?" */
+      if(!it.feito && PROD_DIA === diaMais(0)){
+        const fz = document.createElement("button"); fz.type = "button"; fz.className = "prod-fiz";
+        fz.textContent = "✓ Marcar feito"; fz.setAttribute("aria-label", "Marcar feito: " + it.nome);
+        fz.onclick = travar(fz, () => irParaQuantoFiz(it));
+        row.appendChild(fz);
+      }
       if(it.obs){
         const r = document.createElement("p"); r.className = "recado";
         r.textContent = "Recado: " + it.obs;
         row.appendChild(r);
       }
     }
+    const ret = blocoRetorno(it, "producao", it.nome);
+    if(ret) row.appendChild(ret);
     box.appendChild(row);
   });
   box.appendChild(blocoTarefasEquipe());
@@ -274,6 +284,8 @@ function blocoTarefasEquipe(){
         aviso("prodMsg", "\"" + t.texto + "\" agora aparece para " + nomeQuem(arr) + ".", "ok");
       }, "quemTarefa" + t.id));
     }
+    const ret = blocoRetorno(t, "tarefa", t.texto);
+    if(ret) row.appendChild(ret);
     w.appendChild(row);
   });
   if(gestor){
@@ -314,6 +326,86 @@ async function marcarTarefaEquipe(t, feito){
     return;
   }
   await carregarDia();
+}
+
+/* ---------- retorno de quem recebeu: "não deu" (com o motivo) e adendo ----------
+   Vale para as receitas do plano e para as outras tarefas. Quem recebeu escreve; a Jessica lê
+   na mesma linha. Não mexe em feito: custo, estoque e Quanto fazer seguem iguais. */
+const RET_MAX = 200;
+function retornoTx(x){
+  if(!x || (!x.nao_deu && !x.nota)) return "";
+  const quem = x.nota_por ? " (" + x.nota_por + (x.nota_em ? ", " + horaDe(x.nota_em) : "") + ")" : "";
+  if(x.nao_deu) return "Não deu" + (x.nota ? ": " + x.nota : "") + quem;
+  return "Adendo: " + x.nota + quem;
+}
+function blocoRetorno(x, tipo, nome){
+  const gestor = EU.papel === "gestor";
+  const tx = retornoTx(x);
+  const podeEscrever = !gestor && PROD_DIA === diaMais(0);
+  if(!tx && !podeEscrever) return null;
+  const k = tipo + x.id;
+  const w = document.createElement("div"); w.className = "retorno"; w.dataset.ret = k;
+  if(tx){
+    const p = document.createElement("p"); p.className = "ret-tx" + (x.nao_deu ? " nao" : "");
+    p.textContent = tx; w.appendChild(p);
+  }
+  if(!podeEscrever) return w;
+  const modo = RET_ABERTO && RET_ABERTO.k === k ? RET_ABERTO.modo : null;
+  const abrir = m => () => { RET_ABERTO = { k, modo: m }; montarProdLista(); const ta = document.querySelector("[data-ret='" + k + "'] textarea"); if(ta) ta.focus(); };
+  if(!modo){
+    const bts = document.createElement("div"); bts.className = "ret-bts";
+    const bt = (rot, cls, aria, acao) => {
+      const b = document.createElement("button"); b.type = "button"; b.className = "ret-b " + cls; b.textContent = rot;
+      b.setAttribute("aria-label", aria + ": " + nome); b.onclick = travar(b, acao); bts.appendChild(b);
+    };
+    if(x.nao_deu){
+      bt("Mudar o motivo", "nao", "Mudar o motivo", abrir("nao"));
+      bt("Desfazer o não deu", "tirar-ret", "Desfazer o não deu", () => salvarRetorno(tipo, x, false, null));
+    } else {
+      if(!x.feito) bt("Não deu", "nao", "Não deu", abrir("nao"));
+      bt(x.nota ? "Mudar o adendo" : "+ Adendo", "nota", x.nota ? "Mudar o adendo" : "Escrever um adendo", abrir("nota"));
+    }
+    w.appendChild(bts);
+    return w;
+  }
+  const f = document.createElement("form"); f.className = "ret-form";
+  const ta = document.createElement("textarea"); ta.className = "rec"; ta.rows = 2; ta.maxLength = RET_MAX;
+  ta.placeholder = modo === "nao" ? "O que aconteceu? Ex.: faltou leite condensado" : "Bilhete para a Jessica. Ex.: fiz 3, a quarta fica para amanhã";
+  ta.setAttribute("aria-label", (modo === "nao" ? "Por que não deu: " : "Adendo: ") + nome);
+  ta.value = x.nota || "";
+  const ok = document.createElement("button"); ok.type = "submit"; ok.className = "ret-ok"; ok.textContent = modo === "nao" ? "Avisar que não deu" : "Salvar adendo";
+  const cancelar = document.createElement("button"); cancelar.type = "button"; cancelar.className = "ret-b tirar-ret"; cancelar.textContent = "Cancelar";
+  cancelar.onclick = () => { RET_ABERTO = null; montarProdLista(); };
+  f.append(ta, ok, cancelar);
+  if(modo === "nota" && x.nota){
+    const apagar = document.createElement("button"); apagar.type = "button"; apagar.className = "ret-b tirar-ret"; apagar.textContent = "Apagar o adendo";
+    apagar.onclick = travar(apagar, () => salvarRetorno(tipo, x, false, null));
+    f.appendChild(apagar);
+  }
+  f.onsubmit = travarForm(ok, async () => {
+    const v = ta.value.trim().slice(0, RET_MAX);
+    if(!v){ aviso("prodMsg", modo === "nao" ? "Escreva o motivo, mesmo curtinho." : "Escreva o adendo.", "warn"); return; }
+    await salvarRetorno(tipo, x, modo === "nao", v);
+  });
+  w.appendChild(f);
+  return w;
+}
+async function salvarRetorno(tipo, x, naoDeu, nota){
+  const { error } = await sb.rpc("jb_tarefa_retorno", { p_tipo: tipo, p_id: x.id, p_nao_deu: !!naoDeu, p_nota: nota || null });
+  if(error){
+    aviso("prodMsg", error.code === "conferencia" ? "Conferência: aqui nada é salvo." : error.code === "42501" ? "Essa tarefa não é sua hoje." : "Não consegui salvar agora. Tente de novo.", "err");
+    return;
+  }
+  RET_ABERTO = null;
+  await carregarDia();
+  aviso("prodMsg", naoDeu ? "Pronto, a Jessica vai ver que não deu." : nota ? "Adendo salvo. A Jessica vê na lista." : "Pronto, tirei.", "ok");
+}
+/* "Marcar feito" numa receita: abre a receita e leva direto para o "Quanto você fez?" */
+async function irParaQuantoFiz(it){
+  await abrirReceita(it);
+  const bx = $("recFezBox");
+  if(bx && bx.scrollIntoView) bx.scrollIntoView({ block: "center" });
+  const inp = $("recFez"); if(inp) inp.focus();
 }
 
 /* Recado curto do gestor para quem vai fazer: o ponto do brigadeiro, um detalhe do dia.
