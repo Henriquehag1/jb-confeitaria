@@ -9,8 +9,8 @@
 
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#F8F0EA">
-<link rel="icon" href="icon-192.png?v=2026-10-30a" type="image/png">
-<link rel="apple-touch-icon" href="icon-180.png?v=2026-10-30a">
+<link rel="icon" href="icon-192.png?v=2026-11-02a" type="image/png">
+<link rel="apple-touch-icon" href="icon-180.png?v=2026-11-02a">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -430,6 +430,29 @@ button{font-family:inherit;font-size:inherit;cursor:pointer;}
 .ing .pago{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-top:7px;font-size:.78rem;color:var(--tinta-2);font-weight:300;line-height:1.35;}
 .ing .pago:empty{display:none;}
 .ing .pago .rm{margin-left:0;}
+.ing .hist-bt{background:none;border:1px solid var(--linha-2);border-radius:999px;color:var(--tinta-2);font-family:inherit;font-size:.78rem;padding:5px 10px;cursor:pointer;white-space:nowrap;margin-left:auto;}
+.ing .hist-bt + .rm{margin-left:0;}
+.ing .hist-bt.sobe{color:#A8483C;font-weight:600;border-color:#EBC3BC;}
+.ing .hist-bt.desce{color:var(--verde);font-weight:600;border-color:var(--verde-linha);}
+.ing .hist{margin-top:8px;padding:9px 11px;border-radius:11px;background:var(--areia);border:1px solid var(--linha);}
+.ing .hist-cab{margin:0 0 6px;font-size:.82rem;font-weight:600;color:var(--tinta);}
+.ing .hist-lista{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px;}
+.ing .hist-lista li{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;font-size:.8rem;color:var(--tinta-2);font-variant-numeric:tabular-nums;}
+.ing .hist-lista .hd{min-width:44px;color:var(--tinta-3);}
+.ing .hist-lista b{font-weight:600;color:var(--tinta);}
+.ing .hist-lista .ho{flex:1;min-width:0;}
+.ing .hist-lista .hv.sobe{color:#A8483C;font-weight:600;}
+.ing .hist-lista .hv.desce{color:var(--verde);font-weight:600;}
+.precos-mov{background:#fff;border:1px solid var(--linha);border-radius:14px;padding:12px 14px;margin:0 0 10px;}
+.precos-mov h3{margin:0 0 2px;font-size:1rem;}
+.precos-mov .tip{margin:0 0 8px;}
+.precos-mov .pm-tit{margin:8px 0 4px;font-size:.7rem;letter-spacing:.12em;text-transform:uppercase;font-weight:600;}
+.precos-mov .pm-tit.sobe,.precos-mov .pm-pc.sobe{color:#A8483C;}
+.precos-mov .pm-tit.desce,.precos-mov .pm-pc.desce{color:var(--verde);}
+.precos-mov .pm-lin{display:grid;grid-template-columns:1fr auto;column-gap:10px;row-gap:1px;align-items:center;width:100%;text-align:left;background:none;border:none;border-top:1px solid var(--linha);padding:7px 0;font-family:inherit;color:var(--tinta);cursor:pointer;}
+.precos-mov .pm-nm{grid-column:1;min-width:0;font-size:.86rem;}
+.precos-mov .pm-vl{grid-column:1;font-size:.76rem;color:var(--tinta-3);font-variant-numeric:tabular-nums;}
+.precos-mov .pm-pc{grid-column:2;grid-row:1 / span 2;font-size:.9rem;font-weight:700;font-variant-numeric:tabular-nums;text-align:right;}
 
 /* ---------- linha da ficha com problema de unidade ---------- */
 .ing.alerta{border-left:3px solid var(--dourado);}
@@ -1628,7 +1651,7 @@ body.em-conferencia main, body.em-conferencia section{padding-bottom:84px;}
   <!-- ================= LOGIN ================= -->
   <section id="scLogin" class="login hide">
     <div class="mark">
-      <img class="marca-jb" src="marca-jb.png?v=2026-10-30a" alt="Jessica Ballassa Confeitaria" width="210" height="191">
+      <img class="marca-jb" src="marca-jb.png?v=2026-11-02a" alt="Jessica Ballassa Confeitaria" width="210" height="191">
       <p class="slogan">aqui tem amor<span class="pt">.</span></p>
       <div class="versao" id="loginVersao"></div>
     </div>
@@ -1645,7 +1668,7 @@ body.em-conferencia main, body.em-conferencia section{padding-bottom:84px;}
   <section id="scHome" class="hide">
     <div class="top">
       <div class="marca">
-        <img class="selo" src="selo-192.png?v=2026-10-30a" alt="" width="34" height="34">
+        <img class="selo" src="selo-192.png?v=2026-11-02a" alt="" width="34" height="34">
         <div><b>Jessica Ballassa</b><span id="homeSub">Ateliê</span></div>
       </div>
       <button class="recarregar" id="homeRecarregar" type="button" aria-label="Atualizar" title="Atualizar">&#8635;</button>
@@ -2055,25 +2078,25 @@ body.em-conferencia main, body.em-conferencia section{padding-bottom:84px;}
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.116.0/dist/umd/supabase.min.js"></script>
-<script src="js/00-base.js?v=2026-10-30a"></script>
-<script src="js/10-entrada.js?v=2026-10-30a"></script>
-<script src="js/12-freela.js?v=2026-10-30a"></script>
-<script src="js/20-custos.js?v=2026-10-30a"></script>
-<script src="js/25-promo.js?v=2026-10-30a"></script>
-<script src="js/30-mes.js?v=2026-10-30a"></script>
-<script src="js/35-saude.js?v=2026-10-30a"></script>
-<script src="js/40-producao.js?v=2026-10-30a"></script>
-<script src="js/42-quanto.js?v=2026-10-30a"></script>
-<script src="js/50-contagem.js?v=2026-10-30a"></script>
-<script src="js/60-afazeres.js?v=2026-10-30a"></script>
-<script src="js/70-dias.js?v=2026-10-30a"></script>
-<script src="js/72-equipe.js?v=2026-10-30a"></script>
-<script src="js/74-bolsa.js?v=2026-10-30a"></script>
-<script src="js/76-conferencia.js?v=2026-10-30a"></script>
-<script src="js/80-estoque.js?v=2026-10-30a"></script>
-<script src="js/85-encomendas.js?v=2026-10-30a"></script>
-<script src="js/88-contas.js?v=2026-10-30a"></script>
-<script src="js/89-contador.js?v=2026-10-30a"></script>
-<script src="js/90-ligacoes.js?v=2026-10-30a"></script>
+<script src="js/00-base.js?v=2026-11-02a"></script>
+<script src="js/10-entrada.js?v=2026-11-02a"></script>
+<script src="js/12-freela.js?v=2026-11-02a"></script>
+<script src="js/20-custos.js?v=2026-11-02a"></script>
+<script src="js/25-promo.js?v=2026-11-02a"></script>
+<script src="js/30-mes.js?v=2026-11-02a"></script>
+<script src="js/35-saude.js?v=2026-11-02a"></script>
+<script src="js/40-producao.js?v=2026-11-02a"></script>
+<script src="js/42-quanto.js?v=2026-11-02a"></script>
+<script src="js/50-contagem.js?v=2026-11-02a"></script>
+<script src="js/60-afazeres.js?v=2026-11-02a"></script>
+<script src="js/70-dias.js?v=2026-11-02a"></script>
+<script src="js/72-equipe.js?v=2026-11-02a"></script>
+<script src="js/74-bolsa.js?v=2026-11-02a"></script>
+<script src="js/76-conferencia.js?v=2026-11-02a"></script>
+<script src="js/80-estoque.js?v=2026-11-02a"></script>
+<script src="js/85-encomendas.js?v=2026-11-02a"></script>
+<script src="js/88-contas.js?v=2026-11-02a"></script>
+<script src="js/89-contador.js?v=2026-11-02a"></script>
+<script src="js/90-ligacoes.js?v=2026-11-02a"></script>
 </body>
 </html>

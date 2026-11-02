@@ -357,20 +357,24 @@ async function listarInsumos(){
   box.innerHTML = "<p class='tip'>Carregando...</p>";
   /* Os dados ficam em memória: a busca filtra sem ir ao banco a cada tecla. */
   if(!INSUMOS_CACHE){
-    const [ins, uso, pago] = await Promise.all([
+    const [ins, uso, pago, hist] = await Promise.all([
       sb.from("jb_insumo").select("id,nome,unidade,custo_unit,fornecedor,categoria,equiv_g,ativo,foto_url,no_estoque,local,emb_nome,emb_qtd,cobertura_semanas").order("nome"),
       sb.from("jb_uso_ingrediente").select("nome,em_fichas,em_subreceitas"),
-      sb.from("jb_insumo_ultimo_pago").select("insumo_id,compra_item_id,data,fornecedor,custo_base,unidade_base")
+      sb.from("jb_insumo_ultimo_pago").select("insumo_id,compra_item_id,data,fornecedor,custo_base,unidade_base"),
+      /* o histórico de preços: se ainda não existir no banco, a lista segue igual, só sem a evolução */
+      Promise.resolve(sb.from("jb_insumo_historico").select("insumo_id,data,custo,unidade,origem,fornecedor,obs,anterior,em,ref")).catch(() => null)
     ]);
     if(ins.error){ box.innerHTML = ""; aviso("custosMsg","Não consegui carregar os insumos agora.","err"); return; }
-    const USOS = {}, PAGO = {};
+    const USOS = {}, PAGO = {}, HIST = {};
     (uso.data || []).forEach(u => USOS[u.nome] = Number(u.em_fichas) + Number(u.em_subreceitas));
     (pago.data || []).forEach(p => PAGO[p.insumo_id] = p);
-    INSUMOS_CACHE = { data: ins.data || [], USOS, PAGO };
+    ((hist && !hist.error && hist.data) || []).forEach(h => (HIST[h.insumo_id] = HIST[h.insumo_id] || []).push(h));
+    INSUMOS_CACHE = { data: ins.data || [], USOS, PAGO, HIST };
   }
-  const { data, USOS, PAGO } = INSUMOS_CACHE;
+  const { data, USOS, PAGO, HIST } = INSUMOS_CACHE;
   const termo = ($("buscaInsumo").value || "").toLowerCase().trim();
   box.innerHTML = "";
+  if(!termo){ const r = resumoPrecos(data || [], HIST || {}); if(r) box.appendChild(r); }
 
   box.appendChild(linhaLista("Novo ingrediente",
     "Nome, unidade de compra e preço", "+", "",
@@ -423,6 +427,7 @@ async function listarInsumos(){
       i.custo_unit = num; CATALOGO = [];
       row.classList.toggle("semq", num === null);
       pintaPago();
+      INSUMOS_CACHE = null;   // o histórico ganhou um registro novo; a próxima abertura já mostra
       toast("Preço de " + i.nome + " atualizado. As fichas que usam esse item já recalcularam.");
     };
     inp.onblur = salvar;
@@ -434,8 +439,20 @@ async function listarInsumos(){
     editar.type = "button"; editar.className = "rm"; editar.textContent = "editar";
     editar.onclick = () => formEditarInsumo(i, USOS[i.nome] || 0);
 
-    bot.append(inp, un, editar);
+    /* evolução do preço: a última mudança e, num toque, a linha do tempo inteira */
+    const serie = seriePreco(i, (HIST || {})[i.id]);
+    const vr = variacaoPreco(serie);
+    const histBt = document.createElement("button");
+    histBt.type = "button"; histBt.className = "hist-bt" + (vr ? (vr.pct > 0 ? " sobe" : " desce") : "");
+    histBt.textContent = vr ? (vr.pct > 0 ? "▲ " : "▼ ") + pct(Math.abs(vr.pct)) : "histórico";
+    histBt.setAttribute("aria-label", "Histórico de preço de " + i.nome);
+    histBt.setAttribute("aria-expanded", String(HIST_ABERTO === i.id));
+    histBt.classList.toggle("hide", !serie.length);
+    histBt.onclick = () => { HIST_ABERTO = HIST_ABERTO === i.id ? null : i.id; listarInsumos(); };
+
+    bot.append(inp, un, histBt, editar);
     row.append(top, bot);
+    if(HIST_ABERTO === i.id && serie.length) row.appendChild(painelHistorico(i, serie));
 
     /* A compra alimenta o custo: o último preço pago aparece ao lado, e um toque aplica. */
     const pg = PAGO[i.id];
@@ -469,6 +486,96 @@ async function listarInsumos(){
     row.appendChild(pagoRow);
     box.appendChild(row);
   });
+}
+
+/* ---------- histórico de preço dos insumos ----------
+   Junta o que foi pago nas compras e cada mudança do preço do cadastro (jb_insumo_historico).
+   Só entra o que está na mesma unidade do insumo, para não comparar kg com unidade. */
+let HIST_ABERTO = null;
+function seriePreco(i, rows){
+  const u = String(i.unidade || "").toLowerCase();
+  const ord = (rows || []).filter(h => h.custo != null && (!h.unidade || String(h.unidade).toLowerCase() === u))
+    .slice().sort((a, b) => (a.data < b.data ? -1 : a.data > b.data ? 1 : String(a.em || "") < String(b.em || "") ? -1 : String(a.em || "") > String(b.em || "") ? 1 : 0));
+  return ord;
+}
+/* a última mudança de valor: o preço mais recente contra o último preço diferente dele */
+function variacaoPreco(serie){
+  if(!serie || serie.length < 2) return null;
+  const ult = serie[serie.length - 1], vu = Number(ult.custo);
+  for(let k = serie.length - 2; k >= 0; k--){
+    const v = Number(serie[k].custo);
+    if(Math.abs(v - vu) >= 0.005 && v > 0) return { pct: (vu - v) / v, de: v, para: vu, desde: serie[k].data, em: ult.data };
+  }
+  return null;
+}
+function origemTx(h){
+  return h.origem === "compra" ? "compra" + (h.fornecedor ? ", " + h.fornecedor : "") : "cadastro";
+}
+function painelHistorico(i, serie){
+  const w = document.createElement("div"); w.className = "hist";
+  const h = document.createElement("p"); h.className = "hist-cab";
+  const vr = variacaoPreco(serie);
+  h.textContent = vr
+    ? (vr.pct > 0 ? "Subiu " : "Caiu ") + pct(Math.abs(vr.pct)) + ": de R$ " + moeda(vr.de) + " para R$ " + moeda(vr.para) + " por " + (i.unidade || "un")
+    : "Preço sem mudança desde o primeiro registro.";
+  w.appendChild(h);
+  const lista = document.createElement("ul"); lista.className = "hist-lista";
+  const recentes = serie.slice().reverse().slice(0, 15);
+  recentes.forEach((r, k) => {
+    const li = document.createElement("li");
+    const ant = recentes[k + 1];
+    const d = ant && Number(ant.custo) > 0 ? (Number(r.custo) - Number(ant.custo)) / Number(ant.custo) : null;
+    const dt = document.createElement("span"); dt.className = "hd"; dt.textContent = dataCurta(r.data);
+    const vl = document.createElement("b"); vl.textContent = "R$ " + moeda(r.custo);
+    const og = document.createElement("span"); og.className = "ho"; og.textContent = origemTx(r);
+    li.append(dt, vl, og);
+    if(d !== null && Math.abs(d) >= 0.0005){
+      const vv = document.createElement("span"); vv.className = "hv " + (d > 0 ? "sobe" : "desce");
+      vv.textContent = (d > 0 ? "▲ " : "▼ ") + pct(Math.abs(d));
+      li.appendChild(vv);
+    }
+    lista.appendChild(li);
+  });
+  w.appendChild(lista);
+  if(serie.length > 15){
+    const n = document.createElement("p"); n.className = "tip"; n.textContent = "Mostrando os 15 registros mais recentes de " + serie.length + ".";
+    w.appendChild(n);
+  }
+  return w;
+}
+/* no topo da lista: o que mais subiu e o que mais caiu nos últimos 90 dias */
+function resumoPrecos(insumos, HIST){
+  const lim = (() => { const d = new Date(Date.now() - 90 * 864e5); return d.toISOString().slice(0, 10); })();
+  const mov = [];
+  insumos.forEach(i => {
+    const vr = variacaoPreco(seriePreco(i, HIST[i.id]));
+    if(vr && vr.em >= lim) mov.push({ i, vr });
+  });
+  if(!mov.length) return null;
+  const card = document.createElement("div"); card.className = "precos-mov"; card.id = "precosMov";
+  const t = document.createElement("h3"); t.textContent = "Preços que mudaram"; card.appendChild(t);
+  const sub = document.createElement("p"); sub.className = "tip"; sub.textContent = "Última mudança de cada insumo nos últimos 90 dias, pelas compras e pelo cadastro.";
+  card.appendChild(sub);
+  const bloco = (titulo, arr, cls) => {
+    if(!arr.length) return;
+    const h = document.createElement("p"); h.className = "pm-tit " + cls; h.textContent = titulo; card.appendChild(h);
+    arr.forEach(({ i, vr }) => {
+      const l = document.createElement("button"); l.type = "button"; l.className = "pm-lin";
+      const nm = document.createElement("span"); nm.className = "pm-nm"; nm.textContent = i.nome;
+      const vl = document.createElement("span"); vl.className = "pm-vl";
+      vl.textContent = "R$ " + moeda(vr.de) + " → " + moeda(vr.para) + " por " + (i.unidade || "un");
+      const pc = document.createElement("span"); pc.className = "pm-pc " + cls;
+      pc.textContent = (vr.pct > 0 ? "▲ " : "▼ ") + pct(Math.abs(vr.pct));
+      l.append(nm, vl, pc);
+      l.onclick = () => { HIST_ABERTO = i.id; $("buscaInsumo").value = i.nome; listarInsumos(); };
+      card.appendChild(l);
+    });
+  };
+  const sobe = mov.filter(m => m.vr.pct > 0).sort((a, b) => b.vr.pct - a.vr.pct).slice(0, 5);
+  const desce = mov.filter(m => m.vr.pct < 0).sort((a, b) => a.vr.pct - b.vr.pct).slice(0, 5);
+  bloco("Subiram", sobe, "sobe");
+  bloco("Caíram", desce, "desce");
+  return card;
 }
 
 function formEditarInsumo(i, usos){

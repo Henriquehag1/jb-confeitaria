@@ -517,3 +517,30 @@ test("recado no plano: a Jessica escreve ou toca no atalho da panela, e a Eliana
   assert.equal(await e.texto("#recCorpo .recado"), "Recado: assar em 2 formas");
   semErros(e); await e.fechar();
 });
+
+test("insumos: histórico de preço com a evolução e o resumo do que subiu e caiu", async () => {
+  const d = n => new Date(Date.now() - n * 864e5).toISOString().slice(0, 10);
+  const a = await abrir("uJes", { db: db => { db.jb_insumo_historico = [
+    { insumo_id: 100, data: d(60), custo: 50, unidade: "kg", origem: "cadastro", fornecedor: null, obs: null, em: d(60) + "T10:00:00Z", ref: 1 },
+    { insumo_id: 100, data: d(10), custo: 40, unidade: "kg", origem: "compra", fornecedor: "Atacadão", obs: null, em: d(10) + "T10:00:00Z", ref: 2 },
+    { insumo_id: 100, data: d(10), custo: 40, unidade: "kg", origem: "cadastro", fornecedor: null, obs: null, em: d(10) + "T11:00:00Z", ref: 3 },
+    { insumo_id: 102, data: d(30), custo: 2.5, unidade: "kg", origem: "cadastro", fornecedor: null, obs: null, em: d(30) + "T10:00:00Z", ref: 4 },
+    { insumo_id: 102, data: d(2), custo: 2.69, unidade: "kg", origem: "compra", fornecedor: "Atacadão", obs: null, em: d(2) + "T10:00:00Z", ref: 5 },
+    { insumo_id: 101, data: d(5), custo: 9, unidade: "kg", origem: "compra", fornecedor: "x", obs: null, em: d(5) + "T10:00:00Z", ref: 6 }
+  ]; return db; } });
+  await a.page.click("#btnCustos"); await a.espera(500);
+  await a.page.click("#abaInsumos"); await a.espera(600);
+  const resumo = await a.texto("#precosMov");
+  assert.match(resumo, /Subiram[\s\S]*Açúcar[\s\S]*2,50 → 2,69[\s\S]*▲ 7,6%/);
+  assert.match(resumo, /Caíram[\s\S]*Chocolate 50%[\s\S]*50,00 → 40,00[\s\S]*▼ 20%/);
+  assert.doesNotMatch(resumo, /Ovos/, "compra em kg não se compara com ovo por unidade");
+  const botoes = await a.page.evaluate(() => [...document.querySelectorAll("#listaCustos .ing .hist-bt")].map(b => [b.textContent, b.className.includes("hide")]));
+  assert.deepEqual(botoes, [["▲ 7,6%", false], ["▼ 20%", false], ["histórico", true]]);
+  /* tocar no resumo abre o histórico do item */
+  await a.page.locator("#precosMov .pm-lin", { hasText: "Chocolate" }).click(); await a.espera(400);
+  const hist = await a.texto("#listaCustos .ing .hist");
+  assert.match(hist, /Caiu 20%: de R\$ 50,00 para R\$ 40,00 por kg/);
+  assert.match(hist, /compra, Atacadão[\s\S]*▼ 20%/);
+  assert.equal(await a.page.locator("#precosMov").count(), 0, "com busca, o resumo sai");
+  semErros(a); await a.fechar();
+});
