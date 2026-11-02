@@ -17,6 +17,9 @@ let QF_SEL = new Map();    // "ficha:4" ou "subreceita:8" -> quantidade escolhid
 let QF_DIA = null;         // dia do envio
 let QF_QUEM = [];          // para quem vai o envio
 let QF_PLANO = [];         // o que já está no plano de hoje em diante (para não pedir duas vezes)
+let QF_INS_MODO = null;    // "tudo" ou "marcados": para que parte da conta somar os insumos
+const QF_INS = new Map();  // soma de insumos já pedida ao banco, pela lista pedida (limpa ao abrir ou atualizar)
+let QF_INS_ULT = null;     // a última lista pedida: resposta atrasada de outra lista não pinta a tela
 const QF_OPC_DIAS  = [3, 4, 5, 7, 10, 14];
 const QF_OPC_FOLGA = [0, 10, 15, 25];
 
@@ -48,6 +51,7 @@ async function abrirQuanto(){
   $("qfCorpo").innerHTML = "<p class='tip'>Fazendo a conta...</p>";
   show("scQuanto");
   if(!QF_DIA || QF_DIA < hojeSP()) QF_DIA = diaMais(1);
+  QF_INS.clear();   // atualizar refaz também a soma dos insumos
   try { QF = await qfConta(); await Promise.all([carregarPessoas().catch(() => null), qfCarregarPlano()]); }
   catch(e){
     $("qfCorpo").innerHTML = "";
@@ -260,6 +264,9 @@ function montarQuanto(){
     box.appendChild(p);
   }
 
+  /* insumos para separar: abre as receitas dos doces e das massas e recheios */
+  box.appendChild(qfBlocoInsumos(doces, bases));
+
   /* barra que acompanha a rolagem quando há itens marcados */
   if(QF_SEL.size){
     const barra = document.createElement("button"); barra.type = "button"; barra.className = "qf-barra"; barra.id = "qfBarra";
@@ -352,4 +359,165 @@ async function mandarParaPlano(){
   if(!erros) aviso("qfMsg", "Mandei " + n + (n === 1 ? " item" : " itens") + " para " + qfNomeDia(QF_DIA).toLowerCase() + ", para "
     + nomeQuem(QF_QUEM) + ". Cada um vê em O que fazer hoje e registra quanto fez. Marque outros itens para outro dia ou outra pessoa.", "ok");
   window.scrollTo(0, 0);
+}
+
+/* ---------- insumos para separar ----------
+   A soma mora no banco (jb_quanto_insumos): o doce entra só com o que vai direto nele
+   (cobertura, embalagem); a massa e o recheio abrem a receita inteira, inclusive o preparo
+   que vai dentro de outro. Assim nada conta duas vezes. */
+const QF_LOCAL_NOME = {
+  geladeira: "Geladeira e freezer", secos: "Prateleira de secos", embalagem: "Armário de embalagem",
+  limpeza: "Limpeza e consumo", "": "Sem lugar definido"
+};
+const QF_LOCAL_ORDEM = ["geladeira", "secos", "", "embalagem", "limpeza"];
+
+function qfEntradaInsumos(doces, bases, modo){
+  const lista = [];
+  if(modo === "marcados"){
+    [...doces, ...bases].filter(l => QF_SEL.has(l.chave) && !l.sem_ficha).forEach(l => {
+      const v = Number(QF_SEL.get(l.chave));
+      if(!(v > 0)) return;
+      lista.push(l.emLotes ? { tipo: "subreceita", ref_id: Number(l.ref_id), kg: Math.round(v * l.rendimento * 1000) / 1000 }
+                           : { tipo: "ficha", ref_id: Number(l.ref_id), qtd: v });
+    });
+  } else {
+    doces.filter(l => !l.sem_ficha && l.fazer > 0).forEach(l => lista.push({ tipo: "ficha", ref_id: Number(l.ref_id), qtd: l.fazer }));
+    bases.filter(l => l.fazer > 0).forEach(l => lista.push({ tipo: "subreceita", ref_id: Number(l.ref_id), kg: Math.round(l.fazer * l.rendimento * 1000) / 1000 }));
+  }
+  return lista;
+}
+
+function qfQtdInsumo(i){
+  const u = String(i.unidade || "un").toLowerCase();
+  if(u === "un") return Math.ceil(Number(i.qtd) - 1e-9) + " un";
+  return qtdBonita(Number(i.qtd), i.unidade);
+}
+/* em quantas embalagens isso dá: "2,2 × saco 5kg" */
+function qfEmbInsumo(i){
+  const e = Number(i.emb_qtd);
+  if(!(e > 0) || !i.emb_nome) return "";
+  const n = Number(i.qtd) / e;
+  if(n < 0.95) return "menos de 1 " + i.emb_nome;
+  return "≈ " + n.toLocaleString("pt-BR", { maximumFractionDigits: 1 }) + " × " + i.emb_nome;
+}
+
+function qfBlocoInsumos(doces, bases){
+  const w = document.createElement("div"); w.className = "qf-ins"; w.id = "qfInsumosBloco";
+  const t = document.createElement("h3"); t.className = "qf-tit"; t.textContent = "Insumos para separar";
+  w.appendChild(t);
+  const modo = QF_SEL.size ? (QF_INS_MODO || "marcados") : "tudo";
+  if(QF_SEL.size){
+    w.appendChild(qfChips("Somar para", ["tudo", "marcados"], modo,
+      v => v === "tudo" ? "tudo que falta fazer" : "só os marcados (" + QF_SEL.size + ")",
+      v => { QF_INS_MODO = v; montarQuanto(); }, "qfInsModo"));
+  }
+  const corpo = document.createElement("div"); corpo.id = "qfInsumos";
+  w.appendChild(corpo);
+  const entrada = qfEntradaInsumos(doces, bases, modo);
+  if(!entrada.length){
+    corpo.innerHTML = "<p class='tip'>Nada para separar: não falta fazer nada" + (modo === "marcados" ? " nos itens marcados." : ".") + "</p>";
+    return w;
+  }
+  const chave = JSON.stringify(entrada);
+  QF_INS_ULT = chave;
+  const ja = QF_INS.get(chave);
+  if(ja) qfPintaInsumos(corpo, ja, modo);
+  else {
+    corpo.innerHTML = "<p class='tip'>Somando os insumos das receitas...</p>";
+    const fim = est => {
+      if(!est.erro) QF_INS.set(chave, est);
+      if(QF_INS_ULT !== chave) return;   // a conta mudou enquanto esperava
+      const c = $("qfInsumos"); if(c) qfPintaInsumos(c, est, modo);
+    };
+    sb.rpc("jb_quanto_insumos", { p_itens: entrada }).then(
+      r => fim({ dados: r && !r.error ? r.data : null, erro: !r || !!r.error }),
+      () => fim({ dados: null, erro: true }));
+  }
+  return w;
+}
+
+function qfTextoInsumos(d){
+  const linhas = ["Insumos para separar (" + dataCurta(hojeSP()) + ")"];
+  qfGruposInsumos(d.insumos || []).forEach(([loc, arr]) => {
+    linhas.push("", (QF_LOCAL_NOME[loc] || loc).toUpperCase());
+    arr.forEach(i => linhas.push("• " + i.nome + ": " + qfQtdInsumo(i) + (qfEmbInsumo(i) ? " (" + qfEmbInsumo(i) + ")" : "")));
+  });
+  (d.preparos || []).forEach(p => linhas.push("", "Fazer a mais: " + qtdBonita(Number(p.kg), "kg") + " de " + p.nome + " para ir dentro de " + p.para));
+  return linhas.join("\n");
+}
+function qfGruposInsumos(lista){
+  const g = {};
+  lista.forEach(i => {
+    let loc = i.local || "";
+    if(!loc && i.categoria === "embalagem") loc = "embalagem";
+    (g[loc] = g[loc] || []).push(i);
+  });
+  const ordem = QF_LOCAL_ORDEM.filter(k => g[k]).concat(Object.keys(g).filter(k => !QF_LOCAL_ORDEM.includes(k)));
+  return ordem.map(k => [k, g[k].slice().sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"))]);
+}
+
+function qfPintaInsumos(corpo, est, modo){
+  corpo.innerHTML = "";
+  if(est.erro || !est.dados){
+    corpo.innerHTML = "<p class='tip'>Não consegui somar os insumos agora. Toque em atualizar quando o sinal voltar.</p>";
+    return;
+  }
+  const d = est.dados;
+  const lista = d.insumos || [];
+  if(!lista.length && !(d.sem_cadastro || []).length){
+    corpo.innerHTML = "<p class='tip'>As receitas desses itens não têm insumos cadastrados.</p>";
+    return;
+  }
+  qfGruposInsumos(lista).forEach(([loc, arr]) => {
+    const h = document.createElement("p"); h.className = "qf-ins-grupo"; h.textContent = QF_LOCAL_NOME[loc] || loc;
+    corpo.appendChild(h);
+    arr.forEach(i => {
+      const row = document.createElement("div"); row.className = "prod qf-ins-item"; row.dataset.insumo = i.insumo_id;
+      const im = imgFoto(i.foto_url); if(im) row.appendChild(im);
+      const nm = document.createElement("span"); nm.className = "n"; nm.textContent = i.nome;
+      const sm = document.createElement("small"); sm.textContent = "para " + i.para;
+      nm.appendChild(sm);
+      const qt = document.createElement("span"); qt.className = "qt qf-ins-qt";
+      qt.textContent = qfQtdInsumo(i);
+      const emb = qfEmbInsumo(i);
+      if(emb){ const e = document.createElement("small"); e.className = "qf-ins-emb"; e.textContent = emb; qt.appendChild(e); }
+      row.append(nm, qt);
+      corpo.appendChild(row);
+    });
+  });
+  if((d.preparos || []).length){
+    const box = document.createElement("div"); box.className = "qf-ins-aviso"; box.id = "qfPreparos";
+    const h = document.createElement("b"); h.textContent = "Preparo que vai dentro de outro";
+    box.appendChild(h);
+    d.preparos.forEach(p => {
+      const l = document.createElement("p");
+      l.textContent = "Faça " + qtdBonita(Number(p.kg), "kg") + " a mais de " + p.nome + ", para ir dentro de " + p.para + ". Os ingredientes já estão somados acima.";
+      box.appendChild(l);
+    });
+    corpo.appendChild(box);
+  }
+  if((d.sem_cadastro || []).length){
+    const box = document.createElement("div"); box.className = "qf-ins-aviso falta"; box.id = "qfSemCadastro";
+    const h = document.createElement("b"); h.textContent = "Na receita, mas sem cadastro de insumo";
+    box.appendChild(h);
+    d.sem_cadastro.forEach(s => {
+      const l = document.createElement("p");
+      l.textContent = s.nome + ": " + qtdBonita(Number(s.qtd), s.unidade) + " (para " + s.para + "). Confira o nome em Custos e preços.";
+      box.appendChild(l);
+    });
+    corpo.appendChild(box);
+  }
+  const p = document.createElement("p"); p.className = "tip";
+  p.textContent = (modo === "marcados"
+      ? "Somado só para os itens marcados. O doce entra com o que vai direto nele; marque também a massa e o recheio para somar os ingredientes deles. "
+      : "Somado para tudo que falta fazer, com as massas e recheios já arredondados para meia receita. ")
+    + "As quantidades seguem as receitas e não descontam o que já estiver aberto ou pronto.";
+  corpo.appendChild(p);
+  const cp = document.createElement("button"); cp.type = "button"; cp.className = "qf-link"; cp.id = "qfCopiarInsumos";
+  cp.textContent = "Copiar a lista para mandar no WhatsApp";
+  cp.onclick = async () => {
+    try { await navigator.clipboard.writeText(qfTextoInsumos(d)); toast("Lista copiada. É só colar na conversa."); }
+    catch(e){ toast("Não consegui copiar neste celular.", "err"); }
+  };
+  corpo.appendChild(cp);
 }
