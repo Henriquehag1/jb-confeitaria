@@ -612,6 +612,10 @@ ${agora ? "window.__AGORA=" + JSON.stringify(agora) + ";" : ""}
       base.margem_pct = args && args.p_margem_pct != null ? args.p_margem_pct : (base.margem_pct != null ? base.margem_pct : prm.margem_pct);
       return { data: base, error:null };
     }
+    if(nome === "jb_quanto_insumos"){
+      if(!gestor()) return { data:null, error:{ message:"so gestor", code:"42501" } };
+      return { data: DB.__insumos ? JSON.parse(JSON.stringify(DB.__insumos)) : { insumos: [], preparos: [], sem_cadastro: [] }, error:null };
+    }
     if(nome === "jb_freela_soltar_celular"){
       if(!gestor()) return { data:null, error:{ message:"so gestor", code:"42501" } };
       (DB.jb_freela_acesso || []).filter(a => !a.encerrado_em && a.id === args.p_id).forEach(a => { a.token = null; a.token_em = null; a.erros = 0; });

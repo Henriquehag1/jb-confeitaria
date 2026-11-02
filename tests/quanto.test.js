@@ -175,3 +175,54 @@ test("conta recusada pelo banco mostra recado em vez de tela vazia", async () =>
   assert.match(await a.texto("#qfMsg"), /Não consegui fazer a conta agora/);
   semErros(a); await a.fechar();
 });
+
+test("insumos para separar: soma tudo que falta fazer, agrupa pelo lugar e mostra a embalagem", async () => {
+  const a = await abrir("uJes", { db: db => {
+    conta(db);
+    db.__insumos = {
+      insumos: [
+        { insumo_id: 46, nome: "Leite condensado (balde 5kg)", unidade: "kg", qtd: 11.0983, categoria: "ingrediente", local: "secos", emb_nome: "saco 5kg", emb_qtd: 5, foto_url: null, para: "Brigadeiro Cremoso de Ninho" },
+        { insumo_id: 40, nome: "Ovos", unidade: "un", qtd: 49.5, categoria: "ingrediente", local: "secos", emb_nome: null, emb_qtd: null, foto_url: null, para: "Massa Brownie" },
+        { insumo_id: 34, nome: "Manteiga", unidade: "kg", qtd: 0.3, categoria: "ingrediente", local: "geladeira", emb_nome: null, emb_qtd: null, foto_url: null, para: "Massa Brownie" },
+        { insumo_id: 63, nome: "Saco delivery", unidade: "un", qtd: 71, categoria: "embalagem", local: null, emb_nome: "pacote 50un", emb_qtd: 50, foto_url: null, para: "Brownie Brigadeiro" }
+      ],
+      preparos: [{ nome: "Brigadeiro Cremoso de Ninho", kg: 1, para: "Brigadeiro Cremoso de Maracujá" }],
+      sem_cadastro: [{ nome: "Granulado colorido", unidade: "g", qtd: 120, para: "Coxinha" }]
+    };
+    return db; } });
+  await a.page.click("#btnQuanto"); await a.espera(600);
+  /* o que foi pedido ao banco: o doce com a quantidade de unidades, a massa e o recheio em kg (lotes x rendimento) */
+  const chamadas = (await a.log("rpc")).filter(r => r[1] === "jb_quanto_insumos");
+  assert.equal(chamadas.length, 1);
+  assert.deepEqual(chamadas[0][2].p_itens, [
+    { tipo: "ficha", ref_id: 10, qtd: 71 }, { tipo: "ficha", ref_id: 12, qtd: 37 },
+    { tipo: "subreceita", ref_id: 20, kg: 6.25 }, { tipo: "subreceita", ref_id: 21, kg: 0.5 }
+  ], "doce sem ficha e doce sem nada a fazer ficam fora");
+  const v = await a.page.evaluate(() => ({
+    grupos: [...document.querySelectorAll("#qfInsumos .qf-ins-grupo")].map(e => e.textContent),
+    linhas: [...document.querySelectorAll("#qfInsumos .qf-ins-item")].map(r => r.querySelector(".n").firstChild.textContent + " = " + r.querySelector(".qt").textContent),
+    prep: document.querySelector("#qfPreparos").textContent,
+    falta: document.querySelector("#qfSemCadastro").textContent
+  }));
+  assert.deepEqual(v.grupos, ["Geladeira e freezer", "Prateleira de secos", "Armário de embalagem"]);
+  assert.deepEqual(v.linhas, [
+    "Manteiga = 300 g",
+    "Leite condensado (balde 5kg) = 11,1 kg≈ 2,2 × saco 5kg",
+    "Ovos = 50 un",
+    "Saco delivery = 71 un≈ 1,4 × pacote 50un"
+  ]);
+  assert.match(v.prep, /Faça 1 kg a mais de Brigadeiro Cremoso de Ninho, para ir dentro de Brigadeiro Cremoso de Maracujá/);
+  assert.match(v.falta, /Granulado colorido: 120 g \(para Coxinha\)/);
+  /* marcar só um item: a soma passa a ser só dos marcados, e dá para voltar para tudo */
+  await a.page.click("#qfCorpo .qf-item[data-chave='subreceita:20'] .qf-ck"); await a.espera(300);
+  const c2 = (await a.log("rpc")).filter(r => r[1] === "jb_quanto_insumos");
+  const marcada = await a.page.evaluate(() => Number(String(document.querySelector("#qfMarcados .qf-dest-item[data-chave='subreceita:20'] input").value).replace(",", ".")));
+  assert.deepEqual(c2[c2.length - 1][2].p_itens, [{ tipo: "subreceita", ref_id: 20, kg: Math.round(marcada * 2.5 * 1000) / 1000 }],
+    "marcado soma a quantidade escolhida para mandar (massas x rendimento)");
+  assert.match(await a.texto("#qfInsModo"), /tudo que falta fazer[\s\S]*só os marcados \(1\)/);
+  await a.page.locator("#qfInsModo button", { hasText: "tudo que falta fazer" }).click(); await a.espera(300);
+  const c3 = (await a.log("rpc")).filter(r => r[1] === "jb_quanto_insumos");
+  assert.equal(c3.length, 2, "voltar para tudo usa a soma que já veio, sem pedir de novo");
+  assert.equal(await a.page.locator("#qfInsumos .qf-ins-item").count(), 4);
+  semErros(a); await a.fechar();
+});
