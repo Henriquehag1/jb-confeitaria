@@ -424,6 +424,8 @@ async function carregarSaude(){
     const Ksel = ((kpi && kpi.data) || []).find(k => k.mes === sel) || null;
     r.visao = visaoDe(L, { tipo: "mes", mes: sel, M: mesLongo(sel).split(" ")[0].toLowerCase(), titulo: mesLongo(sel), rotLucro: " de lucro no mês",
       compras: detalhes[sel] ? saudeComprasDoMes(detalhes[sel]) : null, ponte: saudePonte(L, Ksel, detalhes[sel]) });
+    /* mês conferido para o contador: a venda é a real, não a estimada pelo repasse */
+    r.visao.destino.fonte = (Dm && Dm.fonte) || null;
   }
   return r;
 }
@@ -535,9 +537,13 @@ function montarSaude(){
   sdLinha(lc, "Os clientes pagaram", reais(C.bruto), "entra", V.tipo === "atual"
     ? ["Venda até ontem", ["Doces vendidos pela contagem da geladeira vezes o preço médio.", "Os apps pagam depois; por isso o mês de agora não usa o repasse."],
        V.atual.media + " doces por dia × " + V.atual.passados + " dias × R$ " + moeda(V.atual.preco) + " = " + reais(C.bruto)]
-    : ["Venda", ["O que os clientes pagaram, no preço cheio do cardápio.", "Vem do que cada canal repassou no Nosso Financeiro, voltado ao preço antes da comissão do app."]]);
+    : D && D.fonte === "apurado"
+      ? ["Venda", ["O que os clientes pagaram, no preço cheio do cardápio.", "Mês já conferido nos portais para o contador: a venda real de cada app no mês inteiro (valor dos itens), mais o canal próprio. Não depende de quando o app repassou."]]
+      : ["Venda", ["O que os clientes pagaram, no preço cheio do cardápio.", "Estimativa: vem do que cada canal repassou no Nosso Financeiro, voltado ao preço antes da comissão do app. Quando o mês é conferido para o contador, passa a usar a venda real."]]);
   [["App e promoção", C.app, D.app, "Comissão do app e desconto que a casa banca, medidos em cada canal."],
-   ["Imposto (Simples)", C.imposto, D.imposto, "Alíquota da tabela do Simples, a mesma usada nos preços."],
+   ["Imposto (Simples)", C.imposto, D.imposto, D && D.fonte === "apurado"
+     ? "Alíquota da tabela do Simples sobre a receita conferida (a venda menos o desconto que a casa bancou), mostrada aqui como fatia da venda."
+     : "Alíquota da tabela do Simples, a mesma usada nos preços."],
    ["Ingrediente e embalagem", C.ingrediente, D.ingrediente, "Pelas fichas técnicas dos doces vendidos, com 5% de perda." + (V.compras ? " Conferência: as compras de insumo, mercado e embalagem lançadas no mês somam " + reais(V.compras) + " (valor cheio). Diferença pequena é estoque e perda." : "")]].forEach(([rot, val, f, o]) =>
     sdLinha(lc, "− " + rot, reais(val), "sai", [rot, [o], "R$ " + moeda(C.bruto) + " × " + pct(f) + " = " + reais(val)]));
   sdLinha(lc, "= Sobrou da venda", reais(C.margem), "sub", ["Sobrou da venda", ["O que a venda deixa para pagar as contas da casa."],

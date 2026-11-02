@@ -346,11 +346,14 @@ ${agora ? "window.__AGORA=" + JSON.stringify(agora) + ";" : ""}
       const fatia = cn.taxa_efetiva != null ? Number(cn.taxa_efetiva) : Number(cn.taxa||0) + Number(cn.promo||0);
       if(!(fatia < 1)) return;
       const bruto = Number(f.valor) / (1 - fatia);
+      /* o peso de cada doce: a fatia dele sobre a soma das fatias que têm preço neste canal */
+      const comPreco = mix.filter(g => { const m = DB.jb_margem.find(x => x.canal_id === f.canal_id && x.ficha_id === g.ficha_id); return m && !m.rascunho && Number(m.preco) > 0; });
+      const somaF = comPreco.reduce((s, g) => s + Number(g.fatia), 0) || 1;
       mix.forEach(g => {
         const m = DB.jb_margem.find(x => x.canal_id === f.canal_id && x.ficha_id === g.ficha_id);
         if(!m || m.rascunho || !(Number(m.preco) > 0)) return;
         linhas.push({
-          peso: bruto * Number(g.fatia),
+          peso: bruto * Number(g.fatia) / somaF,
           p_app: Number(m.fatia_app || 0),
           p_imp: cfgN("imposto_pct"),
           p_ingr: Number(m.cmv) * (1 + cfgN("perdas_pct")) / Number(m.preco),
