@@ -185,3 +185,37 @@ test("Bela e Bella são a Isabella Freitas: o Pix com o apelido casa com a diár
   assert.equal(r.conf.marcar.length, 1);
   await a.fechar();
 });
+
+test("conferência: Pix da semana seguinte não prende nos dias já pagos à mão (Markus de outubro)", async () => {
+  const a = await abrir("uHen", { agora: "2026-11-02T15:00:00Z" });
+  const r = await a.page.evaluate(() => {
+    const c = (id, v, pago) => ({ id, valor: 130, vencimento: v, pago_em: pago || null, pago_por: pago ? "manual" : null, nf_ref: null });
+    const contas = { 27: c(27, "2026-10-09", "2026-10-10"), 28: c(28, "2026-10-10", "2026-10-10"), 30: c(30, "2026-10-16"), 32: c(32, "2026-10-17"),
+                     38: c(38, "2026-10-23"), 40: c(40, "2026-10-24"), 48: c(48, "2026-10-30"), 45: c(45, "2026-10-31") };
+    const freelas = Object.values(contas).map(k => ({ nome: "Markus Porthos", data: k.vencimento, conta_id: k.id }));
+    const r = conferirEquipe({ mes: "2026-10-01", hoje: "2026-11-02", nomes: ["Markus Porthos"], contas, freelas,
+      pagamentos: [{ ref: "p17", data: "2026-10-17", desc: "Markus", valor: 260 }, { ref: "p24", data: "2026-10-24", desc: "Markus freela", valor: 260 },
+                   { ref: "p31", data: "2026-10-31", desc: "Freela markus", valor: 260 }] });
+    return r.marcar.map(m => m.id + ":" + m.nf_ref).sort();
+  });
+  assert.deepEqual(r, ["30:p17", "32:p17", "38:p24", "40:p24", "45:p31", "48:p31"]);
+  await a.fechar();
+});
+
+test("conferência: Pix \"Diárias mãe\" paga os dias em aberto da Eliana sozinho", async () => {
+  const a = await abrir("uHen", { agora: "2026-11-02T15:00:00Z" });
+  const r = await a.page.evaluate(() => {
+    const dias = ["2026-10-01", "2026-10-02", "2026-10-15", "2026-10-16", "2026-10-22", "2026-10-23", "2026-10-29", "2026-10-30"];
+    const r = conferirEquipe({ mes: "2026-10-01", hoje: "2026-11-02", nomes: ["Eliana"], contas: {}, freelas: [],
+      diarias: [{ nome: "Eliana", valor: 140, dias, ids: Object.fromEntries(dias.map((d, i) => [d, 100 + i])),
+                  pagos: [{ data: "2026-10-01", pago_em: "2026-10-06" }, { data: "2026-10-02", pago_em: "2026-10-06" }] }],
+      pagamentos: [{ ref: "e1", data: "2026-10-31", desc: "Diárias mãe", valor: 840 }] });
+    return { dias: r.marcarDias, aPagar: r.diarias[0].aPagar, sem: r.semRegistro.length };
+  });
+  assert.equal(r.dias.length, 1);
+  assert.deepEqual(r.dias[0].ids, [102, 103, 104, 105, 106, 107]);
+  assert.equal(r.dias[0].data, "2026-10-31");
+  assert.equal(r.aPagar, 0);
+  assert.equal(r.sem, 0);
+  await a.fechar();
+});

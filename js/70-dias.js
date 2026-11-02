@@ -288,7 +288,7 @@ async function abrirDias(){
   await carregarEquipe(ini, fim);
   BOLSA_BASE = await carregarBolsaBase(ini).catch(() => null);
   CONF = await carregarConferencia(ini).catch(() => null);
-  if(CONF && CONF.marcar.length && await aplicarConferencia(CONF)){
+  if(CONF && (CONF.marcar.length || (CONF.marcarDias || []).length) && await aplicarConferencia(CONF)){
     await carregarEquipe(ini, fim);
     CONF = await carregarConferencia(ini).catch(() => null);
   }

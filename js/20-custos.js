@@ -511,6 +511,138 @@ function variacaoPreco(serie){
 function origemTx(h){
   return h.origem === "compra" ? "compra" + (h.fornecedor ? ", " + h.fornecedor : "") : "cadastro";
 }
+/* o texto de observação que vale mostrar (a marca, a embalagem); o do ponto de partida não diz nada */
+function obsPreco(h){
+  const o = String((h && h.obs) || "").trim();
+  return o && !/^Preço que estava no cadastro/i.test(o) ? o : "";
+}
+const SVGNS = "http://www.w3.org/2000/svg";
+function svgEl(tag, at){
+  const e = document.createElementNS(SVGNS, tag);
+  for(const k in (at || {})) if(at[k] != null) e.setAttribute(k, at[k]);
+  return e;
+}
+const diaMs = s => Date.parse(String(s).slice(0, 10) + "T12:00:00Z");
+/* Um ponto por dia (vale o último registro do dia). A compra do dia ganha da cópia
+   do cadastro com o mesmo valor, porque diz onde foi comprado. */
+function pontosPreco(serie){
+  const dias = new Map();
+  serie.forEach(h => { const k = String(h.data).slice(0, 10); (dias.get(k) || dias.set(k, []).get(k)).push(h); });
+  const pts = [];
+  dias.forEach((rows, k) => {
+    const ult = rows[rows.length - 1], v = Number(ult.custo);
+    const compra = rows.slice().reverse().find(r => r.origem === "compra" && Math.abs(Number(r.custo) - v) < 0.005);
+    const h = compra || ult;
+    const obs = obsPreco(h) || rows.map(obsPreco).filter(Boolean).pop() || "";
+    pts.push({ t: diaMs(k), v, h, obs });
+  });
+  pts.forEach((p, k) => {
+    const a = pts[k - 1];
+    p.d = a && a.v > 0 ? (p.v - a.v) / a.v : null;
+    p.dir = p.d === null || Math.abs(p.d) < 0.0005 ? "igual" : (p.d > 0 ? "sobe" : "desce");
+  });
+  return pts;
+}
+/* a marca ou o detalhe em poucas palavras: "Marca Melken, barra 2,1kg" vira "Melken" */
+const obsCurta = o => String(o || "").split(/[.,(]/)[0].replace(/^marca\s+/i, "").trim();
+
+/* Linha do tempo do preço em degraus: o preço vale até a próxima mudança.
+   Cada bolinha é um registro (vermelha subiu, verde caiu); o tracejado leva o preço atual até hoje.
+   Tocar ou arrastar no gráfico mostra o registro daquele dia na faixa de cima. */
+function graficoPreco(i, pts){
+  const W = 340, H = 156, L = 50, R = 14, T = 16, B = 26;
+  const hoje = diaMs(new Date().toISOString());
+  let t0 = pts[0].t, t1 = Math.max(pts[pts.length - 1].t, hoje);
+  if(t1 - t0 < 6 * 864e5) t0 = t1 - 6 * 864e5;
+  const vs = pts.map(p => p.v);
+  let v0 = Math.min(...vs), v1 = Math.max(...vs);
+  const folga = (v1 - v0) * 0.18 || v1 * 0.1 || 1;
+  v0 = Math.max(0, v0 - folga); v1 = v1 + folga;
+  const x = t => L + (t - t0) / (t1 - t0) * (W - L - R);
+  const y = v => T + (1 - (v - v0) / (v1 - v0)) * (H - T - B);
+
+  const svg = svgEl("svg", { class: "preco-graf", viewBox: "0 0 " + W + " " + H, role: "img", tabindex: "0",
+    "aria-label": "Evolução do preço de " + i.nome + ": " + pts.map(p => ddmm(String(p.h.data).slice(0, 10)) + " R$ " + moeda(p.v)).join(", ") + "." });
+
+  /* grade discreta: valores redondos (passo de 1, 2, 2,5 ou 5 vezes uma potência de 10) */
+  const bruto = (v1 - v0) / 3, p10 = Math.pow(10, Math.floor(Math.log10(bruto || 1)));
+  const passo = [1, 2, 2.5, 5, 10].map(m => m * p10).find(m => m >= bruto) || 10 * p10;
+  for(let v = Math.ceil(v0 / passo) * passo; v <= v1 + 1e-9; v += passo){
+    svg.appendChild(svgEl("line", { class: "pg-grade", x1: L, x2: W - R, y1: y(v).toFixed(1), y2: y(v).toFixed(1) }));
+    const t = svgEl("text", { class: "pg-eixo", x: L - 6, y: (y(v) + 3).toFixed(1), "text-anchor": "end" });
+    t.textContent = "R$ " + v.toLocaleString("pt-BR", { minimumFractionDigits: passo < 1 ? 2 : 0, maximumFractionDigits: passo < 1 ? 2 : 0 });
+    svg.appendChild(t);
+  }
+  /* datas nas pontas */
+  const d0 = svgEl("text", { class: "pg-eixo", x: L, y: H - 6, "text-anchor": "start" }); d0.textContent = ddmm(new Date(t0).toISOString().slice(0, 10)); svg.appendChild(d0);
+  const d1 = svgEl("text", { class: "pg-eixo", x: W - R, y: H - 6, "text-anchor": "end" }); d1.textContent = "hoje"; svg.appendChild(d1);
+
+  /* área e degraus */
+  let d = "M" + x(pts[0].t).toFixed(1) + " " + y(pts[0].v).toFixed(1);
+  for(let k = 1; k < pts.length; k++) d += " H" + x(pts[k].t).toFixed(1) + " V" + y(pts[k].v).toFixed(1);
+  const xu = x(pts[pts.length - 1].t), xh = x(t1), yb = y(v0);
+  svg.appendChild(svgEl("path", { class: "pg-area", d: d + " H" + xh.toFixed(1) + " V" + yb.toFixed(1) + " H" + x(pts[0].t).toFixed(1) + " Z" }));
+  svg.appendChild(svgEl("path", { class: "pg-linha", d }));
+  if(xh - xu > 1) svg.appendChild(svgEl("line", { class: "pg-hoje", x1: xu.toFixed(1), x2: xh.toFixed(1), y1: y(pts[pts.length - 1].v).toFixed(1), y2: y(pts[pts.length - 1].v).toFixed(1) }));
+
+  const mira = svgEl("line", { class: "pg-mira", y1: T - 6, y2: H - B });
+  svg.appendChild(mira);
+  const bolas = pts.map(p => {
+    const c = svgEl("circle", { class: "pg-pt " + p.dir, cx: x(p.t).toFixed(1), cy: y(p.v).toFixed(1), r: 4.5 });
+    svg.appendChild(c); return c;
+  });
+  const leitura = document.createElement("div"); leitura.className = "pg-leitura"; leitura.setAttribute("aria-live", "polite");
+  let sel = -1;
+  const escolhe = k => {
+    if(k === sel) return; sel = k;
+    const p = pts[k];
+    bolas.forEach((b, j) => b.classList.toggle("on", j === k));
+    mira.setAttribute("x1", x(p.t).toFixed(1)); mira.setAttribute("x2", x(p.t).toFixed(1));
+    leitura.innerHTML = "";
+    const a = document.createElement("span"); a.className = "pl-dt"; a.textContent = dataCurta(p.h.data);
+    const b = document.createElement("b"); b.textContent = "R$ " + moeda(p.v) + " por " + (i.unidade || "un");
+    const o = document.createElement("span"); o.className = "pl-og";
+    o.textContent = origemTx(p.h) + (p.obs ? ". " + p.obs : "");
+    leitura.append(a, b, o);
+    if(p.dir !== "igual"){
+      const c = document.createElement("span"); c.className = "pl-var " + p.dir;
+      c.textContent = (p.d > 0 ? "▲ " : "▼ ") + pct(Math.abs(p.d)); leitura.appendChild(c);
+    }
+  };
+  const perto = ev => {
+    const r = svg.getBoundingClientRect(); if(!r.width) return;
+    const px = (ev.clientX - r.left) * W / r.width;
+    let k = 0, m = Infinity;
+    pts.forEach((p, j) => { const dd = Math.abs(x(p.t) - px); if(dd < m){ m = dd; k = j; } });
+    escolhe(k);
+  };
+  svg.addEventListener("pointermove", perto);
+  svg.addEventListener("pointerdown", perto);
+  svg.addEventListener("keydown", ev => {
+    if(ev.key === "ArrowLeft" && sel > 0){ escolhe(sel - 1); ev.preventDefault(); }
+    if(ev.key === "ArrowRight" && sel < pts.length - 1){ escolhe(sel + 1); ev.preventDefault(); }
+  });
+  escolhe(pts.length - 1);
+  const w = document.createElement("div"); w.className = "pg";
+  w.append(leitura, svg);
+  return w;
+}
+/* gráfico pequeno, sem texto, para o resumo do topo */
+function miniPreco(pts, cls){
+  const W = 72, H = 26, P = 4;
+  const svg = svgEl("svg", { class: "pm-mini " + cls, viewBox: "0 0 " + W + " " + H, "aria-hidden": "true", focusable: "false" });
+  if(pts.length < 2) return svg;
+  const t0 = pts[0].t, t1 = pts[pts.length - 1].t || t0 + 1;
+  const vs = pts.map(p => p.v), v0 = Math.min(...vs), v1 = Math.max(...vs);
+  const x = t => P + (t1 === t0 ? 0 : (t - t0) / (t1 - t0)) * (W - 2 * P);
+  const y = v => P + (v1 === v0 ? 0.5 : 1 - (v - v0) / (v1 - v0)) * (H - 2 * P);
+  let d = "M" + x(pts[0].t).toFixed(1) + " " + y(pts[0].v).toFixed(1);
+  for(let k = 1; k < pts.length; k++) d += " H" + x(pts[k].t).toFixed(1) + " V" + y(pts[k].v).toFixed(1);
+  svg.appendChild(svgEl("path", { class: "pm-mini-l", d }));
+  const u = pts[pts.length - 1];
+  svg.appendChild(svgEl("circle", { class: "pm-mini-p", cx: x(u.t).toFixed(1), cy: y(u.v).toFixed(1), r: 3 }));
+  return svg;
+}
 function painelHistorico(i, serie){
   const w = document.createElement("div"); w.className = "hist";
   const h = document.createElement("p"); h.className = "hist-cab";
@@ -519,6 +651,31 @@ function painelHistorico(i, serie){
     ? (vr.pct > 0 ? "Subiu " : "Caiu ") + pct(Math.abs(vr.pct)) + ": de R$ " + moeda(vr.de) + " para R$ " + moeda(vr.para) + " por " + (i.unidade || "un")
     : "Preço sem mudança desde o primeiro registro.";
   w.appendChild(h);
+  const pts = pontosPreco(serie);
+  if(pts.length) w.appendChild(graficoPreco(i, pts));
+  /* o mais barato e o mais caro já pagos, e quanto andou desde o primeiro registro */
+  if(pts.length > 1){
+    const min = pts.reduce((a, b) => (b.v < a.v ? b : a)), max = pts.reduce((a, b) => (b.v >= a.v ? b : a));
+    const ext = document.createElement("div"); ext.className = "pg-ext";
+    const chip = (rot, p, cls) => {
+      const c = document.createElement("span"); c.className = "pg-chip " + cls;
+      const r = document.createElement("small"); r.textContent = rot;
+      const b = document.createElement("b"); b.textContent = "R$ " + moeda(p.v);
+      const s = document.createElement("small"); s.textContent = ddmm(String(p.h.data).slice(0, 10)) + (p.obs ? ", " + obsCurta(p.obs) : "");
+      c.append(r, b, s); return c;
+    };
+    ext.append(chip("mais barato", min, "desce"), chip("mais caro", max, "sobe"));
+    const tot = pts[0].v > 0 ? (pts[pts.length - 1].v - pts[0].v) / pts[0].v : null;
+    if(tot !== null){
+      const c = document.createElement("span");
+      c.className = "pg-chip " + (Math.abs(tot) < 0.0005 ? "igual" : tot > 0 ? "sobe" : "desce");
+      const r = document.createElement("small"); r.textContent = "desde " + ddmm(String(pts[0].h.data).slice(0, 10));
+      const b = document.createElement("b"); b.textContent = Math.abs(tot) < 0.0005 ? "igual" : (tot > 0 ? "▲ " : "▼ ") + pct(Math.abs(tot));
+      const s = document.createElement("small"); s.textContent = pts.length + " registros";
+      c.append(r, b, s); ext.appendChild(c);
+    }
+    w.appendChild(ext);
+  }
   const lista = document.createElement("ul"); lista.className = "hist-lista";
   const recentes = serie.slice().reverse().slice(0, 15);
   recentes.forEach((r, k) => {
@@ -527,7 +684,7 @@ function painelHistorico(i, serie){
     const d = ant && Number(ant.custo) > 0 ? (Number(r.custo) - Number(ant.custo)) / Number(ant.custo) : null;
     const dt = document.createElement("span"); dt.className = "hd"; dt.textContent = dataCurta(r.data);
     const vl = document.createElement("b"); vl.textContent = "R$ " + moeda(r.custo);
-    const og = document.createElement("span"); og.className = "ho"; og.textContent = origemTx(r);
+    const og = document.createElement("span"); og.className = "ho"; og.textContent = origemTx(r) + (obsPreco(r) ? ". " + obsPreco(r) : "");
     li.append(dt, vl, og);
     if(d !== null && Math.abs(d) >= 0.0005){
       const vv = document.createElement("span"); vv.className = "hv " + (d > 0 ? "sobe" : "desce");
@@ -536,45 +693,67 @@ function painelHistorico(i, serie){
     }
     lista.appendChild(li);
   });
-  w.appendChild(lista);
+  const det = document.createElement("details"); det.className = "hist-det";
+  const sm = document.createElement("summary"); sm.textContent = "Ver todos os registros";
+  det.append(sm, lista);
+  w.appendChild(det);
   if(serie.length > 15){
     const n = document.createElement("p"); n.className = "tip"; n.textContent = "Mostrando os 15 registros mais recentes de " + serie.length + ".";
-    w.appendChild(n);
+    det.appendChild(n);
   }
   return w;
 }
-/* no topo da lista: o que mais subiu e o que mais caiu nos últimos 90 dias */
+/* no topo da lista: o que mais subiu e o que mais caiu nos últimos 90 dias.
+   Cada linha tem o mini gráfico do vai e vem e uma barra do tamanho da mudança. */
+let PM_TODOS = false;
 function resumoPrecos(insumos, HIST){
   const lim = (() => { const d = new Date(Date.now() - 90 * 864e5); return d.toISOString().slice(0, 10); })();
   const mov = [];
   insumos.forEach(i => {
-    const vr = variacaoPreco(seriePreco(i, HIST[i.id]));
-    if(vr && vr.em >= lim) mov.push({ i, vr });
+    const serie = seriePreco(i, HIST[i.id]);
+    const vr = variacaoPreco(serie);
+    if(vr && vr.em >= lim) mov.push({ i, vr, pts: pontosPreco(serie) });
   });
   if(!mov.length) return null;
   const card = document.createElement("div"); card.className = "precos-mov"; card.id = "precosMov";
   const t = document.createElement("h3"); t.textContent = "Preços que mudaram"; card.appendChild(t);
-  const sub = document.createElement("p"); sub.className = "tip"; sub.textContent = "Última mudança de cada insumo nos últimos 90 dias, pelas compras e pelo cadastro.";
+  const nS = mov.filter(m => m.vr.pct > 0).length, nD = mov.length - nS;
+  const placar = document.createElement("div"); placar.className = "pm-placar";
+  const pl = (n, rot, cls) => { const s = document.createElement("span"); s.className = "pm-pl " + cls; const b = document.createElement("b"); b.textContent = (cls === "sobe" ? "▲ " : "▼ ") + n; s.append(b, document.createTextNode(" " + rot)); return s; };
+  placar.append(pl(nS, nS === 1 ? "subiu" : "subiram", "sobe"), pl(nD, nD === 1 ? "caiu" : "caíram", "desce"));
+  card.appendChild(placar);
+  const sub = document.createElement("p"); sub.className = "tip"; sub.textContent = "Última mudança de cada insumo nos últimos 90 dias, pelas compras e pelo cadastro. Toque para ver o gráfico.";
   card.appendChild(sub);
+  const maxAbs = Math.max(...mov.map(m => Math.abs(m.vr.pct)), 0.0001);
   const bloco = (titulo, arr, cls) => {
     if(!arr.length) return;
     const h = document.createElement("p"); h.className = "pm-tit " + cls; h.textContent = titulo; card.appendChild(h);
-    arr.forEach(({ i, vr }) => {
+    arr.forEach(({ i, vr, pts }) => {
       const l = document.createElement("button"); l.type = "button"; l.className = "pm-lin";
       const nm = document.createElement("span"); nm.className = "pm-nm"; nm.textContent = i.nome;
       const vl = document.createElement("span"); vl.className = "pm-vl";
       vl.textContent = "R$ " + moeda(vr.de) + " → " + moeda(vr.para) + " por " + (i.unidade || "un");
+      const barra = document.createElement("span"); barra.className = "pm-barra " + cls;
+      const fill = document.createElement("i"); fill.style.width = Math.max(4, Math.round(Math.abs(vr.pct) / maxAbs * 100)) + "%";
+      barra.appendChild(fill);
       const pc = document.createElement("span"); pc.className = "pm-pc " + cls;
       pc.textContent = (vr.pct > 0 ? "▲ " : "▼ ") + pct(Math.abs(vr.pct));
-      l.append(nm, vl, pc);
+      l.append(nm, vl, barra, miniPreco(pts, cls), pc);
       l.onclick = () => { HIST_ABERTO = i.id; $("buscaInsumo").value = i.nome; listarInsumos(); };
       card.appendChild(l);
     });
   };
-  const sobe = mov.filter(m => m.vr.pct > 0).sort((a, b) => b.vr.pct - a.vr.pct).slice(0, 5);
-  const desce = mov.filter(m => m.vr.pct < 0).sort((a, b) => a.vr.pct - b.vr.pct).slice(0, 5);
-  bloco("Subiram", sobe, "sobe");
-  bloco("Caíram", desce, "desce");
+  const n = PM_TODOS ? Infinity : 5;
+  const sobe = mov.filter(m => m.vr.pct > 0).sort((a, b) => b.vr.pct - a.vr.pct);
+  const desce = mov.filter(m => m.vr.pct < 0).sort((a, b) => a.vr.pct - b.vr.pct);
+  bloco("Subiram", sobe.slice(0, n), "sobe");
+  bloco("Caíram", desce.slice(0, n), "desce");
+  if(sobe.length > 5 || desce.length > 5){
+    const mais = document.createElement("button"); mais.type = "button"; mais.className = "pm-mais";
+    mais.textContent = PM_TODOS ? "mostrar só os 5 maiores de cada lado" : "ver todos os " + mov.length;
+    mais.onclick = () => { PM_TODOS = !PM_TODOS; listarInsumos(); };
+    card.appendChild(mais);
+  }
   return card;
 }
 

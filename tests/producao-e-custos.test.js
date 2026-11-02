@@ -544,3 +544,36 @@ test("insumos: histórico de preço com a evolução e o resumo do que subiu e c
   assert.equal(await a.page.locator("#precosMov").count(), 0, "com busca, o resumo sai");
   semErros(a); await a.fechar();
 });
+
+test("insumos: gráfico do preço mostra o vai e vem, o mais barato e o mais caro, e a marca", async () => {
+  const d = n => new Date(Date.now() - n * 864e5).toISOString().slice(0, 10);
+  const H = (n, c, f, obs) => ({ insumo_id: 100, data: d(n), custo: c, unidade: "kg", origem: f ? "compra" : "cadastro", fornecedor: f || null, obs: obs || null, em: d(n) + "T10:00:00Z", ref: n });
+  const a = await abrir("uJes", { db: db => { db.jb_insumo_historico = [
+    H(80, 79.99, null, "Preço que estava no cadastro antes de 01/11"),
+    H(55, 74.5, "Atacadão", "Marca Nestlé"),
+    H(35, 81.2, "Loja Santo Antônio", "Marca Nestlé"),
+    H(1, 61.9, "Loja Santo Antônio", "Marca Melken, barra 2,1kg")
+  ]; return db; } });
+  await a.page.click("#btnCustos"); await a.espera(500);
+  await a.page.click("#abaInsumos"); await a.espera(600);
+  assert.match(await a.texto("#precosMov .pm-placar"), /▲ 0 subiram[\s\S]*▼ 1 caiu/);
+  assert.equal(await a.page.locator("#precosMov .pm-lin .pm-mini").count(), 1, "cada linha do resumo tem o mini gráfico");
+  await a.page.locator("#precosMov .pm-lin", { hasText: "Chocolate" }).click(); await a.espera(400);
+  const v = await a.page.evaluate(() => {
+    const h = document.querySelector("#listaCustos .ing .hist");
+    return { pts: [...h.querySelectorAll(".pg-pt")].map(c => c.getAttribute("class").replace("pg-pt ", "")),
+             chips: [...h.querySelectorAll(".pg-chip")].map(c => c.textContent),
+             leitura: h.querySelector(".pg-leitura").textContent };
+  });
+  assert.deepEqual(v.pts, ["igual", "desce", "sobe", "desce on"], "vermelho subiu, verde caiu; o último já vem marcado");
+  assert.match(v.chips[0], /mais barato.*R\$ 61,90.*Melken/);
+  assert.match(v.chips[1], /mais caro.*R\$ 81,20.*Nestlé/);
+  assert.match(v.chips[2], /▼ 22,6%.*4 registros/);
+  assert.match(v.leitura, /R\$ 61,90 por kg.*Loja Santo Antônio\. Marca Melken.*▼ 23,8%/);
+  /* tocar no gráfico perto do segundo ponto mostra aquele registro */
+  const cx = await a.page.evaluate(() => { const c = document.querySelectorAll(".pg-pt")[1], r = document.querySelector(".preco-graf").getBoundingClientRect(); return r.left + Number(c.getAttribute("cx")) * r.width / 340; });
+  const box = await a.page.locator(".preco-graf").boundingBox();
+  await a.page.mouse.click(cx, box.y + box.height / 2); await a.espera(150);
+  assert.match(await a.texto(".pg-leitura"), /R\$ 74,50 por kg.*Atacadão\. Marca Nestlé.*▼ 6,9%/);
+  semErros(a); await a.fechar();
+});

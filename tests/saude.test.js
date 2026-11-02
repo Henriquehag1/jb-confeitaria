@@ -302,3 +302,15 @@ test("ponte: compra parcelada no cartão separada do ingrediente", async () => {
   assert.equal(Math.round((r.sobrou + r.linhas.reduce((t, x) => t + x.v, 0)) * 100) / 100, r.lucro);
   await a.fechar();
 });
+
+test("Saúde: mês conferido para o contador usa a venda real e diz isso", async () => {
+  const a = await abrir("uHen", { agora: AGORA, db: db => {
+    comDados(db);
+    db.__jb_kpi_destino = DESTINO.map(d => d.mes === "2026-09-01" ? { ...d, fonte: "apurado" } : { ...d, fonte: "estimado" });
+  } });
+  a.texto = sel => a.page.locator(sel).first().innerText();
+  await a.page.click("#btnSaude"); await a.espera(700);
+  await a.page.click("#sdConta .sd-ln:has-text('Os clientes pagaram')"); await a.espera(150);
+  assert.match(await a.texto("#saudeCorpo .explica:not(.hide)"), /conferido nos portais para o contador/);
+  semErros(a);
+});

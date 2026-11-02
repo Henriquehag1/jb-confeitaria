@@ -12,7 +12,8 @@ function confNorm(s){
     .replace(/ph/g, "f").replace(/k/g, "c").replace(/y/g, "i").replace(/([a-z])\1+/g, "$1");
 }
 /* apelido que é a mesma pessoa (26/10: Bela e Bella são a Isabella Freitas) */
-const CONF_APELIDO = { bela: "isabela" };
+/* 02/11: no Financeiro o Pix da Eliana aparece como "Diárias mãe" */
+const CONF_APELIDO = { bela: "isabela", mae: "eliana" };
 function confPessoaDoTexto(texto, nomes){
   const palavras = confNorm(texto).split(/[^a-z]+/).filter(Boolean).map(w => CONF_APELIDO[w] || w);
   return nomes.find(n => { const p = confChave(n); return p && palavras.includes(p); }) || null;
@@ -28,7 +29,7 @@ const CONF_TOL = 1;
    A CONTA (pura, testável)
    x = { mes, hoje, pagamentos:[{ref,data,desc,valor}], nomes:[...],
          freelas:[{nome,data,valor,conta_id}], contas:{id:{id,valor,valor_pago,vencimento,pago_em,pago_por,nf_ref}},
-         diarias:[{nome,valor,dias:[iso],pagos:[{data,pago_em}]}],
+         diarias:[{nome,valor,dias:[iso],pagos:[{data,pago_em}],ids:{iso:id}}],
          semanais:[{nome, contas:[{id,valor,valor_pago,vencimento,pago_em,pago_por,nf_ref,descricao}]}] }
    Quinzena com vencimento antes do mês só serve para explicar o Pix do começo do mês; não aparece na lista.
    ============================================================ */
@@ -41,7 +42,7 @@ function conferirEquipe(x){
   const usados = new Set();
   Object.values(x.contas || {}).forEach(c => { if(c.nf_ref) usados.add(c.nf_ref); });
   (x.semanais || []).forEach(s => s.contas.forEach(c => { if(c.nf_ref) usados.add(c.nf_ref); }));
-  const r = { casados: [], marcar: [], valorDif: [], semRegistro: [], duplicados: [], esquecidos: [], diarias: [], semanais: [] };
+  const r = { casados: [], marcar: [], marcarDias: [], valorDif: [], semRegistro: [], duplicados: [], esquecidos: [], diarias: [], semanais: [] };
   const valorConta = c => Number(c.pago_em && c.valor_pago != null ? c.valor_pago : c.valor);
   /* conta paga à mão (sem Pix ligado) também pode ser explicada por um Pix: só ganha a referência */
   const ligar = (c, p, vp) => r.marcar.push(c.pago_em ? { id: c.id, nf_ref: p.ref, so_ref: true }
@@ -65,7 +66,10 @@ function conferirEquipe(x){
       if(ligadas.length){ r.casados.push({ pag: p, contas: ligadas }); p.ok = p.casou = true; }
     });
     meus.filter(p => !p.ok && !usados.has(p.ref)).forEach(p => {
+      /* conta já paga à mão só aceita o Pix do mesmo acerto (até 3 dias da data marcada): senão o Pix
+         da semana seguinte ficava preso nos dias da semana anterior, e tudo andava uma semana (02/11) */
       const livres = contas.filter(c => !c._usada && !c.nf_ref && !(c.pago_em && c.pago_por === "financeiro")
+                                      && (!c.pago_em || Math.abs(confDias(c.pago_em, p.data)) <= 3)
                                       && confDias(c.vencimento, p.data) >= -3 && confDias(c.vencimento, p.data) <= 14);
       let achou = null, perto = null;
       for(let i = 0; i < livres.length && !achou; i++){
@@ -107,6 +111,20 @@ function conferirEquipe(x){
     });
     const seus = todos.filter(p => p.deste || p.data > fimMes || Number(p.data.slice(8)) > 10);
     const pago = confR2(seus.reduce((s, p) => s + p.valor, 0));
+    /* Pix que paga um número inteiro de diárias em aberto: os dias mais antigos até a data do Pix viram
+       pagos sozinhos, na data do Pix (02/11: as diárias da Eliana eram pagas e continuavam "a pagar") */
+    const jaPagos = new Set((d.pagos || []).filter(g => g.pago_em).map(g => g.data));
+    seus.filter(p => !p.deste).sort((a, b) => a.data < b.data ? -1 : 1).forEach(p => {
+      const n = Math.round(p.valor / d.valor);
+      if(n < 1 || Math.abs(n * d.valor - p.valor) > CONF_TOL) return;
+      const livres = d.dias.filter(x => !jaPagos.has(x) && x <= p.data).sort();
+      if(livres.length < n) return;
+      const lote = livres.slice(0, n);
+      lote.forEach(x => jaPagos.add(x));
+      const ids = lote.map(x => d.ids && d.ids[x]).filter(Boolean);
+      if(ids.length === n) r.marcarDias.push({ nome: d.nome, ids, dias: lote, data: p.data, ref: p.ref });
+      d.pagos = (d.pagos || []).concat(lote.map(x => ({ data: x, pago_em: p.data })));
+    });
     /* dias ainda sem Pix só viram aviso depois do dia 10 do mês seguinte, quando o acerto já devia ter saído */
     const fechou = confDias(fimMes, x.hoje) > 10;
     const pagosDias = (d.pagos || []).map(g => g.data).filter(x => d.dias.includes(x));
@@ -163,7 +181,7 @@ async function carregarConferencia(mes){
     sb.from("jb_freela").select("nome,data,valor,conta_id").eq("cancelada", false).gte("data", ant).lte("data", fim),
     sb.from("jb_usuario").select("user_id,nome"),
     sb.from("jb_acordo").select("user_id,inicio,fim,regime,valor").lte("inicio", fim).or("fim.is.null,fim.gte." + mes),
-    sb.from("jb_dia_trabalhado").select("user_id,data,status").eq("status", "confirmado").gte("data", mes).lte("data", fim),
+    sb.from("jb_dia_trabalhado").select("id,user_id,data,status").eq("status", "confirmado").gte("data", mes).lte("data", fim),
     /* quinzenas da equipe: as do mês e as do mês anterior (o Pix do começo do mês paga a de lá).
        Vem do Contas a pagar como tipo equipe ou como conta fixa ligada a alguém da equipe. */
     sb.from("jb_conta").select("id,tipo,descricao,valor,valor_pago,vencimento,pago_em,pago_por,nf_ref,equipe_user_id").eq("arquivada", false).gte("vencimento", ant).lte("vencimento", fim),
@@ -191,6 +209,7 @@ async function carregarConferencia(mes){
     const nome = nomes[a.user_id]; if(!nome) return;
     if(a.regime === "diaria" && !diarias.some(d => d.nome === nome))
       diarias.push({ nome, valor: Number(a.valor), dias: ((dt && dt.data) || []).filter(d => d.user_id === a.user_id).map(d => d.data),
+                     ids: Object.fromEntries(((dt && dt.data) || []).filter(d => d.user_id === a.user_id).map(d => [d.data, d.id])),
                      pagos: pagosDia.filter(g => g.user_id === a.user_id).map(g => ({ data: g.data, pago_em: diaDoPagamento(g.pago_em) })) });
     if(a.regime === "semanal" && !semanais.some(s => s.nome === nome))
       semanais.push({ nome, contas: daEquipe.filter(c => c.equipe_user_id === a.user_id) });
@@ -202,8 +221,13 @@ async function carregarConferencia(mes){
 }
 
 async function aplicarConferencia(r){
-  if(!r || !r.marcar.length) return 0;
+  if(!r || !(r.marcar.length || (r.marcarDias || []).length)) return 0;
   let n = 0;
+  /* diárias pagas por um Pix do Financeiro: os dias ficam pagos na data do Pix */
+  for(const m of (r.marcarDias || [])){
+    const { error } = await sb.from("jb_dia_trabalhado").update({ pago_em: pagoISO(m.data), pago_por: EU.user_id }).in("id", m.ids);
+    if(!error) n++;
+  }
   for(const m of r.marcar){
     /* conta já paga à mão: só guarda qual Pix pagou; o valor e a data que vocês marcaram ficam */
     const campos = m.so_ref ? { nf_ref: m.nf_ref } : { pago_em: m.pago_em, valor_pago: m.valor_pago, pago_por: "financeiro", nf_ref: m.nf_ref };
