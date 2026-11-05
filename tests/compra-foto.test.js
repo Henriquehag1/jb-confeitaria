@@ -205,3 +205,71 @@ test("leitura que falha volta para a foto com o recado do servidor", async () =>
   semErros(a);
   await a.fechar();
 });
+
+/* 05/11/2026: a primeira nota real (Kalumby, 05/11/2026) voltou da leitura como 2026-05-11 e o
+   Nosso Financeiro recusou. A tela agora desfaz a troca de dia e mês e não deixa gravar data que o
+   financeiro recusaria. */
+test("data com dia e mês trocados é corrigida; orçamento sem valor fiscal avisa; embalagem não vira revenda", async () => {
+  const a = await abrir("uJes", { agora: "2026-11-05T15:00:00Z" });
+  const r = await a.page.evaluate(() => {
+    const h = "2026-11-05";
+    return {
+      troca: cfAjustarData("2026-05-11", h),
+      normal: cfAjustarData("2026-10-02", h),
+      longe: cfAjustarData("2025-11-05", h),
+      vazia: cfAjustarData(null, h),
+      inexistente: cfAjustarData("2026-02-30", h),
+      limite: [cfDataForaDoLimite("2026-11-05", h), cfDataForaDoLimite("2026-05-11", h), cfDataForaDoLimite("2026-07-20", h), cfDataForaDoLimite("2026-11-20", h)],
+      rev: cfRevisarNota({ data: "2026-05-11", tipo_documento: "orçamento", itens: [
+        { descricao: "HAMBURGEIRA H01 C/100", destino: "revenda" }, { descricao: "REF COCA COLA LATA 220ML", destino: "revenda" }] }, h)
+    };
+  });
+  assert.equal(r.troca.data, "2026-11-05");
+  assert.match(r.troca.aviso, /veio como 11\/05\/2026, com dia e mês trocados\. Usei 05\/11\/2026/);
+  assert.deepEqual(r.normal, { data: "2026-10-02", aviso: null });
+  assert.equal(r.longe.data, "2025-11-05");
+  assert.match(r.longe.aviso, /fora do normal/);
+  assert.equal(r.vazia.data, null);
+  assert.equal(r.inexistente.data, null);
+  assert.deepEqual(r.limite, [false, true, false, true]);
+  assert.equal(r.rev.nota.data, "2026-11-05");
+  assert.equal(r.rev.avisos.length, 2);
+  assert.match(r.rev.avisos[1], /sem valor fiscal/);
+  assert.deepEqual(r.rev.nota.itens.map(i => i.destino), ["consumo", "revenda"]);
+  semErros(a);
+  await a.fechar();
+});
+
+test("a nota da Kalumby de novo: grava com 05/11 e data fora do limite trava o botão", async () => {
+  const nota = { legivel: true, tipo_documento: "orçamento", fornecedor: "KALUMBY DOCES E FESTAS", cnpj_emitente: "03055077000157",
+    data: "2026-05-11", numero: "38954", valor_pago: 30.80, pagamento_na_nota: "Dinheiro",
+    itens: [{ codigo: "7908099900177", descricao: "HAMBURGEIRA H01 C/100", qtd: 1, unidade: "PC", valor_unit: 30.80, valor_total: 30.80, insumo_id: null, destino: "revenda", certeza: 0.95 }] };
+  const a = await abrir("uJes", { agora: "2026-11-05T15:00:00Z", db: comFn({ ler: { nota, ia: null } }) });
+  await a.page.click("#btnCompra");
+  await a.page.setInputFiles("#cfArquivo", { name: "nota.png", mimeType: "image/png", buffer: PNG });
+  await a.page.waitForSelector("#cfLer");
+  await a.page.click("#cfLer");
+  await a.page.waitForSelector("#cfGravar");
+  const avisos = await a.texto("#cfAvisos");
+  assert.match(avisos, /dia e mês trocados\. Usei 05\/11\/2026/);
+  assert.match(avisos, /sem valor fiscal/);
+  assert.equal(await a.page.$eval('.cf-cab input[type="date"]', i => i.value), "2026-11-05");
+  assert.equal(await a.page.$eval(".cf-lin select", s => s.value), "c", "embalagem fica como consumo, não revenda");
+
+  /* se alguém puser uma data que o financeiro recusa, o botão trava */
+  await a.page.fill('.cf-cab input[type="date"]', "2026-05-11");
+  assert.equal(await a.page.$eval("#cfGravar", b => b.disabled), true);
+  assert.match(await a.texto("#cfGravar"), /corrigir a data/);
+  assert.match(await a.texto("#cfAvisos"), /longe demais de hoje/);
+  await a.page.fill('.cf-cab input[type="date"]', "2026-11-05");
+  assert.equal(await a.page.$eval("#cfGravar", b => b.disabled), false);
+
+  await a.page.click("#cfGravar");
+  await a.page.waitForSelector("#cfOutra");
+  const p = (await a.log("rpc")).find(r => r[1] === "jb_compra_foto_gravar")[2].p;
+  assert.equal(p.data, "2026-11-05");
+  assert.equal(p.forma, "dinheiro", "a forma sugerida vem da nota; ela pode trocar");
+  assert.equal(p.itens[0].destino, "consumo");
+  semErros(a);
+  await a.fechar();
+});

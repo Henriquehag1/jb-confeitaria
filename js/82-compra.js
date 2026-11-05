@@ -170,6 +170,45 @@ function cfMargens(lista, alvo){
   return { cruzou, piorou, prejuizo };
 }
 
+/* ---------- datas ----------
+   05/11/2026: a primeira nota real (05/11/2026) voltou da leitura como 2026-05-11, dia e mês
+   trocados, e o Nosso Financeiro recusou a compra por data fora do normal. Nota de compra é
+   de hoje ou de poucos dias atrás: fora disso, tenta a data com dia e mês trocados. */
+const CF_DIAS_ATRAS = 60;      // até aqui a data é normal
+const CF_DIAS_LIMITE = 120;    // além disso (ou mais de 5 dias no futuro) o financeiro recusa: não deixa gravar
+const cfDataOk = iso => /^\d{4}-\d{2}-\d{2}$/.test(String(iso || "")) && !isNaN(Date.parse(iso + "T12:00:00Z"))
+  && new Date(iso + "T12:00:00Z").toISOString().slice(0, 10) === iso;
+const cfDias = (a, b) => Math.round((Date.parse(a + "T12:00:00Z") - Date.parse(b + "T12:00:00Z")) / 86400000);
+const cfBR = iso => iso.slice(8, 10) + "/" + iso.slice(5, 7) + "/" + iso.slice(0, 4);
+
+/* Devolve a data a usar e o recado para a tela (null se está tudo normal). */
+function cfAjustarData(iso, hoje){
+  if(!iso) return { data: null, aviso: "Não consegui ler a data. Preencha à mão." };
+  if(!cfDataOk(iso)) return { data: null, aviso: "A data lida (" + iso + ") não existe. Preencha à mão." };
+  const normal = x => cfDataOk(x) && cfDias(x, hoje) <= 1 && cfDias(x, hoje) >= -CF_DIAS_ATRAS;
+  if(normal(iso)) return { data: iso, aviso: null };
+  const troca = iso.slice(0, 4) + "-" + iso.slice(8, 10) + "-" + iso.slice(5, 7);
+  if(normal(troca)) return { data: troca, aviso: "A data veio como " + cfBR(iso) + ", com dia e mês trocados. Usei " + cfBR(troca) + ": confira na nota." };
+  return { data: iso, aviso: "A data " + cfBR(iso) + " está fora do normal. Confira na nota." };
+}
+/* Data que o Nosso Financeiro recusaria: trava o botão. */
+const cfDataForaDoLimite = (iso, hoje) => !cfDataOk(iso) || cfDias(iso, hoje) > 5 || cfDias(iso, hoje) < -CF_DIAS_LIMITE;
+
+/* Conferências da leitura que não dependem da IA acertar tudo. */
+function cfRevisarNota(nota, hoje){
+  const n = JSON.parse(JSON.stringify(nota || {}));
+  const avisos = [];
+  const d = cfAjustarData(n.data, hoje);
+  n.data = d.data;
+  if(d.aviso) avisos.push(d.aviso);
+  if(n.sem_valor_fiscal || /or[cç]amento|sem valor fiscal/i.test(String(n.tipo_documento || "")))
+    avisos.push("Este papel é orçamento, sem valor fiscal: não vale como nota para o contador. Peça a nota fiscal no CNPJ 47.010.705/0001-53.");
+  /* revenda é só bebida pronta; embalagem que a IA chamou de revenda volta para consumo */
+  const bebida = /refri|coca|guaran|pepsi|fanta|sprite|agua|água|suco|cerveja|\bch[aá]\b|energ[eé]tic|lata|\d+\s?ml\b/i;
+  (n.itens || []).forEach(it => { if(it.destino === "revenda" && !bebida.test(String(it.descricao || ""))) it.destino = "consumo"; });
+  return { nota: n, avisos };
+}
+
 /* O que vai para o banco. */
 function cfPayload(st){
   const porId = {};
@@ -328,18 +367,20 @@ async function cfLer(){
       cfInvocar({ acao: "cartoes" }).catch(() => ({ cartoes: [] }))
     ]);
     if(ins.error) throw new Error("Não consegui carregar os insumos.");
-    const nota = lido.nota || {};
+    const rev = cfRevisarNota(lido.nota || {}, hojeSP());
+    const nota = rev.nota;
     if(!nota.itens || !nota.itens.length) throw new Error("Não achei nenhum item na foto. Tire de novo, mais perto e com luz.");
     CF.nota = nota; CF.ia = lido.ia || null;
     CF.insumos = ins.data || [];
     CF.cartoes = (cart && cart.cartoes) || [];
     const apr = cfAprendizado(comp.data || [], itens.data || []);
     CF.linhas = cfMontarLinhas(nota, CF.insumos, apr);
-    CF.cab = { fornecedor: nota.fornecedor || "", cnpj: nota.cnpj_emitente || null, data: nota.data || hojeSP(),
+    CF.cab = { fornecedor: nota.fornecedor || "", cnpj: nota.cnpj_emitente || null, data: nota.data || "",
                numero: nota.numero || null, chave: cfDig(nota.chave).length === 44 ? cfDig(nota.chave) : null,
                dest: nota.destinatario_doc || null, destNome: nota.destinatario_nome || null,
                desconto: nota.desconto || 0, frete: nota.frete || 0,
-               valor_pago: nota.valor_pago != null ? nota.valor_pago : null, legivel: nota.legivel !== false, obs: nota.observacoes || null };
+               valor_pago: nota.valor_pago != null ? nota.valor_pago : null, legivel: nota.legivel !== false, obs: nota.observacoes || null,
+               revisao: rev.avisos };
     /* forma: o que a nota diz; o cartão, o último usado */
     const ult = (comp.data || []).find(c => c.forma === "cartao" && c.cartao);
     CF.pag = { forma: cfFormaDaNota(nota.pagamento_na_nota), cartao: ult ? ult.cartao : (CF.cartoes.includes("Santander Unique Visa") ? "Santander Unique Visa" : null),
@@ -550,11 +591,15 @@ function cfAtualizar(){
   } else if(sc.fecha) msg("ok", "A soma das linhas fecha com o total da nota: R$ " + moeda(sc.pago) + ".");
   const duvidas = CF.linhas.filter(l => l.certeza < 0.7).length;
   if(duvidas) msg("warn", duvidas + (duvidas === 1 ? " linha foi lida" : " linhas foram lidas") + " com pouca certeza. Estão marcadas em amarelo.");
+  (CF.cab.revisao || []).forEach(t => msg("warn", t));
+  if(CF.cab.data && cfDataForaDoLimite(CF.cab.data, hojeSP()))
+    msg("err", "A data " + cfBR(CF.cab.data) + " está longe demais de hoje e o Nosso Financeiro não aceita. Corrija a data no campo acima.");
   if(CF.cab.obs) msg("warn", "Da leitura: " + CF.cab.obs);
 
   const falta = [];
   if(!String(CF.cab.fornecedor || "").trim()) falta.push("o fornecedor");
   if(!CF.cab.data) falta.push("a data");
+  else if(cfDataForaDoLimite(CF.cab.data, hojeSP())) falta.push("corrigir a data");
   if(!(CF.cab.valor_pago > 0)) falta.push("o valor pago");
   if(CF.linhas.some(l => l.valor_total == null)) falta.push("o valor de alguma linha");
   if(!CF.pag.forma) falta.push("como foi pago");
