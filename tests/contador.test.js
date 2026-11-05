@@ -58,6 +58,9 @@ test("a conta do contador: prazo no dia útil, venda estimada pelo repasse, rela
   assert.match(r.msg, /• 99Food: R\$ 26\.000,00\n/);
   assert.doesNotMatch(r.msg, /Keeta/, "canal sem venda fica fora da mensagem");
   assert.match(r.msg, /O vale-refeição \(Pluxee\) é forma de pagamento de pedidos do 99Food: já está dentro dessas vendas/);
+  assert.match(r.msg, /\*FATURAMENTO DE OUTUBRO PARA O PGDAS-D: R\$ 31\.575,71\* \(com parte estimada\)/);
+  assert.match(r.msg, /É um faturamento só[\s\S]*não somar/);
+  assert.match(r.msg, /Total recebido: R\$ 17\.513,53\nÉ o mesmo faturamento depois das comissões/);
   assert.doesNotMatch(r.msg, /—|–/, "sem travessão");
   await a.fechar();
 });
@@ -171,7 +174,9 @@ test("receita exata dos portais: substitui a estimativa, explica a nota e vai na
   assert.match(msg, /Receita de outubro\* \(valor dos itens vendidos menos os descontos que a própria JB deu; conferido nos portais em 03\/11\)/);
   assert.match(msg, /• Keeta: R\$ 20\.737,43 \(itens R\$ 27\.929,47 menos desconto da JB R\$ 7\.192,04\)/);
   assert.match(msg, /Total da receita: R\$ 38\.583,85/);
-  assert.match(msg, /Notas fiscais emitidas em outubro:\* R\$ 41\.200,60/);
+  assert.match(msg, /Notas fiscais emitidas em outubro:\* R\$ 41\.200,60\nSão as mesmas vendas da receita acima/);
+  assert.match(msg, /FATURAMENTO DE OUTUBRO PARA O PGDAS-D: R\$ 38\.583,85\*\n/);
+  assert.equal((msg.match(/não somar/g) || []).length, 3, "o aviso aparece no topo, nas notas e no recebido");
   assert.match(msg, /A diferença de R\$ 3\.254,38 é a taxa de entrega/);
   assert.match(msg, /Pedimos que o PGDAS-D seja feito com a receita acima/);
   assert.match(msg, /• A Keeta pagou R\$ 126,60/);

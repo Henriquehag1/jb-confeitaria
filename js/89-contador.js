@@ -105,6 +105,9 @@ function contadorMensagem(p){
   L.push("Olá! Tudo bem?");
   L.push("Seguem os dados da JB Confeitaria de " + M + " para o PGDAS-D e o DAS.");
   L.push("");
+  L.push("*FATURAMENTO DE " + m.toUpperCase() + " PARA O PGDAS-D: R$ " + moeda(p.totalVendas) + "*" + (p.estimados ? " (com parte estimada)" : ""));
+  L.push("É um faturamento só. Os outros valores desta mensagem (notas emitidas e dinheiro que caiu na conta) são as mesmas vendas vistas de outro jeito, só para conferência: não somar.");
+  L.push("");
   if(p.apuracao){
     L.push("*Receita de " + m + "* (valor dos itens vendidos menos os descontos que a própria JB deu" + (p.apuracao.apurado ? "; conferido nos portais em " + ddmm(p.apuracao.apurado) : "") + "):");
     p.vendas.filter(v => v.valor > 0).forEach(v => {
@@ -119,6 +122,7 @@ function contadorMensagem(p){
     if(a.totalNotas != null){
       L.push("");
       L.push("*Notas fiscais emitidas em " + m + ":* R$ " + moeda(a.totalNotas));
+      L.push("São as mesmas vendas da receita acima, a parte que saiu com nota. Não é faturamento a mais: não somar.");
       if(a.diferenca > 0.009)
         L.push("A diferença de R$ " + moeda(a.diferenca) + " é a taxa de entrega e de serviço dos aplicativos: o sistema de pedidos coloca na nota, mas quem entrega é o aplicativo e esse valor fica com ele.");
       else if(a.diferenca < -0.009)
@@ -137,6 +141,7 @@ function contadorMensagem(p){
   L.push("*Recebido na conta em " + m + "* (para conferência):");
   p.recebidos.forEach(v => L.push("• " + v.rot + ": R$ " + moeda(v.valor)));
   L.push("Total recebido: R$ " + moeda(p.totalRecebido));
+  L.push("É o mesmo faturamento depois das comissões, taxas e promoções dos aplicativos. Não é faturamento a mais: não somar.");
   if(p.impostos.length){
     L.push("");
     L.push("*Impostos pagos em " + m + ":*");
