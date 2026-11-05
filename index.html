@@ -9,8 +9,8 @@
 
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#F8F0EA">
-<link rel="icon" href="icon-192.png?v=2026-11-05a" type="image/png">
-<link rel="apple-touch-icon" href="icon-180.png?v=2026-11-05a">
+<link rel="icon" href="icon-192.png?v=2026-11-05b" type="image/png">
+<link rel="apple-touch-icon" href="icon-180.png?v=2026-11-05b">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -130,6 +130,42 @@ button{font-family:inherit;font-size:inherit;cursor:pointer;}
 .datebar .d{font-family:var(--display);font-size:1.62rem;font-weight:600;line-height:1.15;}
 .datebar .h{font-size:.85rem;color:var(--tinta-3);font-variant-numeric:tabular-nums;}
 
+/* ---------- compra pela foto da nota ---------- */
+.cf-lendo{text-align:center;padding:48px 10px;}
+.cf-lendo b{display:block;font-family:var(--display);font-size:1.3rem;margin-top:14px;}
+.cf-roda{width:38px;height:38px;margin:0 auto;border-radius:50%;border:3px solid var(--linha-2);border-top-color:var(--coral);animation:cfgira 1s linear infinite;}
+@keyframes cfgira{to{transform:rotate(360deg);}}
+@media (prefers-reduced-motion:reduce){.cf-roda{animation:none;}}
+.cf-fotos{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 12px;}
+.cf-foto{position:relative;width:96px;height:128px;border-radius:10px;overflow:hidden;background:var(--creme);border:1px solid var(--linha-2);display:flex;align-items:center;justify-content:center;font-weight:500;color:var(--tinta-3);}
+.cf-foto img{width:100%;height:100%;object-fit:cover;}
+.cf-foto .rm{position:absolute;bottom:4px;left:50%;transform:translateX(-50%);}
+.cf-avisos .msg .cf-check{margin-top:8px;}
+.cf-cab{margin-bottom:6px;}
+.cf-tit{font-size:.78rem;letter-spacing:.07em;text-transform:uppercase;color:var(--tinta-3);font-weight:500;margin:16px 0 8px;}
+.cf-lin{background:var(--creme);border:1px solid var(--linha);border-left:4px solid var(--verde-linha);border-radius:12px;padding:10px 12px;margin-bottom:8px;}
+.cf-lin.duvida{border-left-color:var(--ambar);background:var(--ambar-veu);}
+.cf-l1 b{display:block;font-weight:500;font-size:.92rem;line-height:1.3;word-break:break-word;}
+.cf-l1 small{display:block;color:var(--tinta-3);font-size:.78rem;margin-top:2px;font-variant-numeric:tabular-nums;}
+.cf-nota{margin:6px 0 0;font-size:.78rem;color:var(--ambar);}
+.cf-l2{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;align-items:flex-end;}
+.cf-l2 select{flex:1 1 100%;min-width:0;max-width:100%;font:inherit;font-size:.86rem;padding:9px 10px;border-radius:10px;border:1px solid var(--linha-2);background:#fff;color:var(--tinta);}
+.cf-mini{flex:1 1 40%;font-size:.66rem;letter-spacing:.06em;text-transform:uppercase;color:var(--tinta-3);font-weight:500;}
+.cf-mini input{display:block;width:100%;box-sizing:border-box;margin-top:3px;font:inherit;font-size:.95rem;padding:8px 10px;border-radius:10px;border:1px solid var(--linha-2);background:#fff;color:var(--tinta);text-transform:none;letter-spacing:0;font-variant-numeric:tabular-nums;}
+.cf-custo{margin-top:8px;font-size:.82rem;color:var(--tinta-2);}
+.cf-custo:empty{display:none;}
+.cf-custo small{display:block;margin-top:3px;}
+.cf-custo.warn{color:var(--ambar);}
+.cf-check{display:flex;align-items:center;gap:8px;margin-top:6px;font-size:.84rem;color:var(--tinta);text-transform:none;letter-spacing:0;font-weight:400;}
+.cf-check input{width:20px;height:20px;flex:0 0 auto;accent-color:var(--cacau);}
+.cf-pag select{font:inherit;}
+.cf-res p{margin:8px 0;font-size:.88rem;line-height:1.4;}
+.cf-res small{display:block;color:var(--tinta-3);font-size:.76rem;margin:4px 0 8px;}
+.cf-res details{margin:8px 0;font-size:.86rem;}
+.cf-res summary{cursor:pointer;color:var(--tinta-2);}
+.cf-ruim{color:var(--coral-fundo);font-weight:500;}
+.cf-nao{color:var(--ambar);}
+.cf-res .rm{margin:4px 0 10px;}
 /* ---------- botoes grandes ----------
    Cada cartao carrega um simbolo proprio, para a pessoa reconhecer pelo desenho
    antes de ler. A cor cheia continua reservada a uma coisa so: o que fazer agora. */
@@ -1698,7 +1734,7 @@ body.em-conferencia main, body.em-conferencia section{padding-bottom:84px;}
   <!-- ================= LOGIN ================= -->
   <section id="scLogin" class="login hide">
     <div class="mark">
-      <img class="marca-jb" src="marca-jb.png?v=2026-11-05a" alt="Jessica Ballassa Confeitaria" width="210" height="191">
+      <img class="marca-jb" src="marca-jb.png?v=2026-11-05b" alt="Jessica Ballassa Confeitaria" width="210" height="191">
       <p class="slogan">aqui tem amor<span class="pt">.</span></p>
       <div class="versao" id="loginVersao"></div>
     </div>
@@ -1715,7 +1751,7 @@ body.em-conferencia main, body.em-conferencia section{padding-bottom:84px;}
   <section id="scHome" class="hide">
     <div class="top">
       <div class="marca">
-        <img class="selo" src="selo-192.png?v=2026-11-05a" alt="" width="34" height="34">
+        <img class="selo" src="selo-192.png?v=2026-11-05b" alt="" width="34" height="34">
         <div><b>Jessica Ballassa</b><span id="homeSub">Ateliê</span></div>
       </div>
       <button class="recarregar" id="homeRecarregar" type="button" aria-label="Atualizar" title="Atualizar">&#8635;</button>
@@ -1829,6 +1865,11 @@ body.em-conferencia main, body.em-conferencia section{padding-bottom:84px;}
     <button class="big ghost hide" id="btnCustos">
       <span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2.8" width="14" height="18.4" rx="2.6"/><rect x="8" y="5.9" width="8" height="3.3" rx="1"/><path d="M8.7 13.2h.01"/><path d="M12 13.2h.01"/><path d="M15.3 13.2h.01"/><path d="M8.7 17.2h.01"/><path d="M12 17.2h.01"/><path d="M15.3 17.2h.01"/></svg></span>
       <span class="tx"><span class="t">Custos e pre&ccedil;os</span><span class="s">Receitas, insumos e quanto sobra em cada canal</span></span>
+      <span class="seta" aria-hidden="true">&#8250;</span>
+    </button>
+    <button class="big ghost hide" id="btnCompra">
+      <span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2.9h12v18.2l-2-1.4-2 1.4-2-1.4-2 1.4-2-1.4-2 1.4Z"/><path d="M9 7.4h6"/><path d="M9 10.8h6"/><path d="M9 14.2h3.6"/></svg></span>
+      <span class="tx"><span class="t">Compra pela nota</span><span class="s">Foto da nota: preço, fichas, estoque e financeiro de uma vez</span></span>
       <span class="seta" aria-hidden="true">&#8250;</span>
     </button>
     <button class="big ghost hide" id="btnEstoque">
@@ -2001,6 +2042,12 @@ body.em-conferencia main, body.em-conferencia section{padding-bottom:84px;}
     <div id="encLista"></div>
   </section>
 
+  <!-- ================= COMPRA PELA FOTO DA NOTA (só gestor) ================= -->
+  <section id="scCompra" class="hide">
+    <div id="cfMsg"></div>
+    <div id="cfCorpo"></div>
+  </section>
+
   <!-- ================= CONTAS A PAGAR (só gestor) ================= -->
   <section id="scContas" class="hide">
     <div id="contasMsg"></div>
@@ -2125,25 +2172,26 @@ body.em-conferencia main, body.em-conferencia section{padding-bottom:84px;}
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.116.0/dist/umd/supabase.min.js"></script>
-<script src="js/00-base.js?v=2026-11-05a"></script>
-<script src="js/10-entrada.js?v=2026-11-05a"></script>
-<script src="js/12-freela.js?v=2026-11-05a"></script>
-<script src="js/20-custos.js?v=2026-11-05a"></script>
-<script src="js/25-promo.js?v=2026-11-05a"></script>
-<script src="js/30-mes.js?v=2026-11-05a"></script>
-<script src="js/35-saude.js?v=2026-11-05a"></script>
-<script src="js/40-producao.js?v=2026-11-05a"></script>
-<script src="js/42-quanto.js?v=2026-11-05a"></script>
-<script src="js/50-contagem.js?v=2026-11-05a"></script>
-<script src="js/60-afazeres.js?v=2026-11-05a"></script>
-<script src="js/70-dias.js?v=2026-11-05a"></script>
-<script src="js/72-equipe.js?v=2026-11-05a"></script>
-<script src="js/74-bolsa.js?v=2026-11-05a"></script>
-<script src="js/76-conferencia.js?v=2026-11-05a"></script>
-<script src="js/80-estoque.js?v=2026-11-05a"></script>
-<script src="js/85-encomendas.js?v=2026-11-05a"></script>
-<script src="js/88-contas.js?v=2026-11-05a"></script>
-<script src="js/89-contador.js?v=2026-11-05a"></script>
-<script src="js/90-ligacoes.js?v=2026-11-05a"></script>
+<script src="js/00-base.js?v=2026-11-05b"></script>
+<script src="js/10-entrada.js?v=2026-11-05b"></script>
+<script src="js/12-freela.js?v=2026-11-05b"></script>
+<script src="js/20-custos.js?v=2026-11-05b"></script>
+<script src="js/25-promo.js?v=2026-11-05b"></script>
+<script src="js/30-mes.js?v=2026-11-05b"></script>
+<script src="js/35-saude.js?v=2026-11-05b"></script>
+<script src="js/40-producao.js?v=2026-11-05b"></script>
+<script src="js/42-quanto.js?v=2026-11-05b"></script>
+<script src="js/50-contagem.js?v=2026-11-05b"></script>
+<script src="js/60-afazeres.js?v=2026-11-05b"></script>
+<script src="js/70-dias.js?v=2026-11-05b"></script>
+<script src="js/72-equipe.js?v=2026-11-05b"></script>
+<script src="js/74-bolsa.js?v=2026-11-05b"></script>
+<script src="js/76-conferencia.js?v=2026-11-05b"></script>
+<script src="js/80-estoque.js?v=2026-11-05b"></script>
+<script src="js/82-compra.js?v=2026-11-05b"></script>
+<script src="js/85-encomendas.js?v=2026-11-05b"></script>
+<script src="js/88-contas.js?v=2026-11-05b"></script>
+<script src="js/89-contador.js?v=2026-11-05b"></script>
+<script src="js/90-ligacoes.js?v=2026-11-05b"></script>
 </body>
 </html>
