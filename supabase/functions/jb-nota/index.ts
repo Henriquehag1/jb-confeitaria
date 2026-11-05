@@ -78,12 +78,13 @@ const FERRAMENTA = {
     type: "object",
     properties: {
       legivel: { type: "boolean", description: "false se a foto não permite ler os itens com segurança" },
-      tipo_documento: { type: "string", description: "NFC-e, NF-e (DANFE), cupom, pedido online, recibo ou outro" },
+      tipo_documento: { type: "string", description: "NFC-e, NF-e (DANFE), cupom, pedido online, orçamento, recibo ou outro" },
+      sem_valor_fiscal: { type: "boolean", description: "true se o papel diz 'sem valor fiscal', 'orçamento' ou 'não é documento fiscal'" },
       fornecedor: { type: "string", description: "nome do emitente (nome fantasia se houver, senão razão social)" },
       cnpj_emitente: { type: ["string", "null"] },
       destinatario_doc: { type: ["string", "null"], description: "CNPJ ou CPF do destinatário/consumidor, só dígitos; null se não aparece" },
       destinatario_nome: { type: ["string", "null"] },
-      data: { type: ["string", "null"], description: "data de emissão AAAA-MM-DD" },
+      data: { type: ["string", "null"], description: "data de emissão em AAAA-MM-DD. Na nota brasileira a data vem DIA/MÊS/ANO: 05/11/2026 é 2026-11-05" },
       numero: { type: ["string", "null"], description: "número da nota ou do pedido" },
       chave: { type: ["string", "null"], description: "chave de acesso de 44 dígitos, só se estiver inteira e legível" },
       valor_produtos: { type: ["number", "null"] },
@@ -124,9 +125,11 @@ Regras:
 - Copie os números exatamente como estão. Não invente: o que não der para ler fica null, e baixe a "certeza" da linha.
 - Uma linha da ferramenta para cada linha de produto da nota, na ordem da nota. Frete, taxa de entrega e serviço não são itens: vão em "frete".
 - valor_total da linha já com o desconto da própria linha. O desconto geral da nota vai em "desconto".
-- Ligue cada produto ao insumo da lista quando for o mesmo produto (marca diferente do mesmo produto ainda serve). Se não houver insumo certo, insumo_id null e destino "consumo" (material de limpeza, utensílio, mercado) ou "revenda" (bebida para vender).
+- Ligue cada produto ao insumo da lista quando for o mesmo produto (marca diferente do mesmo produto ainda serve). Se não houver insumo certo, insumo_id null e destino "consumo" (embalagem fora da lista, material de limpeza, utensílio, mercado). "revenda" é só bebida pronta para vender (refrigerante, água, suco).
 - qtd_base é a quantidade total na unidade do insumo. Exemplos: 20 x "LEITE COND 5KG", insumo em kg: 100. 3 x "POTE 500ML C/144", insumo em un: 432. 2 CX "ACUCAR MASCAVO 20X1KG", insumo em kg: 40. 1,234 KG de morango, insumo em kg: 1.234. Se o peso ou o tamanho da embalagem não aparece na descrição, qtd_base null.
-- Datas em AAAA-MM-DD. Valores com ponto decimal.`;
+- Datas: a nota brasileira escreve DIA/MÊS/ANO. "05/11/2026" é 5 de novembro de 2026, que vira 2026-11-05. Nunca inverta dia e mês.
+- Se o papel disser "sem valor fiscal" ou "orçamento", marque sem_valor_fiscal true.
+- Valores com ponto decimal.`;
 
 async function ler(auth: string, body: any) {
   if (!AI_KEY) return json({ erro: "A leitura por IA ainda não está ligada (falta a chave no servidor)." }, 503);
@@ -149,7 +152,7 @@ async function ler(auth: string, body: any) {
   const ri = await sbUser(auth, "/rest/v1/jb_insumo?select=id,nome,unidade,categoria&ativo=is.true&order=nome.asc");
   const insumos = ri.ok ? await ri.json() : [];
   const lista = insumos.map((i: any) => `${i.id} | ${i.nome} | ${i.unidade} | ${i.categoria || ""}`).join("\n");
-  conteudo.push({ type: "text", text: "Insumos cadastrados (id | nome | unidade | tipo):\n" + lista + "\n\nLeia a nota da(s) foto(s) acima." });
+  conteudo.push({ type: "text", text: "Hoje é " + hojeSP() + " (São Paulo). Insumos cadastrados (id | nome | unidade | tipo):\n" + lista + "\n\nLeia a nota da(s) foto(s) acima." });
 
   const t0 = Date.now();
   const r = await fetch("https://api.anthropic.com/v1/messages", {
@@ -176,9 +179,49 @@ async function ler(auth: string, body: any) {
   const bloco = (out.content || []).find((c: any) => c.type === "tool_use");
   if (!bloco) return json({ erro: "A IA não devolveu a leitura. Tente de novo com a foto mais nítida." }, 502);
   return json({
-    nota: bloco.input,
+    nota: revisar(bloco.input, hojeSP()),
     ia: { modelo: MODELO, entrada: uso.input_tokens || 0, saida: uso.output_tokens || 0, custo_usd: Math.round(custo * 10000) / 10000, ms: Date.now() - t0, parou: out.stop_reason },
   });
+}
+
+// Data de hoje em São Paulo, AAAA-MM-DD.
+function hojeSP() {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+}
+const diasEntre = (a: string, b: string) => Math.round((Date.parse(a + "T12:00:00Z") - Date.parse(b + "T12:00:00Z")) / 86400000);
+const dataValida = (iso: string) => /^\d{4}-\d{2}-\d{2}$/.test(iso) && !isNaN(Date.parse(iso + "T12:00:00Z"))
+  && new Date(iso + "T12:00:00Z").toISOString().slice(0, 10) === iso;
+const br = (iso: string) => iso.slice(8, 10) + "/" + iso.slice(5, 7) + "/" + iso.slice(0, 4);
+
+// Conferências depois da leitura (05/11/2026: a primeira nota real veio com dia e mês trocados).
+// O que for ajustado ou suspeito vai para "observacoes", que a tela mostra em amarelo.
+function revisar(nota: any, hoje: string) {
+  const obs: string[] = [];
+  const d = String(nota.data || "");
+  const normal = (x: string) => dataValida(x) && diasEntre(x, hoje) <= 1 && diasEntre(x, hoje) >= -60;
+  if (d && dataValida(d) && !normal(d)) {
+    const troca = d.slice(0, 4) + "-" + d.slice(8, 10) + "-" + d.slice(5, 7);
+    if (normal(troca)) {
+      nota.data = troca;
+      obs.push("A data veio como " + br(d) + ", com dia e mês trocados; usei " + br(troca) + ". Confira na nota.");
+    } else obs.push("A data " + br(d) + " está fora do normal. Confira na nota antes de gravar.");
+  } else if (d && !dataValida(d)) { nota.data = null; obs.push("Não consegui ler a data. Preencha à mão."); }
+  if (nota.sem_valor_fiscal) obs.push("Este papel é orçamento, SEM VALOR FISCAL: não vale como nota para o contador. Peça a nota fiscal no CNPJ 47.010.705/0001-53.");
+  const bebida = /refri|coca|guaran|pepsi|fanta|sprite|agua|água|suco|cerveja|cha |chá |energetic|lata|\d+\s?ml/i;
+  (nota.itens || []).forEach((it: any) => {
+    if (it.destino === "revenda" && !bebida.test(String(it.descricao || ""))) it.destino = "consumo";
+  });
+  if (obs.length) nota.observacoes = [obs.join(" "), nota.observacoes].filter(Boolean).join(" ");
+  return nota;
+}
+
+// Recado do Nosso Financeiro em português claro.
+function recadoFin(m: string) {
+  if (/data fora/.test(m)) return "A data da compra está fora do normal (mais de 4 meses atrás ou no futuro). Corrija a data e tente de novo.";
+  if (/cartao desconhecido/.test(m)) return "Esse cartão não existe no Nosso Financeiro.";
+  if (/categoria invalida/.test(m)) return "Categoria inválida no Nosso Financeiro.";
+  if (/token/.test(m)) return "O JB OS perdeu o pareamento com o Nosso Financeiro.";
+  return m;
 }
 
 async function cartoes() {
@@ -205,7 +248,7 @@ async function financeiro(auth: string, body: any) {
     });
   } catch (e) {
     await sbUser(auth, "/rest/v1/jb_compra?id=eq." + id, { method: "PATCH", body: JSON.stringify({ fin_status: "erro", fin_em: new Date().toISOString() }) });
-    return json({ erro: String((e as Error).message || e) }, 502);
+    return json({ erro: recadoFin(String((e as Error).message || e)) }, 502);
   }
   const ref = res.status === "lancado" ? "jbos compra " + id : (res.evento ? "evento " + res.evento.id : null);
   await sbUser(auth, "/rest/v1/jb_compra?id=eq." + id, {
