@@ -77,6 +77,7 @@ $("btnResultado").onclick = abrirMes;
 $("btnDias").onclick = abrirDias;
 $("btnAfazeres").onclick = abrirAfazeres;
 $("btnEstoque").onclick = abrirEstoque;
+$("btnCompra").onclick = abrirCompraFoto;
 $("btnSaude").onclick = () => abrirSaude();
 $("btnContador").onclick = () => abrirContador(mesDoContador());
 $("btnContas").onclick = () => { CONTA_PAINEL = null; CONTA_NOVA = false; CONTA_PAINEL_NOVO = null; abrirContas(); };

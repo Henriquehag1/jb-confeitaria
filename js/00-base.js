@@ -16,7 +16,7 @@ const LOGINS = [
 ];
 
 const TZ = "America/Sao_Paulo";
-const VERSAO = "2026-11-05a";   // aparece no login e no pé da Home, para saber qual versão cada celular tem
+const VERSAO = "2026-11-05b";   // aparece no login e no pé da Home, para saber qual versão cada celular tem
 const SB_REAL = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
   auth: { persistSession: true, autoRefreshToken: true }
 });
@@ -27,7 +27,7 @@ let sb = SB_REAL;
    UTILITÁRIOS
    ============================================================ */
 const $ = id => document.getElementById(id);
-const SC = ["scLogin","scHome","scCount","scRes","scFeito","scAdendo","scPerda","scFreezer","scHist","scPromo","scCustos","scFicha","scProd","scQuanto","scReceita","scMes","scDias","scAfa","scEstoque","scEnc","scContas","scSaude","scContador"];
+const SC = ["scLogin","scHome","scCount","scRes","scFeito","scAdendo","scPerda","scFreezer","scHist","scPromo","scCustos","scFicha","scProd","scQuanto","scReceita","scMes","scDias","scAfa","scEstoque","scEnc","scContas","scSaude","scContador","scCompra"];
 /* ============================================================
    NAVEGAÇÃO
    Uma barra só, em todas as telas: voltar, título e atualizar.
@@ -92,6 +92,9 @@ const NAV = {
   scContador:{ titulo: () => "Dados para o contador",
                voltar: () => carregarHome(),
                recarregar: () => abrirContador(CONTADOR_MES) },
+  scCompra:  { titulo: () => "Compra pela nota",
+               voltar: () => { CF = null; carregarHome(); },
+               recarregar: () => { if(!CF || CF.etapa === "foto" || CF.etapa === "feito") abrirCompraFoto(); } },
   scSaude:   { titulo: () => "Saúde do negócio",
                voltar: () => carregarHome(),
                recarregar: () => abrirSaude() },

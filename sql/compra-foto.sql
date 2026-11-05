@@ -1,0 +1,23 @@
+-- Compra pela foto da nota (05/11/2026). Já aplicado no Supabase:
+--   JB OS (yudtseanlkhxkmnranmg): migrações jb_compra_pela_foto e jb_compra_pela_foto_campos_obrigatorios
+--   Nosso Financeiro (oihyhyyhessqnpkknhsi): migração jb_receber_compra_do_jbos
+-- Edge Function: supabase/functions/jb-nota (secret ANTHROPIC_API_KEY; modelo claude-haiku-4-5).
+--
+-- JB OS
+--   jb_compra ganhou: origem, cnpj_dest, chave, forma, cartao, parcelas, fin_categoria,
+--                     fin_status, fin_ref, fin_em, fotos (balde contas, notas/...), alertas, ia
+--   jb_compra_foto_gravar(p jsonb): só gestor, uma transação. Grava compra e linhas, recusa a mesma
+--     nota duas vezes (chave de acesso, ou fornecedor + data + valor pago) sem p.forcar, atualiza o
+--     custo do insumo quando a linha vem com aplicar (variação acima de 15% só com confirmou_variacao;
+--     unidade diferente da do insumo nunca), e devolve os preços aplicados, os não aplicados e os
+--     produtos cuja margem caiu abaixo de jb_config.margem_alvo por causa da compra.
+--     O histórico de preço, as fichas, as margens e o estoque se recalculam pelos gatilhos e views que já existiam.
+--   jb_sync_token_srv(): token da sincronização, só para a Edge Function (service_role).
+--
+-- Nosso Financeiro (só insere; nunca altera nem apaga)
+--   jb_receber_compra(p_token, p jsonb, p_forcar): protegido pelo token jbos_sync_token.
+--     Não duplica: origem_ref 'jbos compra N' já existe => ja_lancado; gasto da confeitaria com o mesmo
+--     valor (ou grupo de parcelas com a mesma soma) entre 3 dias antes e 10 dias depois => ja_existia.
+--     Senão insere as parcelas (centavos que sobram nas últimas, como o app), cartão como
+--     aguardando_fatura e origem manual: a fatura casa com ele em vez de entrar de novo.
+--   jb_cartoes_para_compra(p_token): cartões ativos, sem o do consultório.

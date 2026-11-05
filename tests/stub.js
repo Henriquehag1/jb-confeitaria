@@ -914,6 +914,28 @@ ${agora ? "window.__AGORA=" + JSON.stringify(agora) + ";" : ""}
       if(r){ r.feito = args.p_feito; r.feito_em = args.p_feito ? new Date().toISOString() : null; r.feito_por = args.p_feito ? (eu() || {}).nome : null; }
       return { data:null, error:null };
     }
+    if(nome === "jb_compra_foto_gravar"){
+      if(!gestor()) return { data:null, error:{ message:"so gestor", code:"42501" } };
+      const p = args.p;
+      DB.jb_compra = DB.jb_compra || []; DB.jb_compra_item = DB.jb_compra_item || [];
+      const dup = DB.jb_compra.find(c => c.data === p.data && String(c.fornecedor).toLowerCase() === String(p.fornecedor).toLowerCase() && Number(c.valor_pago) === Number(p.valor_pago));
+      if(dup && !p.forcar) return { data:{ ok:false, duplicada: dup.id }, error:null };
+      const id = nextId("jb_compra");
+      DB.jb_compra.push({ id, data:p.data, fornecedor:p.fornecedor, cnpj:p.cnpj, valor_pago:p.valor_pago, forma:p.forma, cartao:p.cartao, parcelas:p.parcelas, fin_categoria:p.fin_categoria, origem:"foto" });
+      const aplicados = [], nao = [];
+      p.itens.forEach((it, k) => {
+        const custo = it.qtd_base > 0 ? Math.round(it.valor_total / it.qtd_base * 10000) / 10000 : null;
+        DB.jb_compra_item.push({ id: nextId("jb_compra_item"), compra_id:id, ordem:k+1, codigo_forn:it.codigo, descricao:it.descricao, qtd:it.qtd, qtd_base:it.qtd_base, insumo_id:it.insumo_id, destino:it.destino, custo_base:custo, valor_total:it.valor_total });
+        if(!it.aplicar || !it.insumo_id || custo == null) return;
+        const ins = DB.jb_insumo.find(i => i.id === it.insumo_id);
+        const v = ins.custo_unit > 0 ? custo / ins.custo_unit - 1 : null;
+        if(Math.abs(v || 0) > 0.15 && !it.confirmou_variacao){ nao.push({ insumo: ins.nome, motivo:"variação acima de 15% sem confirmação" }); return; }
+        if(custo === Number(ins.custo_unit)) return;
+        aplicados.push({ insumo_id: ins.id, insumo: ins.nome, unidade: ins.unidade, de: ins.custo_unit, para: custo, var: v == null ? null : Math.round(v * 10000) / 10000 });
+        ins.custo_unit = custo;
+      });
+      return { data:{ ok:true, compra_id:id, aplicados, nao_aplicados:nao, margem_abaixo: DB.__margemAbaixo || [], alvo: 0.2 }, error:null };
+    }
     if(nome === "jb_renomear_ingrediente"){ return { data:null, error:null }; }
     return { data:null, error:{ message:"rpc desconhecida " + nome } };
   }
@@ -926,6 +948,18 @@ ${agora ? "window.__AGORA=" + JSON.stringify(agora) + ";" : ""}
       onAuthStateChange: (cb) => { window.__authCb = cb; return { data: { subscription: { unsubscribe(){} } } }; }
     },
     rpc,
+    /* Edge Functions de mentira: o teste diz o que cada ação devolve em DB.__fn. */
+    functions: {
+      invoke: async (nome, opts) => {
+        const body = (opts || {}).body || {};
+        window.__LOG.push(["fn", nome, body]);
+        if(window.__FALHA && window.__FALHA["fn:" + body.acao]) return { data:null, error:{ message:"Edge Function returned a non-2xx status code", context:{ json: async () => ({ erro: window.__FALHA["fn:" + body.acao] }) } } };
+        /* uma lista vira respostas em sequência: a primeira chamada leva a primeira */
+        let r = (DB.__fn || {})[body.acao];
+        if(Array.isArray(r)) r = r.length > 1 ? r.shift() : r[0];
+        return { data: r ? JSON.parse(JSON.stringify(r)) : { erro: "sem resposta de teste" }, error:null };
+      }
+    },
     from: query,
     /* Storage de mentira: guarda o que subiu e devolve um link estável,
        do mesmo formato que o Supabase devolve. */

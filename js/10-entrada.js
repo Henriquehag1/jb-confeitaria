@@ -167,6 +167,7 @@ async function carregarHome(){
     $("btnContas").classList.add("hide");
     $("btnSaude").classList.add("hide");
     $("btnContador").classList.add("hide");
+    $("btnCompra").classList.add("hide");
     aviso("homeMsg","","");
     ajustarGrupos();
     show("scHome");
@@ -261,6 +262,7 @@ async function carregarHome(){
   $("btnContas").classList.toggle("hide", EU.papel !== "gestor");
   $("btnSaude").classList.toggle("hide", EU.papel !== "gestor");
   $("btnContador").classList.toggle("hide", EU.papel !== "gestor");
+  $("btnCompra").classList.toggle("hide", EU.papel !== "gestor");
   await montarFreezerHome(gestor);
   if(gestor){
     const sd = await resumoSaudeHome().catch(() => null);
