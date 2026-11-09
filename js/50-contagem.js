@@ -942,6 +942,7 @@ async function salvarAdendo(){
 const MOTIVOS = [
   { chave: "venceu",     rotulo: "Venceu" },
   { chave: "danificado", rotulo: "Quebrou ou estragou" },
+  { chave: "fora_padrao", rotulo: "Fora do padrão para venda" },
   { chave: "erro",       rotulo: "Saiu errado" },
   { chave: "cortesia",   rotulo: "Cortesia ou degustação" },
   { chave: "contagem",   rotulo: "Acerto de contagem" }
@@ -949,14 +950,15 @@ const MOTIVOS = [
 const MOTIVO_ROTULO = c => (MOTIVOS.find(m => m.chave === c) || { rotulo: c }).rotulo;
 
 let PE = {};                 // produto_id -> quantidade perdida
-let PE_MOTIVO = "venceu";
+let PE_MOTIVO = null;         // sem motivo marcado: quem registra escolhe sempre
+let PE_SALVANDO = false;      // trava o segundo toque enquanto grava e troca de tela
 
 async function listarPerdas(dia){
   try{
     const { data } = await sb.from("jb_perda")
-      .select("id,produto_id,qtd,motivo,obs,nome_responsavel,criado_em")
+      .select("id,produto_id,qtd,motivo,obs,nome_responsavel,criado_em,anulada")
       .eq("data", dia).order("criado_em");
-    return data || [];
+    return (data || []).filter(x => !x.anulada);
   } catch(e){ return []; }
 }
 
@@ -989,7 +991,8 @@ async function abrirPerda(dia, sugestao, volta, apos){
      da noite sai do saldo que abre o dia seguinte, não da venda. */
   PE_APOS = !!apos;
   PE = {};
-  PE_MOTIVO = "venceu";
+  PE_MOTIVO = null;
+  PE_SALVANDO = false;
   if(sugestao) Object.keys(sugestao).forEach(k => { if(sugestao[k] > 0) PE[k] = sugestao[k]; });
 
   $("peData").textContent = dataLonga(PE_DIA) + (PE_APOS ? ", depois de fechar" : "");
@@ -1082,8 +1085,11 @@ function pintarPerda(){
   document.querySelectorAll("#peMotivos button").forEach(b =>
     b.setAttribute("aria-pressed", String(b.dataset.motivo === PE_MOTIVO)));
   $("peProg").textContent = itens ? (itens + (itens === 1 ? " unidade" : " unidades")) : "";
-  $("btnPeSalvar").disabled = !n;
-  $("btnPeSalvar").textContent = n ? "Registrar perda" : "Escolha o que se perdeu";
+  if(PE_SALVANDO) return;
+  $("btnPeSalvar").disabled = !n || !PE_MOTIVO;
+  $("btnPeSalvar").textContent = !n ? "Escolha o que se perdeu"
+                               : !PE_MOTIVO ? "Escolha o motivo"
+                               : "Registrar perda";
 }
 
 function voltarDaPerda(){
@@ -1092,8 +1098,10 @@ function voltarDaPerda(){
 }
 
 async function salvarPerda(){
+  if(PE_SALVANDO || !PE_MOTIVO) return;
   const btn = $("btnPeSalvar");
   const rotulo = btn.textContent;
+  PE_SALVANDO = true;
   btn.disabled = true; btn.textContent = "Salvando...";
 
   const obs = ($("peObs").value || "").trim();
@@ -1102,15 +1110,19 @@ async function salvarPerda(){
     apos_fechamento: PE_APOS, obs: obs || null,
     registrado_por: EU.user_id, nome_responsavel: EU.nome
   }));
-  if(!linhas.length){ btn.disabled = false; btn.textContent = rotulo; return; }
+  if(!linhas.length){ PE_SALVANDO = false; btn.disabled = false; btn.textContent = rotulo; return; }
 
   const { error } = await sb.from("jb_perda").insert(linhas);
-  btn.disabled = false; btn.textContent = rotulo;
   if(error){
+    PE_SALVANDO = false;
+    btn.disabled = false; btn.textContent = rotulo;
     aviso("peMsg","Não consegui salvar a perda agora. Tente de novo em instantes.","err");
     window.scrollTo(0,0);
     return;
   }
+  /* gravou: o botão continua travado até a tela trocar, para um segundo toque não gravar de novo */
+  btn.textContent = "Registrado";
+  PE = {};
   const total = linhas.reduce((s,l) => s + l.qtd, 0);
   const texto = total + (total === 1 ? " unidade registrada" : " unidades registradas")
               + " como " + MOTIVO_ROTULO(PE_MOTIVO).toLowerCase() + ". "

@@ -269,7 +269,7 @@ ${agora ? "window.__AGORA=" + JSON.stringify(agora) + ";" : ""}
         const dep = DB.jb_adendo.filter(x => x.data === a.data && x.produto_id === p.id).reduce((s,x) => s + (x.qtd||0), 0);
         // o que a geladeira guardou do dia anterior, ja descontado o que saiu depois de fechar
         const somaPerda = (dia, pid, apos) => (DB.jb_perda||[])
-          .filter(x => x.data === dia && x.produto_id === pid && !!x.apos_fechamento === apos)
+          .filter(x => x.data === dia && x.produto_id === pid && !!x.apos_fechamento === apos && !x.anulada)
           .reduce((s,x) => s + (x.qtd||0), 0);
         const ontem = diaMais(a.data, -1);
         const fo = DB.jb_contagem.find(x => x.data === ontem && x.momento === "fechamento");

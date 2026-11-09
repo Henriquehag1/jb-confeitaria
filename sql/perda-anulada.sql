@@ -1,0 +1,8 @@
+-- 08/11/2026: perda anulada (sem apagar) e trava de envio repetido
+-- Aplicado como migration jb_perda_anulada_e_correcao_08nov.
+-- jb_perda ganhou anulada boolean not null default false e anulada_motivo text.
+-- Motivo novo: fora_padrao (Fora do padrão para venda).
+-- jb_saidas e jb_perda_resumo passam a ignorar perdas anuladas.
+-- Trigger jb_perda_sem_repetir: o mesmo produto, quantidade, motivo e pessoa
+-- enviado de novo em menos de 60 s é ignorado (toque duplo).
+-- Backup das linhas 77 a 86 em backup.jb_perda_20261108.
