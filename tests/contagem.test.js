@@ -482,7 +482,7 @@ test("perda: sem motivo marcado, toque duplo grava uma vez só e anulada não ap
   assert.equal(await a.tela(), "scPerda");
   assert.equal(await a.page.evaluate(() => document.querySelectorAll("#peMotivos button[aria-pressed='true']").length), 0, "nenhum motivo vem marcado");
   assert.equal(await a.page.evaluate(() => document.querySelectorAll("#peJa .l").length), 0, "registro anulado não aparece");
-  assert.match(await a.page.evaluate(() => [...document.querySelectorAll("#peMotivos button")].map(b => b.textContent).join("|")), /Fora do padrão para venda/);
+  assert.match(await a.page.evaluate(() => [...document.querySelectorAll("#peMotivos button")].map(b => b.textContent).join("|")), /Estragou ou fora do padrão/);
 
   await a.page.locator("#peList .step input").nth(0).fill("2");
   await a.espera(100);

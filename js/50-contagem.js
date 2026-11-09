@@ -87,6 +87,9 @@ async function abrirContagem(momento, modo){
   /* Contagem nova da Jessica ou do Henrique: o freezer começa do último que foi contado. */
   if(veFreezer() && !existente) await carregarFreezerRef();
 
+  /* Na abertura e no repor, a Jessica vê quanto é o ideal de cada doce para hoje. */
+  if(momento === "abertura" && EU && EU.papel === "gestor") await carregarIdeal(diaDoTurno());
+
   $("countData").textContent = dataLonga(diaDoTurno());
   const recuperado = rascunho && Object.keys(VALORES).length;
   aviso("countMsg",
@@ -152,6 +155,12 @@ async function montarLista(){
     ck.onchange = () => { REPOR_FZ = ck.checked; };
     lb.append(ck, document.createTextNode(" Saiu do freezer (desconta do freezer)"));
     box.appendChild(lb);
+    if(LISTA.some(p => IDEAL[p.id] && IDEAL[p.id].ideal)){
+      const bi = document.createElement("button"); bi.type = "button"; bi.className = "gd-preencher"; bi.id = "btnGdPreencher";
+      bi.textContent = "Preencher o que falta para o ideal de hoje";
+      bi.onclick = () => gdPreencherFalta();
+      box.appendChild(bi);
+    }
   }
   LISTA.forEach(p => {
     const row = document.createElement("div");
@@ -177,7 +186,14 @@ async function montarLista(){
       base.className = "base";
       nome.appendChild(base);
     }
+    /* ideal de hoje para este doce, com barrinha verde, âmbar ou vermelha */
+    const chip = MOMENTO === "abertura" ? gdChip(p.id) : null;
+    if(chip) nome.appendChild(chip);
+    const temAgora = () => repor ? temNaGeladeira + (VALORES[p.id] || 0)
+      : VALORES[p.id] !== undefined ? VALORES[p.id]
+      : veioDeOntem !== undefined ? veioDeOntem : 0;
     const pintarBase = () => {
+      if(chip) chip.pintar(temAgora());
       if(!base) return;
       if(repor){
         const add = VALORES[p.id] || 0;
@@ -941,8 +957,7 @@ async function salvarAdendo(){
    ============================================================ */
 const MOTIVOS = [
   { chave: "venceu",     rotulo: "Venceu" },
-  { chave: "danificado", rotulo: "Quebrou ou estragou" },
-  { chave: "fora_padrao", rotulo: "Fora do padrão para venda" },
+  { chave: "danificado", rotulo: "Estragou ou fora do padrão" },
   { chave: "erro",       rotulo: "Saiu errado" },
   { chave: "cortesia",   rotulo: "Cortesia ou degustação" },
   { chave: "contagem",   rotulo: "Acerto de contagem" }
@@ -956,7 +971,7 @@ let PE_SALVANDO = false;      // trava o segundo toque enquanto grava e troca de
 async function listarPerdas(dia){
   try{
     const { data } = await sb.from("jb_perda")
-      .select("id,produto_id,qtd,motivo,obs,nome_responsavel,criado_em,anulada")
+      .select("*")
       .eq("data", dia).order("criado_em");
     return (data || []).filter(x => !x.anulada);
   } catch(e){ return []; }

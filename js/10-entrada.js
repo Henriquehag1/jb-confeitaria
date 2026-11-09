@@ -263,6 +263,7 @@ async function carregarHome(){
   $("btnSaude").classList.toggle("hide", EU.papel !== "gestor");
   $("btnContador").classList.toggle("hide", EU.papel !== "gestor");
   $("btnCompra").classList.toggle("hide", EU.papel !== "gestor");
+  await montarGeladeiraHome(gestor).catch(() => {});
   await montarFreezerHome(gestor);
   if(gestor){
     const sd = await resumoSaudeHome().catch(() => null);

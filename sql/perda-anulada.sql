@@ -6,3 +6,6 @@
 -- Trigger jb_perda_sem_repetir: o mesmo produto, quantidade, motivo e pessoa
 -- enviado de novo em menos de 60 s é ignorado (toque duplo).
 -- Backup das linhas 77 a 86 em backup.jb_perda_20261108.
+-- 09/11: AINDA NÃO APLICADO. O conector do Supabase pede confirmação que não chega ao celular.
+-- O app foi publicado sem depender disso: "Estragou ou fora do padrão" usa o motivo danificado
+-- e a lista de perdas lê select("*"), filtrando anulada só quando a coluna existir.
