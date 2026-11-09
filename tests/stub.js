@@ -269,7 +269,7 @@ ${agora ? "window.__AGORA=" + JSON.stringify(agora) + ";" : ""}
         const dep = DB.jb_adendo.filter(x => x.data === a.data && x.produto_id === p.id).reduce((s,x) => s + (x.qtd||0), 0);
         // o que a geladeira guardou do dia anterior, ja descontado o que saiu depois de fechar
         const somaPerda = (dia, pid, apos) => (DB.jb_perda||[])
-          .filter(x => x.data === dia && x.produto_id === pid && !!x.apos_fechamento === apos)
+          .filter(x => x.data === dia && x.produto_id === pid && !!x.apos_fechamento === apos && !x.anulada)
           .reduce((s,x) => s + (x.qtd||0), 0);
         const ontem = diaMais(a.data, -1);
         const fo = DB.jb_contagem.find(x => x.data === ontem && x.momento === "fechamento");
@@ -546,6 +546,8 @@ ${agora ? "window.__AGORA=" + JSON.stringify(agora) + ";" : ""}
       in(c, vals){ const s = vals.map(String); filtros.push(r => s.includes(String(r[c]))); return api; },
       gte(c, v){ filtros.push(r => r[c] != null && String(r[c]) >= String(v)); return api; },
       lte(c, v){ filtros.push(r => r[c] != null && String(r[c]) <= String(v)); return api; },
+      lt(c, v){ filtros.push(r => r[c] != null && String(r[c]) < String(v)); return api; },
+      gt(c, v){ filtros.push(r => r[c] != null && String(r[c]) > String(v)); return api; },
       is(c, v){ filtros.push(r => r[c] == v); return api; },
       or(expr){ filtros.push(r => expr.split(",").some(part => { const [col, op, val] = part.split("."); if(op === "is") return r[col] == null; if(op === "gte") return r[col] != null && String(r[col]) >= String(val); if(op === "eq") return String(r[col]) === String(val); return false; })); return api; },
       maybeSingle(){ return Promise.resolve(pick(true)); },

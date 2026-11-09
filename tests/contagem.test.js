@@ -350,6 +350,11 @@ test("falta na abertura oferece registrar a perda já preenchida", async () => {
   assert.match(await a.texto("#peData"), /depois de fechar/, "a perda pertence à sobra de ontem");
   assert.equal(await a.page.evaluate(() => PE_DIA), diaMais(hojeSP(), -1));
 
+  // sem motivo escolhido não grava
+  assert.equal(await a.page.evaluate(() => document.querySelector("#btnPeSalvar").disabled), true);
+  assert.match(await a.texto("#btnPeSalvar"), /Escolha o motivo/);
+  await a.page.evaluate(() => [...document.querySelectorAll("#peMotivos button")].find(b => b.textContent === "Venceu").click());
+  await a.espera(100);
   // registrada como perda de depois do fechamento: some do saldo de ontem, não da venda
   await a.page.click("#btnPeSalvar"); await a.espera(700);
   const perdas = await a.db("jb_perda");
@@ -462,5 +467,33 @@ test("fechamento com sobra maior do que entrou: o app soma como reposição e mo
   assert.match(await a.texto("#resBox"), /No fechamento · somado pelo app/);
   assert.match(await a.texto("#resBox"), /\+5/);
   assert.match(await a.texto("#resBox .msg.warn"), /somou a diferença/);
+  semErros(a); await a.fechar();
+});
+
+test("perda: sem motivo marcado, toque duplo grava uma vez só e anulada não aparece", async () => {
+  const hoje = hojeSP();
+  const a = await abrir("uJes", { db: db => {
+    comAbertura(db, hoje);
+    db.jb_perda.push({ id: 7, data: hoje, produto_id: 3, qtd: 5, motivo: "venceu", apos_fechamento: false, anulada: true,
+                       obs: null, registrado_por: "uJes", nome_responsavel: "Jessica", criado_em: hoje + "T12:00:00Z" });
+    return db;
+  }});
+  await a.page.evaluate(async () => { await abrirPerda(hojeSP()); }); await a.espera(500);
+  assert.equal(await a.tela(), "scPerda");
+  assert.equal(await a.page.evaluate(() => document.querySelectorAll("#peMotivos button[aria-pressed='true']").length), 0, "nenhum motivo vem marcado");
+  assert.equal(await a.page.evaluate(() => document.querySelectorAll("#peJa .l").length), 0, "registro anulado não aparece");
+  assert.match(await a.page.evaluate(() => [...document.querySelectorAll("#peMotivos button")].map(b => b.textContent).join("|")), /Estragou ou fora do padrão/);
+
+  await a.page.locator("#peList .step input").nth(0).fill("2");
+  await a.espera(100);
+  assert.equal(await a.page.evaluate(() => document.querySelector("#btnPeSalvar").disabled), true, "sem motivo não grava");
+  await a.page.evaluate(() => [...document.querySelectorAll("#peMotivos button")].find(b => b.textContent === "Cortesia ou degustação").click());
+  await a.espera(100);
+  await a.page.evaluate(() => { const b = document.querySelector("#btnPeSalvar"); b.click(); salvarPerda(); salvarPerda(); });
+  await a.espera(900);
+  const novas = (await a.db("jb_perda")).filter(x => !x.anulada);
+  assert.equal(novas.length, 1, "gravou uma vez só");
+  assert.equal(novas[0].motivo, "cortesia");
+  assert.equal(novas[0].qtd, 2);
   semErros(a); await a.fechar();
 });
