@@ -278,3 +278,41 @@ test("conta já paga sem comprovante: anexa depois, sem mexer na data nem no val
   semErros(a); await a.fechar();
 });
 
+
+test("conta da equipe: faltas e outro desconto combinado (forno usado) saem do valor a pagar e aparecem na conta", async () => {
+  const a = await abrirContas("uHen", { db: db => {
+    db.jb_conta.push({ id: 42, tipo: "equipe", descricao: "Yasmin, 2 semanas", competencia: mais(-14).slice(0, 7) + "-01", vencimento: mais(1), valor: 1700,
+      codigo_barras: null, documento: null, boleto_path: null, comprovante_path: null, pago_em: null, valor_pago: null, pago_por: null, nf_conta_fixa_id: null,
+      obs: null, arquivada: false, equipe_user_id: "uYas", periodo_ini: mais(-14), periodo_fim: mais(-1),
+      abatimentos: [{ descricao: "Forno usado (R$ 1.450,00), restante", valor: 233.19 }] });
+    db.jb_falta = [{ id: 1, user_id: "uYas", data: mais(-5), horas: 6.5, desconta: true, valor_desconto: 137.55, cancelada: false }];
+    return db; } });
+  const card = '#contasLista .enc.conta[data-id="42"]';
+  assert.equal(await a.texto(card + " .enc-dir b"), "R$ 1.329,26", "1.700 menos falta 137,55 menos forno 233,19");
+  const linha = await a.texto(card + " .conta-falta");
+  assert.ok(linha.startsWith("R$ 1.700,00 menos falta de "), linha);
+  assert.ok(linha.includes(br(mais(-5)).slice(0, 5) + " (6h30, R$ 137,55) e Forno usado (R$ 1.450,00), restante (R$ 233,19) = R$ 1.329,26"), linha);
+  assert.equal((await a.page.evaluate(() => [...document.querySelectorAll(".enc-cab b")].map(b => b.textContent)))[1], "R$ 1.529,26", "em 7 dias soma o valor já descontado");
+  const puro = await a.page.evaluate(() => ({
+    so: contaAPagar({ valor: 1700, abatimentos: [{ descricao: "Forno", valor: 1216.81 }] }),
+    nada: contaAPagar({ valor: 1700, abatimentos: null }),
+    estranho: contaAPagar({ valor: 100, abatimentos: [{ valor: "x" }, { valor: -5 }, null] }),
+    tudo: contaAPagar({ valor: 100, abatimentos: [{ valor: 150 }] })
+  }));
+  assert.deepEqual(puro, { so: 483.19, nada: 1700, estranho: 100, tudo: 0 });
+  semErros(a); await a.fechar();
+});
+
+test("conta da equipe já paga: o desconto do forno não aparece de novo", async () => {
+  const a = await abrirContas("uHen", { db: db => {
+    db.jb_conta.push({ id: 43, tipo: "equipe", descricao: "Yasmin, 2 semanas paga", competencia: mais(-14).slice(0, 7) + "-01", vencimento: mais(-1), valor: 1700,
+      codigo_barras: null, documento: null, boleto_path: null, comprovante_path: null, pago_em: mais(-1), valor_pago: 864.19, pago_por: "financeiro", nf_conta_fixa_id: null,
+      obs: null, arquivada: false, equipe_user_id: "uYas", periodo_ini: mais(-14), periodo_fim: mais(-1),
+      abatimentos: [{ descricao: "Forno usado (R$ 1.450,00), restante", valor: 233.19 }] });
+    return db; } });
+  await a.page.click('.conta-abas button[data-aba="pagas"]'); await a.espera(200);
+  const card = '#contasLista .enc.conta[data-id="43"]';
+  assert.equal(await a.texto(card + " .enc-dir b"), "R$ 864,19", "conta paga mostra o que saiu");
+  assert.equal(await a.page.locator(card + " .conta-falta").count(), 0);
+  semErros(a); await a.fechar();
+});

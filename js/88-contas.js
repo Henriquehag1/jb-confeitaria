@@ -251,10 +251,16 @@ function contaFaltasDe(c){
   return CONTA_FALTAS.filter(f => f.user_id === c.equipe_user_id && f.data >= c.periodo_ini && f.data <= c.periodo_fim)
                      .sort((a, b) => a.data < b.data ? -1 : 1);
 }
-/* quanto pagar de fato: o valor menos as faltas descontadas do período */
+/* outros descontos combinados na conta (ex.: forno usado abatido do pagamento), fora as faltas */
+function contaAbatimentos(c){
+  const l = Array.isArray(c && c.abatimentos) ? c.abatimentos : [];
+  return l.filter(x => x && Number(x.valor) > 0).map(x => ({ descricao: String(x.descricao || "Desconto"), valor: Number(x.valor) }));
+}
+/* quanto pagar de fato: o valor menos as faltas descontadas do período e os outros descontos */
 function contaAPagar(c){
   if(c.valor == null) return null;
-  const d = contaFaltasDe(c).reduce((s, f) => s + Number(f.valor_desconto || 0), 0);
+  const d = contaFaltasDe(c).reduce((s, f) => s + Number(f.valor_desconto || 0), 0)
+          + contaAbatimentos(c).reduce((s, x) => s + x.valor, 0);
   return Math.max(0, Math.round((Number(c.valor) - d) * 100) / 100);
 }
 
@@ -470,9 +476,12 @@ function cartaoConta(c){
   }
   if(info.length){ const p = document.createElement("p"); p.className = "conta-info"; p.textContent = info.join(" · "); det.appendChild(p); }
   const faltas = c.pago_em ? [] : contaFaltasDe(c);
-  if(faltas.length){
+  const abat = c.pago_em ? [] : contaAbatimentos(c);
+  if(faltas.length || abat.length){
     const p = document.createElement("p"); p.className = "conta-falta";
-    p.textContent = "R$ " + moeda(Number(c.valor)) + " menos " + faltas.map(f => "falta de " + dataCurta(f.data) + " (" + eqHorasTx(Number(f.horas)) + ", R$ " + moeda(Number(f.valor_desconto)) + ")").join(" e ")
+    p.textContent = "R$ " + moeda(Number(c.valor)) + " menos "
+      + faltas.map(f => "falta de " + dataCurta(f.data) + " (" + eqHorasTx(Number(f.horas)) + ", R$ " + moeda(Number(f.valor_desconto)) + ")")
+          .concat(abat.map(x => x.descricao + " (R$ " + moeda(x.valor) + ")")).join(" e ")
       + " = R$ " + moeda(contaAPagar(c));
     det.appendChild(p);
   }
