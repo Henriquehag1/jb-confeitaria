@@ -317,6 +317,28 @@ test("resumo do pagamento: outras datas sem conta lançada mostram só os descon
   semErros(a); await a.fechar();
 });
 
+test("resumo do pagamento: outro desconto combinado (forno usado) vem depois das faltas e sai do valor a receber", async () => {
+  const forno = db => {
+    comQuinzena(db);
+    db.jb_conta.find(c => c.id === 41).abatimentos = [{ descricao: "Forno usado (R$ 1.450,00), restante", valor: 233.19 }];
+  };
+  const a = await abrirDiasDe("uHen", forno);
+  await a.page.locator(bloco("Yasmin") + " .eq-rel summary").click(); await a.espera(500);
+  const t = await a.page.inputValue("#eqRelTexto-uYas");
+  assert.match(t, /Descontos:\n• Falta em 06\/10[^\n]*R\$ 89,04\n• Falta em 08\/10[^\n]*R\$ 137,55\nOutros descontos:\n• Forno usado \(R\$ 1\.450,00\), restante: R\$ 233,19\nTotal de descontos: R\$ 459,78\./);
+  assert.match(t, /Valor a receber: R\$ 1\.240,22\./);
+  assert.doesNotMatch(t, /Sem descontos/);
+  assert.doesNotMatch(t, / [–—-] /, "sem travessão");
+
+  // só o forno, sem falta no período: um desconto só, sem linha de total
+  const r = await a.page.evaluate(() => relMensagem({ nome: "Yasmin", ini: "2026-10-15", fim: "2026-10-28", valor: 1700, faltas: [],
+    abatimentos: [{ descricao: "Forno usado (R$ 1.450,00), primeira parte", valor: 1216.81 }, { descricao: "zerado", valor: 0 }] }));
+  assert.match(r, /\nDesconto:\n• Forno usado \(R\$ 1\.450,00\), primeira parte: R\$ 1\.216,81\n/);
+  assert.match(r, /Valor a receber: R\$ 483,19\./);
+  assert.doesNotMatch(r, /Total de descontos|Sem descontos|zerado/);
+  semErros(a); await a.fechar();
+});
+
 test("Yasmin não tem o resumo do pagamento nem lê o que ele usa", async () => {
   const a = await abrir("uYas", { agora: AGORA, db: db => { comQuinzena(db); return db; } });
   assert.equal(await a.page.locator(".eq-rel").count(), 0);

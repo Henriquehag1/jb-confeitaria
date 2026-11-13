@@ -1141,10 +1141,13 @@ function relMensagem(p){
   if(p.dias) linhas.push("Dias trabalhados no período: " + p.dias + ".");
   if(p.valor != null) linhas.push("Valor do período: " + relReais(p.valor) + (p.semanas ? " (" + p.semanas + (p.semanas === 1 ? " semana" : " semanas") + ")" : "") + ".");
   const desc = p.faltas.filter(f => f.desconta && Number(f.valor_desconto) > 0);
-  const total = Math.round(desc.reduce((s, f) => s + Number(f.valor_desconto), 0) * 100) / 100;
+  const outros = (p.abatimentos || []).filter(x => x && Number(x.valor) > 0);
+  const total = Math.round((desc.reduce((s, f) => s + Number(f.valor_desconto), 0)
+                          + outros.reduce((s, x) => s + Number(x.valor), 0)) * 100) / 100;
+  const nDesc = desc.length + outros.length;
   linhas.push("");
   if(desc.length){
-    linhas.push(desc.length === 1 ? "Desconto:" : "Descontos:");
+    linhas.push(desc.length === 1 && !outros.length ? "Desconto:" : "Descontos:");
     desc.forEach(f => {
       linhas.push("• Falta em " + relDia(f.data)
         + (f.entrada && f.saida ? ", " + eqHHMM(f.entrada) + " às " + eqHHMM(f.saida) : "")
@@ -1152,10 +1155,13 @@ function relMensagem(p){
         + (Number(f.banco_min) ? " (" + eqMinTx(Number(f.banco_min)) + " compensadas com o banco de horas)" : "")
         + ": " + relReais(Number(f.valor_desconto)));
     });
-    if(desc.length > 1) linhas.push("Total de descontos: " + relReais(total) + ".");
-  } else {
-    linhas.push("Sem descontos neste período.");
   }
+  if(outros.length){
+    linhas.push(desc.length ? "Outros descontos:" : (outros.length === 1 ? "Desconto:" : "Descontos:"));
+    outros.forEach(x => linhas.push("• " + String(x.descricao || "Desconto") + ": " + relReais(Number(x.valor))));
+  }
+  if(nDesc > 1) linhas.push("Total de descontos: " + relReais(total) + ".");
+  if(!nDesc) linhas.push("Sem descontos neste período.");
   const compensadas = p.faltas.filter(f => !(f.desconta && Number(f.valor_desconto) > 0) && Number(f.banco_min) > 0);
   compensadas.forEach(f => linhas.push("• Falta em " + relDia(f.data) + " compensada com " + eqMinTx(Number(f.banco_min)) + " do banco de horas, sem desconto."));
   if(p.valor != null){
@@ -1188,7 +1194,7 @@ function relPeriodoDe(iso, contas){
 async function relCarregar(uid, ac){
   const st = REL_ESTADO[uid];
   const [ct, fa, dt] = await Promise.all([
-    sb.from("jb_conta").select("id,descricao,valor,periodo_ini,periodo_fim,pago_em,arquivada").eq("equipe_user_id", uid)
+    sb.from("jb_conta").select("id,descricao,valor,periodo_ini,periodo_fim,pago_em,arquivada,abatimentos").eq("equipe_user_id", uid)
       .order("periodo_ini", { ascending: false }).limit(12),
     sb.from("jb_falta").select("data,entrada,saida,horas,desconta,valor_desconto,banco_min").eq("user_id", uid).eq("cancelada", false)
       .gte("data", st.ini).lte("data", st.fim).order("data"),
@@ -1202,6 +1208,7 @@ async function relCarregar(uid, ac){
   const conta = st.contas.find(c => c.periodo_ini === st.ini && c.periodo_fim === st.fim);
   const dias = Math.round((Date.parse(st.fim) - Date.parse(st.ini)) / 864e5) + 1;
   st.semanas = dias % 7 === 0 ? dias / 7 : null;
+  st.abatimentos = conta && Array.isArray(conta.abatimentos) ? conta.abatimentos : [];
   st.valor = conta && conta.valor != null ? Number(conta.valor)
            : (ac && ac.regime === "semanal" && ac.valor != null && st.semanas ? Number(ac.valor) * st.semanas : null);
 }
@@ -1261,7 +1268,7 @@ function blocoRelatorio(uid, ac){
 
     const meus = BANCO.filter(b => b.user_id === uid);
     const texto = relMensagem({
-      nome: eqNome(uid), ini: st.ini, fim: st.fim, dias: st.dias, valor: st.valor, semanas: st.semanas, faltas: st.faltas || [],
+      nome: eqNome(uid), ini: st.ini, fim: st.fim, dias: st.dias, valor: st.valor, semanas: st.semanas, faltas: st.faltas || [], abatimentos: st.abatimentos || [],
       banco: st.comBanco ? { saldo: eqSaldo(BANCO, uid), itens: meus.filter(b => b.data >= st.ini && b.data <= st.fim).sort((a, b) => a.data < b.data ? -1 : 1) } : null
     });
     const ta = document.createElement("textarea");
