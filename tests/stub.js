@@ -605,6 +605,11 @@ ${agora ? "window.__AGORA=" + JSON.stringify(agora) + ";" : ""}
   async function rpc(nome, args){
     window.__LOG.push(["rpc", nome, args]);
     if(window.__FALHA && window.__FALHA["rpc:" + nome]) return { data:null, error:{ message:"rede caiu (teste)" } };
+    if(nome === "jb_conferencia_geladeira"){
+      if(!gestor()) return { data:null, error:{ message:"so gestor", code:"42501" } };
+      const lista = (DB.__conf || []).filter(d => d.data >= args.p_de && d.data <= args.p_ate);
+      return { data: JSON.parse(JSON.stringify(lista)), error:null };
+    }
     if(nome === "jb_quanto_fazer"){
       if(!gestor()) return { data:null, error:{ message:"so gestor", code:"42501" } };
       const prm = (DB.jb_quanto_param || [])[0] || { dias: 7, margem_pct: 15 };

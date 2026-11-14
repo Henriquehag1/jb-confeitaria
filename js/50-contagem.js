@@ -967,6 +967,15 @@ const MOTIVO_ROTULO = c => (MOTIVOS.find(m => m.chave === c) || { rotulo: c }).r
 let PE = {};                 // produto_id -> quantidade perdida
 let PE_MOTIVO = null;         // sem motivo marcado: quem registra escolhe sempre
 let PE_SALVANDO = false;      // trava o segundo toque enquanto grava e troca de tela
+let PE_FOTO = null;           // { caminho } da foto da perda, ou { subindo: true }
+const PE_FOTO_ACIMA = 2;      // perda de mais de 2 doces de uma vez só grava com foto
+/* o que a perda exige antes de gravar (pura, testável):
+   acerto de contagem pede explicação (e não precisa de foto, não há doce para fotografar);
+   perda de mais de 2 doces pede foto */
+function peExige(itens, motivo, obs){
+  return { obs: motivo === "contagem" && !String(obs || "").trim(),
+           foto: !!motivo && motivo !== "contagem" && itens > PE_FOTO_ACIMA };
+}
 
 async function listarPerdas(dia){
   try{
@@ -986,7 +995,7 @@ function linhaPerda(x){
   esq.textContent = nomeDe[x.produto_id] || "Item";
   const m = document.createElement("span");
   m.className = "hora";
-  m.textContent = MOTIVO_ROTULO(x.motivo) + (x.obs ? ": " + x.obs : "");
+  m.textContent = MOTIVO_ROTULO(x.motivo) + (x.obs ? ": " + x.obs : "") + (x.foto_path ? " · com foto" : "");
   esq.appendChild(m);
   const h = document.createElement("span");
   h.className = "hora";
@@ -1008,6 +1017,7 @@ async function abrirPerda(dia, sugestao, volta, apos){
   PE = {};
   PE_MOTIVO = null;
   PE_SALVANDO = false;
+  PE_FOTO = null;
   if(sugestao) Object.keys(sugestao).forEach(k => { if(sugestao[k] > 0) PE[k] = sugestao[k]; });
 
   $("peData").textContent = dataLonga(PE_DIA) + (PE_APOS ? ", depois de fechar" : "");
@@ -1100,11 +1110,45 @@ function pintarPerda(){
   document.querySelectorAll("#peMotivos button").forEach(b =>
     b.setAttribute("aria-pressed", String(b.dataset.motivo === PE_MOTIVO)));
   $("peProg").textContent = itens ? (itens + (itens === 1 ? " unidade" : " unidades")) : "";
+  const ex = peExige(itens, PE_MOTIVO, $("peObs").value);
+  const acerto = PE_MOTIVO === "contagem";
+  $("peAcertoTx").classList.toggle("hide", !acerto);
+  $("peObsRot").textContent = acerto ? "O que aconteceu? (obrigatório no acerto)" : "Quer explicar? (opcional)";
+  const caixa = $("peFotoBox");
+  caixa.classList.toggle("hide", !n || !PE_MOTIVO || acerto);
+  const temFoto = !!(PE_FOTO && PE_FOTO.caminho), subindo = !!(PE_FOTO && PE_FOTO.subindo);
+  $("peFotoTx").textContent = itens > PE_FOTO_ACIMA ? "Mais de " + PE_FOTO_ACIMA + " doces: a foto é obrigatória. Fotografe os doces antes de jogar fora."
+                                                   : "Se puder, tire uma foto dos doces (opcional).";
+  $("peFotoOk").classList.toggle("hide", !temFoto);
+  $("btnPeFoto").textContent = subindo ? "Guardando a foto..." : temFoto ? "Trocar a foto" : "Tirar foto da perda";
+  $("btnPeFoto").disabled = subindo;
   if(PE_SALVANDO) return;
-  $("btnPeSalvar").disabled = !n || !PE_MOTIVO;
+  $("btnPeSalvar").disabled = !n || !PE_MOTIVO || ex.obs || (ex.foto && !temFoto) || subindo;
   $("btnPeSalvar").textContent = !n ? "Escolha o que se perdeu"
                                : !PE_MOTIVO ? "Escolha o motivo"
+                               : ex.obs ? "Escreva o que aconteceu"
+                               : ex.foto && !temFoto ? "Tire a foto para registrar"
                                : "Registrar perda";
+}
+
+/* foto da perda: sobe reduzida para o balde privado, em perdas/, antes de gravar */
+async function peAnexarFoto(file){
+  if(!file) return;
+  if(!/^image\//i.test(file.type || "") && !/\.(jpe?g|png|heic|heif|webp)$/i.test(file.name || "")){
+    aviso("peMsg", "Esse arquivo não é foto.", "err"); return;
+  }
+  PE_FOTO = { subindo: true }; pintarPerda();
+  try {
+    const f = typeof cfReduzir === "function" ? await cfReduzir(file) : file;
+    const caminho = "perdas/" + PE_DIA.replace(/-/g, "") + "-" + Date.now() + ".jpg";
+    const r = await sb.storage.from("contas").upload(caminho, f, { contentType: "image/jpeg", upsert: false });
+    if(r.error) throw r.error;
+    PE_FOTO = { caminho };
+  } catch(e){
+    PE_FOTO = null;
+    aviso("peMsg", "Não consegui guardar a foto. Confira a internet e tente de novo.", "err");
+  }
+  pintarPerda();
 }
 
 function voltarDaPerda(){
@@ -1114,6 +1158,9 @@ function voltarDaPerda(){
 
 async function salvarPerda(){
   if(PE_SALVANDO || !PE_MOTIVO) return;
+  const qtdTotal = Object.keys(PE).reduce((t, k) => t + (PE[k] > 0 ? PE[k] : 0), 0);
+  const ex = peExige(qtdTotal, PE_MOTIVO, $("peObs").value);
+  if(ex.obs || (ex.foto && !(PE_FOTO && PE_FOTO.caminho)) || (PE_FOTO && PE_FOTO.subindo)){ pintarPerda(); return; }
   const btn = $("btnPeSalvar");
   const rotulo = btn.textContent;
   PE_SALVANDO = true;
@@ -1123,7 +1170,8 @@ async function salvarPerda(){
   const linhas = Object.keys(PE).filter(k => PE[k] > 0).map(k => ({
     data: PE_DIA, produto_id: Number(k), qtd: PE[k], motivo: PE_MOTIVO,
     apos_fechamento: PE_APOS, obs: obs || null,
-    registrado_por: EU.user_id, nome_responsavel: EU.nome
+    registrado_por: EU.user_id, nome_responsavel: EU.nome,
+    ...(PE_FOTO && PE_FOTO.caminho && PE_MOTIVO !== "contagem" ? { foto_path: PE_FOTO.caminho } : {})
   }));
   if(!linhas.length){ PE_SALVANDO = false; btn.disabled = false; btn.textContent = rotulo; return; }
 

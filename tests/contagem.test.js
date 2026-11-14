@@ -4,6 +4,7 @@ const { abrir, encerrar } = require("./harness");
 const { hojeSP, diaMais } = require("./stub");
 
 test.after(encerrar);
+const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64");
 const semErros = a => assert.deepEqual(a.erros, [], "sem erros de página");
 
 const comAbertura = (db, hoje, autor = "uJes") => {
@@ -355,12 +356,22 @@ test("falta na abertura oferece registrar a perda já preenchida", async () => {
   assert.match(await a.texto("#btnPeSalvar"), /Escolha o motivo/);
   await a.page.evaluate(() => [...document.querySelectorAll("#peMotivos button")].find(b => b.textContent === "Venceu").click());
   await a.espera(100);
+  // mais de 2 doces: só grava com a foto da perda
+  assert.equal(await a.page.evaluate(() => document.querySelector("#btnPeSalvar").disabled), true);
+  assert.match(await a.texto("#btnPeSalvar"), /Tire a foto para registrar/);
+  assert.match(await a.texto("#peFotoTx"), /a foto é obrigatória/);
+  await a.page.setInputFiles("#peFotoArq", { name: "perda.png", mimeType: "image/png", buffer: PNG });
+  await a.page.waitForFunction(() => PE_FOTO && PE_FOTO.caminho);
+  assert.equal(await a.visivel("peFotoOk"), true);
   // registrada como perda de depois do fechamento: some do saldo de ontem, não da venda
   await a.page.click("#btnPeSalvar"); await a.espera(700);
   const perdas = await a.db("jb_perda");
   assert.equal(perdas.length, 1);
   assert.equal(perdas[0].apos_fechamento, true);
   assert.equal(perdas[0].qtd, 4);
+  assert.match(perdas[0].foto_path, /^perdas\/\d{8}-\d+\.jpg$/, "a foto vai junto, no balde privado");
+  const up = await a.log("upload");
+  assert.equal(up[0][1], "contas");
   assert.match(await a.texto("#homeMsg"), /Saiu do saldo que abre o dia seguinte/);
   semErros(a); await a.fechar();
 });
@@ -495,5 +506,38 @@ test("perda: sem motivo marcado, toque duplo grava uma vez só e anulada não ap
   assert.equal(novas.length, 1, "gravou uma vez só");
   assert.equal(novas[0].motivo, "cortesia");
   assert.equal(novas[0].qtd, 2);
+  semErros(a); await a.fechar();
+});
+
+
+test("acerto de contagem pede explicação e não pede foto; perda pequena grava sem foto", async () => {
+  const a = await abrir("uJes", { confirmar: true });
+  await a.page.evaluate(() => abrirPerda(hojeSP())); await a.espera(300);
+  const inputs = a.page.locator("#peList .step input");
+  await inputs.nth(0).fill("5");
+  await a.page.evaluate(() => [...document.querySelectorAll("#peMotivos button")].find(b => b.textContent === "Acerto de contagem").click());
+  await a.espera(100);
+  assert.equal(await a.visivel("peAcertoTx"), true, "avisa que acerto vira diferença");
+  assert.equal(await a.visivel("peFotoBox"), false, "acerto não tem doce para fotografar");
+  assert.match(await a.texto("#btnPeSalvar"), /Escreva o que aconteceu/);
+  assert.equal(await a.page.evaluate(() => document.querySelector("#btnPeSalvar").disabled), true);
+  await a.page.fill("#peObs", "contei errado na abertura");
+  await a.espera(100);
+  assert.equal(await a.page.evaluate(() => document.querySelector("#btnPeSalvar").disabled), false);
+  await a.page.click("#btnPeSalvar"); await a.espera(600);
+  let perdas = await a.db("jb_perda");
+  assert.equal(perdas.length, 1);
+  assert.equal(perdas[0].motivo, "contagem");
+  assert.equal(perdas[0].obs, "contei errado na abertura");
+  assert.equal(perdas[0].foto_path, undefined);
+
+  await a.page.evaluate(() => abrirPerda(hojeSP())); await a.espera(300);
+  await a.page.locator("#peList .step input").nth(1).fill("2");
+  await a.page.evaluate(() => [...document.querySelectorAll("#peMotivos button")].find(b => b.textContent === "Cortesia ou degustação").click());
+  await a.espera(100);
+  assert.match(await a.texto("#peFotoTx"), /opcional/);
+  assert.equal(await a.page.evaluate(() => document.querySelector("#btnPeSalvar").disabled), false, "2 doces: foto opcional");
+  const r = await a.page.evaluate(() => [peExige(3, "venceu", ""), peExige(2, "venceu", ""), peExige(9, "contagem", " "), peExige(9, "contagem", "x")]);
+  assert.deepEqual(r, [{ obs: false, foto: true }, { obs: false, foto: false }, { obs: true, foto: false }, { obs: false, foto: false }]);
   semErros(a); await a.fechar();
 });
