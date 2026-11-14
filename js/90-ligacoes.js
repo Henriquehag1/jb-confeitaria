@@ -61,6 +61,8 @@ $("btnPeVoltar").onclick = voltarDaPerda;
 $("btnFzSalvar").onclick = salvarFreezer;
 $("btnFzVoltar").onclick = carregarHome;
 $("peObs").addEventListener("input", pintarPerda);
+$("btnPeFoto").onclick = () => $("peFotoArq").click();
+$("peFotoArq").onchange = () => { const f = $("peFotoArq").files && $("peFotoArq").files[0]; $("peFotoArq").value = ""; if(f) peAnexarFoto(f); };
 $("adTexto").addEventListener("input", pintarAdendo);
 $("btnPromo").onclick = abrirPromo;
 $("btnPerda").onclick = () => abrirPerda(null, null, "scHome");
