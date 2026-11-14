@@ -309,6 +309,92 @@ function cfTelaFoto(box){
     box.appendChild(ler);
   }
   if(CF.subindo) box.appendChild(cfEl("p", "tip", "Guardando a foto..."));
+  cfTelaEnviadas(box);
+}
+
+/* ---------- notas já lançadas: dá para ver depois de enviar ----------
+   As últimas compras, da mais nova para a mais antiga. Tocar abre as linhas
+   (como foram gravadas, com o insumo de cada uma), o pagamento, o Nosso Financeiro
+   e a foto da nota, por link de 5 minutos do balde privado. Só leitura. */
+const CF_ENV_N = 15;
+const CF_FIN_TX = { lancado: "Lançada no Nosso Financeiro", ja_existia: "Já estava no Nosso Financeiro", ja_lancado: "Já estava no Nosso Financeiro" };
+
+async function cfCarregarEnviadas(){
+  const c = await sb.from("jb_compra").select("id,data,fornecedor,valor_total,valor_pago,forma,cartao,parcelas,origem,fin_status,fotos,criado_em")
+    .order("id", { ascending: false }).limit(CF_ENV_N);
+  if(c.error){ CF.enviadas = { erro: true, lista: [], nomes: {} }; return; }
+  const lista = c.data || [];
+  const nomes = {};
+  let itens = [];
+  if(lista.length){
+    const [it, ins] = await Promise.all([
+      sb.from("jb_compra_item").select("id,compra_id,ordem,descricao,qtd,unidade_nota,valor_total,insumo_id,destino").in("compra_id", lista.map(x => x.id)),
+      sb.from("jb_insumo").select("id,nome")
+    ]);
+    itens = (it && !it.error && it.data) || [];
+    ((ins && !ins.error && ins.data) || []).forEach(i => { nomes[i.id] = i.nome; });
+  }
+  CF.enviadas = { nomes, lista: lista.map(x => ({ ...x,
+    itens: itens.filter(i => String(i.compra_id) === String(x.id)).sort((a, b) => (a.ordem || 0) - (b.ordem || 0) || a.id - b.id) })) };
+}
+
+function cfTelaEnviadas(box){
+  const wrap = cfEl("div", "cf-env"); wrap.id = "cfEnviadas";
+  wrap.appendChild(cfEl("h3", "cf-tit", "Notas lançadas"));
+  box.appendChild(wrap);
+  if(!CF.enviadas){
+    wrap.appendChild(cfEl("p", "tip", "Carregando as últimas notas..."));
+    cfCarregarEnviadas().then(() => { if(CF && CF.etapa === "foto") cfDesenhar(); });
+    return;
+  }
+  if(CF.enviadas.erro){ wrap.appendChild(cfEl("p", "tip", "Não consegui carregar as notas lançadas agora.")); return; }
+  if(!CF.enviadas.lista.length){ wrap.appendChild(cfEl("p", "tip", "Nenhuma nota lançada ainda.")); return; }
+  const hoje = hojeSP();
+  CF.enviadas.lista.forEach(x => {
+    const d = document.createElement("details"); d.className = "card cf-env-item"; d.dataset.id = x.id;
+    const sm = document.createElement("summary");
+    const l1 = cfEl("span", "cf-env-l1");
+    l1.append(cfEl("b", null, x.fornecedor || "Sem fornecedor"), cfEl("span", "cf-env-v", "R$ " + moeda(x.valor_pago != null ? x.valor_pago : x.valor_total)));
+    const l2 = cfEl("small", "cf-env-l2", (x.data === hoje ? "hoje" : dataCurta(x.data)) + " · " + x.itens.length + (x.itens.length === 1 ? " linha" : " linhas")
+      + ((x.fotos || []).length ? " · com foto" : ""));
+    sm.append(l1, l2);
+    d.appendChild(sm);
+
+    const corpo = cfEl("div", "cf-env-corpo");
+    x.itens.forEach(i => {
+      const p = cfEl("p", "cf-env-lin");
+      const nome = i.insumo_id && CF.enviadas.nomes[i.insumo_id];
+      p.appendChild(cfEl("span", null, i.descricao || "Linha"));
+      p.appendChild(cfEl("small", null, cfFmt(i.qtd) + (i.unidade_nota ? " " + String(i.unidade_nota).toLowerCase() : "")
+        + (i.valor_total != null ? " · R$ " + moeda(i.valor_total) : "")
+        + (nome ? " · " + nome : i.destino && i.destino !== "insumo" ? " · " + ({ consumo: "consumo", revenda: "revenda" }[i.destino] || i.destino) : "")));
+      corpo.appendChild(p);
+    });
+    const forma = (CF_FORMAS.find(f => f[0] === x.forma) || [, ""])[1];
+    if(forma) corpo.appendChild(cfEl("p", "cf-env-info", "Pagamento: " + forma + (x.forma === "cartao" && x.cartao ? ", " + x.cartao : "")
+      + (Number(x.parcelas) > 1 ? ", " + x.parcelas + "x" : "")));
+    corpo.appendChild(cfEl("p", "cf-env-info", CF_FIN_TX[x.fin_status] || (x.origem === "foto" ? "Ainda não lançada no Nosso Financeiro" : "Lançada à mão no JB OS")));
+    if(x.criado_em) corpo.appendChild(cfEl("p", "cf-env-info", "Enviada em " + new Date(x.criado_em).toLocaleString("pt-BR", { timeZone: TZ, day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }).replace(",", " às")));
+    (x.fotos || []).forEach((caminho, k, todas) => {
+      const b = cfEl("button", "rm", todas.length > 1 ? "ver a foto, parte " + (k + 1) : (/\.pdf$/i.test(caminho) ? "ver o PDF da nota" : "ver a foto da nota"));
+      b.type = "button"; b.className = "rm cf-env-foto";
+      b.onclick = () => cfAbrirFoto(caminho);
+      corpo.appendChild(b);
+    });
+    d.appendChild(corpo);
+    wrap.appendChild(d);
+  });
+}
+
+async function cfAbrirFoto(caminho){
+  const jan = window.open("", "_blank");
+  const r = await sb.storage.from("contas").createSignedUrl(caminho, 300);
+  if(r.error || !r.data){
+    if(jan) jan.close();
+    aviso("cfMsg", "Não consegui abrir a foto agora. Tente de novo.", "err");
+    return;
+  }
+  if(jan) jan.location = r.data.signedUrl; else location.href = r.data.signedUrl;
 }
 
 /* Foto do celular sobe reduzida (lê igual e sobe em segundos); PDF sobe como veio. */
@@ -696,7 +782,7 @@ function cfTelaFeito(box){
 
   if(CF.ia && CF.ia.custo_usd != null) box.appendChild(cfEl("p", "tip", "Leitura da nota: US$ " + CF.ia.custo_usd.toLocaleString("pt-BR", { maximumFractionDigits: 4 }) + "."));
   const outra = cfEl("button", "big"); outra.type = "button"; outra.id = "cfOutra";
-  outra.innerHTML = '<span class="tx"><span class="t">Lançar outra nota</span></span>';
+  outra.innerHTML = '<span class="tx"><span class="t">Lançar outra nota</span><span class="s">Embaixo ficam as notas lançadas, para conferir depois</span></span>';
   outra.onclick = abrirCompraFoto;
   box.appendChild(outra);
 }

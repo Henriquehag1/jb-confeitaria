@@ -273,3 +273,44 @@ test("a nota da Kalumby de novo: grava com 05/11 e data fora do limite trava o b
   semErros(a);
   await a.fechar();
 });
+
+test("notas lançadas: dá para ver depois de enviar, com as linhas, o pagamento e a foto", async () => {
+  const a = await abrir("uJes", { agora: "2026-11-14T15:00:00Z", db: db => {
+    db.jb_compra = [
+      { id: 12, data: "2026-11-07", fornecedor: "Z T COMERCIO DE EMBALAGENS LTDA", valor_total: 103.8, valor_pago: 103.8, forma: "cartao", cartao: "Santander Unique Visa", parcelas: 1,
+        origem: "foto", fin_status: "lancado", fotos: ["notas/20261107-1-0.jpg", "notas/20261107-2-1.jpg"], criado_em: "2026-11-07T09:42:03Z" },
+      { id: 13, data: "2026-11-14", fornecedor: "HORTIFRUTI POMAR DA VILA", valor_total: 101.64, valor_pago: 101.54, forma: "cartao", cartao: "Nubank Jessica", parcelas: 2,
+        origem: "foto", fin_status: "lancado", fotos: ["notas/20261114-1-0.jpg"], criado_em: "2026-11-14T12:19:41Z" },
+      { id: 11, data: "2026-11-07", fornecedor: "Pão de Açúcar", valor_total: 23.98, valor_pago: 23.98, forma: "cartao", cartao: "Nubank Jessica", parcelas: 1,
+        origem: "manual", fin_status: "ja_existia", fotos: null, criado_em: "2026-11-07T09:41:57Z" }
+    ];
+    db.jb_compra_item = [
+      { id: 60, compra_id: 13, ordem: 2, descricao: "SACOLA VERDE RECICLAVEL", qtd: 3, unidade_nota: "UN", valor_total: 0.3, insumo_id: null, destino: "consumo" },
+      { id: 59, compra_id: 13, ordem: 1, descricao: "MORANGO BANDEJA", qtd: 4, unidade_nota: "UN", valor_total: 39.96, insumo_id: 100, destino: "insumo" },
+      { id: 55, compra_id: 12, ordem: 1, descricao: "Saco Delivery Offwhite G c/50 un", qtd: 1, unidade_nota: "PACOT", valor_total: 57.9, insumo_id: 101, destino: "insumo" },
+      { id: 50, compra_id: 11, ordem: 1, descricao: "Leite condensado", qtd: 2, unidade_nota: "UN", valor_total: 23.98, insumo_id: null, destino: "insumo" }
+    ];
+    return db; } });
+  await a.page.evaluate(() => { window.open = () => ({ close(){}, set location(v){ window.__ABRIU = v; } }); });
+  await a.page.click("#btnCompra");
+  await a.page.waitForSelector("#cfEnviadas .cf-env-item");
+  const itens = await a.page.$$eval("#cfEnviadas .cf-env-item", l => l.map(d => [d.dataset.id, d.querySelector("summary").textContent]));
+  assert.deepEqual(itens.map(x => x[0]), ["13", "12", "11"], "da mais nova para a mais antiga");
+  assert.match(itens[0][1], /HORTIFRUTI POMAR DA VILA.*R\$ 101,54.*hoje · 2 linhas · com foto/);
+  assert.match(itens[2][1], /Pão de Açúcar.*1 linha$/);
+
+  await a.page.click('#cfEnviadas .cf-env-item[data-id="13"] summary');
+  const corpo = await a.texto('#cfEnviadas .cf-env-item[data-id="13"] .cf-env-corpo');
+  assert.ok(corpo.indexOf("MORANGO") < corpo.indexOf("SACOLA"), "na ordem da nota");
+  assert.match(corpo, /4 un · R\$ 39,96 · /, "linha com o insumo");
+  assert.match(corpo, /3 un · R\$ 0,30 · consumo/);
+  assert.match(corpo, /Pagamento: Cartão de crédito, Nubank Jessica, 2x/);
+  assert.match(corpo, /Lançada no Nosso Financeiro/);
+  assert.match(corpo, /Enviada em 14\/11 às 09:19/);
+  await a.page.click('#cfEnviadas .cf-env-item[data-id="13"] .cf-env-foto');
+  await a.espera(200);
+  assert.match(await a.page.evaluate(() => window.__ABRIU), /\/sign\/contas\/notas\/20261114-1-0\.jpg\?token=/);
+  assert.match(await a.texto('#cfEnviadas .cf-env-item[data-id="12"]'), /ver a foto, parte 2/);
+  assert.match(await a.texto('#cfEnviadas .cf-env-item[data-id="11"]'), /Já estava no Nosso Financeiro/);
+  semErros(a); await a.fechar();
+});
