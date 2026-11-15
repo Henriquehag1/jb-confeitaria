@@ -960,6 +960,7 @@ const MOTIVOS = [
   { chave: "danificado", rotulo: "Estragou ou fora do padrão" },
   { chave: "erro",       rotulo: "Saiu errado" },
   { chave: "cortesia",   rotulo: "Cortesia ou degustação" },
+  { chave: "consumo",    rotulo: "Consumo da casa" },
   { chave: "contagem",   rotulo: "Acerto de contagem" }
 ];
 const MOTIVO_ROTULO = c => (MOTIVOS.find(m => m.chave === c) || { rotulo: c }).rotulo;
@@ -971,9 +972,10 @@ let PE_FOTO = null;           // { caminho } da foto da perda, ou { subindo: tru
 const PE_FOTO_ACIMA = 2;      // perda de mais de 2 doces de uma vez só grava com foto
 /* o que a perda exige antes de gravar (pura, testável):
    acerto de contagem pede explicação (e não precisa de foto, não há doce para fotografar);
+   consumo da casa (sócios, equipe, família) pede quem levou;
    perda de mais de 2 doces pede foto */
 function peExige(itens, motivo, obs){
-  return { obs: motivo === "contagem" && !String(obs || "").trim(),
+  return { obs: (motivo === "contagem" || motivo === "consumo") && !String(obs || "").trim(),
            foto: !!motivo && motivo !== "contagem" && itens > PE_FOTO_ACIMA };
 }
 
@@ -1111,9 +1113,12 @@ function pintarPerda(){
     b.setAttribute("aria-pressed", String(b.dataset.motivo === PE_MOTIVO)));
   $("peProg").textContent = itens ? (itens + (itens === 1 ? " unidade" : " unidades")) : "";
   const ex = peExige(itens, PE_MOTIVO, $("peObs").value);
-  const acerto = PE_MOTIVO === "contagem";
+  const acerto = PE_MOTIVO === "contagem", consumo = PE_MOTIVO === "consumo";
   $("peAcertoTx").classList.toggle("hide", !acerto);
-  $("peObsRot").textContent = acerto ? "O que aconteceu? (obrigatório no acerto)" : "Quer explicar? (opcional)";
+  $("peConsumoTx").classList.toggle("hide", !consumo);
+  $("peObsRot").textContent = acerto ? "O que aconteceu? (obrigatório no acerto)"
+                            : consumo ? "Quem levou? (obrigatório)" : "Quer explicar? (opcional)";
+  $("peObs").placeholder = consumo ? "Ex.: Jessica, Henrique, mãe da Jessica, equipe" : "Ex.: caiu no chão na hora de embalar";
   const caixa = $("peFotoBox");
   caixa.classList.toggle("hide", !n || !PE_MOTIVO || acerto);
   const temFoto = !!(PE_FOTO && PE_FOTO.caminho), subindo = !!(PE_FOTO && PE_FOTO.subindo);
@@ -1126,7 +1131,7 @@ function pintarPerda(){
   $("btnPeSalvar").disabled = !n || !PE_MOTIVO || ex.obs || (ex.foto && !temFoto) || subindo;
   $("btnPeSalvar").textContent = !n ? "Escolha o que se perdeu"
                                : !PE_MOTIVO ? "Escolha o motivo"
-                               : ex.obs ? "Escreva o que aconteceu"
+                               : ex.obs ? (consumo ? "Escreva quem levou" : "Escreva o que aconteceu")
                                : ex.foto && !temFoto ? "Tire a foto para registrar"
                                : "Registrar perda";
 }

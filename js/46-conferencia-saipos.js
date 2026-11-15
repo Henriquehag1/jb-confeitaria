@@ -59,6 +59,11 @@ async function montarConferenciaHome(gestor){
   if(!box) return;
   box.innerHTML = "";
   if(!gestor) return;
+  await confgCardOntem(box);
+  await consumoCardMes(box);
+}
+
+async function confgCardOntem(box){
   const ontem = confgMaisDias(TURNO_DIA || hojeSP(), -1);
   let d = null;
   try { d = (await confgCarregar(ontem, ontem))[0] || null; } catch(e){ return; }
@@ -74,6 +79,49 @@ async function montarConferenciaHome(gestor){
   const s = document.createElement("p"); s.className = "s"; s.textContent = "Toque para ver doce por doce e os últimos dias.";
   card.append(h, res, s);
   card.onclick = () => abrirConferenciaGeladeira(ontem);
+  box.appendChild(card);
+}
+
+/* consumo da casa no mês, somado por quem levou (pura, testável).
+   "jessica" e "Jessica " contam como a mesma pessoa. */
+function consumoResumo(linhas){
+  const por = {};
+  let total = 0;
+  (linhas || []).filter(x => !x.anulada && x.motivo === "consumo").forEach(x => {
+    const q = Number(x.qtd || 0);
+    const nome = String(x.obs || "").trim().replace(/\s+/g, " ") || "sem nome";
+    const k = nome.toLowerCase();
+    if(!por[k]) por[k] = { nome: nome.charAt(0).toUpperCase() + nome.slice(1), qtd: 0 };
+    por[k].qtd += q; total += q;
+  });
+  const quem = Object.values(por).sort((a, b) => b.qtd - a.qtd || a.nome.localeCompare(b.nome));
+  return { total, quem };
+}
+
+const MESES_PT = ["janeiro","fevereiro","março","abril","maio","junho","julho","agosto","setembro","outubro","novembro","dezembro"];
+
+async function consumoCardMes(box){
+  const hoje = TURNO_DIA || hojeSP();
+  const ini = hoje.slice(0, 8) + "01";
+  let linhas = [];
+  try {
+    const { data, error } = await sb.from("jb_perda").select("qtd,obs,motivo,anulada,data")
+      .eq("motivo", "consumo").gte("data", ini).lte("data", hoje);
+    if(error) return;
+    linhas = data || [];
+  } catch(e){ return; }
+  const r = consumoResumo(linhas);
+  const card = document.createElement("div");
+  card.className = "freezer-card gd-card consumo-card"; card.id = "consumoCard";
+  const h = document.createElement("h4"); h.textContent = "Consumo da casa · " + MESES_PT[Number(hoje.slice(5, 7)) - 1];
+  const res = document.createElement("p"); res.className = "gd-res";
+  res.textContent = r.total ? r.total + (r.total === 1 ? " doce" : " doces") + " no mês." : "Nenhum doce registrado como consumo da casa neste mês.";
+  card.append(h, res);
+  if(r.quem.length){
+    const s = document.createElement("p"); s.className = "s";
+    s.textContent = r.quem.map(x => x.nome + " " + x.qtd).join(" · ");
+    card.appendChild(s);
+  }
   box.appendChild(card);
 }
 
