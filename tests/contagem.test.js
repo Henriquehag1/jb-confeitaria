@@ -541,3 +541,26 @@ test("acerto de contagem pede explicação e não pede foto; perda pequena grava
   assert.deepEqual(r, [{ obs: false, foto: true }, { obs: false, foto: false }, { obs: true, foto: false }, { obs: false, foto: false }]);
   semErros(a); await a.fechar();
 });
+
+test("consumo da casa: pede quem levou, grava com o nome e não vira cortesia", async () => {
+  const a = await abrir("uJes");
+  await a.page.evaluate(() => abrirPerda(hojeSP())); await a.espera(300);
+  await a.page.locator("#peList .step input").nth(0).fill("1");
+  await a.page.evaluate(() => [...document.querySelectorAll("#peMotivos button")].find(b => b.textContent === "Consumo da casa").click());
+  await a.espera(100);
+  assert.equal(await a.page.evaluate(() => document.querySelector("#peConsumoTx").classList.contains("hide")), false);
+  assert.equal(await a.texto("#peObsRot"), "Quem levou? (obrigatório)");
+  assert.equal(await a.page.evaluate(() => document.querySelector("#btnPeSalvar").disabled), true);
+  assert.equal(await a.texto("#btnPeSalvar"), "Escreva quem levou");
+  await a.page.fill("#peObs", "  Mãe da Jessica ");
+  await a.page.dispatchEvent("#peObs", "input"); await a.espera(100);
+  assert.equal(await a.page.evaluate(() => document.querySelector("#btnPeSalvar").disabled), false);
+  await a.page.click("#btnPeSalvar"); await a.espera(500);
+  const nova = (await a.db("jb_perda")).filter(x => x.motivo === "consumo");
+  assert.equal(nova.length, 1);
+  assert.equal(nova[0].obs, "Mãe da Jessica");
+  assert.equal(nova[0].qtd, 1);
+  const r = await a.page.evaluate(() => [peExige(1, "consumo", ""), peExige(1, "consumo", "Henrique"), peExige(3, "consumo", "Henrique")]);
+  assert.deepEqual(r, [{ obs: true, foto: false }, { obs: false, foto: false }, { obs: false, foto: true }]);
+  semErros(a); await a.fechar();
+});

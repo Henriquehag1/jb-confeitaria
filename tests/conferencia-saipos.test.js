@@ -29,7 +29,17 @@ const DIAS = [
   { data: "2026-11-12", lido: false, fechado: true, saiu: 0, vendido: 0, diferenca: 0, categorias: [], produtos: [], nao_mapeados: [], perdas: [] },
   DIA13
 ];
-const comConf = db => { db.__conf = JSON.parse(JSON.stringify(DIAS)); return db; };
+const comConf = db => {
+  db.__conf = JSON.parse(JSON.stringify(DIAS));
+  db.jb_perda.push(
+    { id: 901, data: "2026-11-03", produto_id: 9, qtd: 2, motivo: "consumo", obs: "Jessica", anulada: false, apos_fechamento: false },
+    { id: 902, data: "2026-11-10", produto_id: 4, qtd: 1, motivo: "consumo", obs: "jessica ", anulada: false, apos_fechamento: false },
+    { id: 903, data: "2026-11-12", produto_id: 26, qtd: 3, motivo: "consumo", obs: "família", anulada: false, apos_fechamento: false },
+    { id: 904, data: "2026-11-12", produto_id: 26, qtd: 5, motivo: "consumo", obs: "família", anulada: true, apos_fechamento: false },
+    { id: 905, data: "2026-10-30", produto_id: 26, qtd: 4, motivo: "consumo", obs: "Henrique", anulada: false, apos_fechamento: false },
+    { id: 906, data: "2026-11-12", produto_id: 9, qtd: 2, motivo: "cortesia", obs: "cliente", anulada: false, apos_fechamento: false });
+  return db;
+};
 
 test("contas puras: situação do dia e alertas", async () => {
   const a = await abrir("uHen", { agora: AGORA });
@@ -59,8 +69,21 @@ test("contas puras: situação do dia e alertas", async () => {
   semErros(a); await a.fechar();
 });
 
+test("consumo da casa: soma do mês por quem levou (pura)", async () => {
+  const a = await abrir("uHen", { agora: AGORA });
+  const r = await a.page.evaluate(() => consumoResumo([
+    { motivo: "consumo", qtd: 2, obs: "Jessica" }, { motivo: "consumo", qtd: 1, obs: " jessica" },
+    { motivo: "consumo", qtd: 3, obs: "família" }, { motivo: "consumo", qtd: 9, obs: "x", anulada: true },
+    { motivo: "cortesia", qtd: 4, obs: "cliente" }]));
+  assert.deepEqual(r, { total: 6, quem: [{ nome: "Família", qtd: 3 }, { nome: "Jessica", qtd: 3 }] });
+  semErros(a); await a.fechar();
+});
+
 test("a Home do gestor mostra ontem contra o Saipos; a equipe não vê", async () => {
   const a = await abrir("uJes", { agora: AGORA, db: comConf });
+  assert.match(await a.texto("#consumoCard"), /Consumo da casa · novembro/);
+  assert.match(await a.texto("#consumoCard"), /6 doces no mês\./);
+  assert.match(await a.texto("#consumoCard"), /Família 3 · Jessica 3/);
   assert.match(await a.texto("#cardConferencia"), /Geladeira x Saipos · ontem/);
   assert.match(await a.texto("#cardConferencia"), /Saíram 124, Saipos vendeu 114: 10 doces saíram sem venda\./);
   assert.equal(await a.page.$eval("#confgCard .gd-res", e => e.dataset.tom), "baixo");
