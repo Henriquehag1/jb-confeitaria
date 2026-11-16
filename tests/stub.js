@@ -65,6 +65,17 @@ function baseDB(agora){
       { id:"mas_brownie", grupo:"massa", nome:"Brownie", ordem:40, ativo:true, premium:true, preco_pp:64, preco_p:64, preco_m:88, preco_g:88 },
       { id:"rec_kinder", grupo:"recheio", nome:"Kinder Bueno", ordem:50, ativo:true, premium:true, preco_pp:45, preco_p:45, preco_m:68, preco_g:68 }
     ],
+    jb_parceria: [
+      { id: 1, codigo:"PC1001", criado_em: new Date(Date.now() - 2 * 36e5).toISOString(), com_quem:"jessica", tipo:"publi",
+        nome:"Marina Souza", marca:"Granola Boa", instagram:"granolaboa", contato:"11988887777", quando:"dezembro", formato:"permuta",
+        ideia:"Queremos uma receita de pote com a nossa granola, em reels.", status:"nova", nota_interna:null },
+      { id: 2, codigo:"PC1002", criado_em: new Date(Date.now() - 5 * 864e5).toISOString(), com_quem:"jb", tipo:"corporativo",
+        nome:"Carlos", marca:"Agência Norte", instagram:null, contato:"rh@agencianorte.com.br", quando:"20/12", formato:"pago",
+        ideia:"Kits de fim de ano para 40 pessoas da equipe.", status:"conversando", nota_interna:null },
+      { id: 3, codigo:"PC1003", criado_em: new Date(Date.now() - 20 * 864e5).toISOString(), com_quem:"jb", tipo:"revenda",
+        nome:"Paula", marca:"Café Esquina", instagram:"cafeesquina", contato:"11977776666", quando:null, formato:null,
+        ideia:"Ter os potes da JB no nosso café.", status:"recusada", nota_interna:"Longe demais para entrega diária." }
+    ],
     jb_encomenda: [
       { id: 1, codigo:"JB1001", cliente_nome:"Ana Paula", cliente_whats:"11988887777", status:"nova", sinal_pago:false,
         retirada_em: new Date(Date.now() + 3 * 864e5).toISOString(), forma:"uber",
@@ -526,7 +537,7 @@ ${agora ? "window.__AGORA=" + JSON.stringify(agora) + ";" : ""}
                       "jb_custo_fixo_total","jb_volume_calculado","jb_giro_produto","jb_insumo","jb_preco","jb_margem","jb_promo_teto","jb_canal","jb_config","jb_vale_taxa","jb_meio_pagamento",
                       "jb_mes","jb_faturamento","jb_ficha","jb_ficha_item","jb_subreceita","jb_subreceita_item","jb_uso_ingrediente",
                       "jb_insumo_ultimo_pago","jb_insumo_historico","jb_ficha_alertas","jb_compra","jb_compra_item","jb_estoque_contagem","jb_estoque_item","jb_estoque_sugestao",
-                      "jb_kpi_mes","jb_kpi_destino","jb_dia_vendas","jb_encomenda","jb_bolo_opcao","jb_ocorrencia","jb_conta","jb_falta","jb_freela","jb_banco_horas","jb_imposto_regra","jb_parametro","jb_contador_mes","jb_cartao_fatura","jb_freela_acesso","jb_quanto_param","jb_quanto_meta","jb_freela_pessoa"];
+                      "jb_kpi_mes","jb_kpi_destino","jb_dia_vendas","jb_encomenda","jb_parceria","jb_bolo_opcao","jb_ocorrencia","jb_conta","jb_falta","jb_freela","jb_banco_horas","jb_imposto_regra","jb_parametro","jb_contador_mes","jb_cartao_fatura","jb_freela_acesso","jb_quanto_param","jb_quanto_meta","jb_freela_pessoa"];
     if(soGestor.includes(t) && !gestor()) return [];
     if(t === "jb_dia_trabalhado" && !gestor()) return (DB[t]||[]).filter(r => r.user_id === window.__UID);
     if(t === "jb_contagem_mov" && !gestor()) return [];

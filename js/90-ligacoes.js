@@ -84,6 +84,7 @@ $("btnSaude").onclick = () => abrirSaude();
 $("btnContador").onclick = () => abrirContador(mesDoContador());
 $("btnContas").onclick = () => { CONTA_PAINEL = null; CONTA_NOVA = false; CONTA_PAINEL_NOVO = null; abrirContas(); };
 $("btnEncomendas").onclick = () => { ENC_ABA = "pedidos"; abrirEncomendas(); };
+$("btnParcerias").onclick = abrirParcerias;
 $("abaEncPedidos").onclick = () => trocarAbaEnc("pedidos");
 $("abaEncCardapio").onclick = () => trocarAbaEnc("cardapio");
 $("abaEstContar").onclick  = () => trocarAbaEstoque("contar");
