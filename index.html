@@ -9,8 +9,8 @@
 
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#F8F0EA">
-<link rel="icon" href="icon-192.png?v=2026-11-15a" type="image/png">
-<link rel="apple-touch-icon" href="icon-180.png?v=2026-11-15a">
+<link rel="icon" href="icon-192.png?v=2026-11-16a" type="image/png">
+<link rel="apple-touch-icon" href="icon-180.png?v=2026-11-16a">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -389,6 +389,14 @@ button.confg-card{display:block;width:100%;text-align:left;font:inherit;color:in
 #btnEncomendas.enc-logo .s{color:var(--ambar);font-weight:500;}
 @keyframes encPulso{0%,100%{box-shadow:0 0 0 3px rgba(212,104,90,.18);}50%{box-shadow:0 0 0 8px rgba(212,104,90,.10);}}
 @media (prefers-reduced-motion:reduce){#btnEncomendas.enc-nova{animation:none;}}
+#btnParcerias.enc-nova{background:var(--rosa);border:2px solid var(--ponto);color:var(--tinta);box-shadow:0 0 0 3px rgba(212,104,90,.18);}
+#btnParcerias.enc-nova .s{color:var(--coral-forte);font-weight:600;}
+#btnParcerias.enc-nova .ic{background:var(--ponto);color:var(--creme);}
+.parc-ideia{margin:0;padding:10px 12px;background:var(--areia);border-radius:10px;font-size:.9rem;line-height:1.5;white-space:pre-wrap;}
+.parc-dica{margin:4px 0 12px;padding:9px 12px;border-radius:10px;background:var(--ambar-veu);color:var(--ambar);font-size:.8rem;line-height:1.45;}
+.enc-chip.conv{background:var(--ambar-veu);color:var(--ambar);}
+.enc.parc .enc-hora{font-weight:500;font-size:.78rem;}
+.enc.parc .enc-info a{color:var(--tinta);text-underline-offset:3px;}
 .freezer-card{margin:8px 0 0;padding:12px 14px;border-radius:14px;background:var(--creme);border:1px solid var(--linha);text-transform:none;letter-spacing:normal;font-family:var(--sans,inherit);}
 .freezer-card h4{margin:0 0 4px;font-size:.8rem;letter-spacing:.06em;text-transform:uppercase;color:var(--tinta-3);font-weight:600;}
 .freezer-card p{margin:0;font-size:.9rem;color:var(--tinta);line-height:1.45;text-transform:none;letter-spacing:normal;font-weight:400;}
@@ -1806,7 +1814,7 @@ body.em-conferencia main, body.em-conferencia section{padding-bottom:84px;}
   <!-- ================= LOGIN ================= -->
   <section id="scLogin" class="login hide">
     <div class="mark">
-      <img class="marca-jb" src="marca-jb.png?v=2026-11-15a" alt="Jessica Ballassa Confeitaria" width="210" height="191">
+      <img class="marca-jb" src="marca-jb.png?v=2026-11-16a" alt="Jessica Ballassa Confeitaria" width="210" height="191">
       <p class="slogan">aqui tem amor<span class="pt">.</span></p>
       <div class="versao" id="loginVersao"></div>
     </div>
@@ -1823,7 +1831,7 @@ body.em-conferencia main, body.em-conferencia section{padding-bottom:84px;}
   <section id="scHome" class="hide">
     <div class="top">
       <div class="marca">
-        <img class="selo" src="selo-192.png?v=2026-11-15a" alt="" width="34" height="34">
+        <img class="selo" src="selo-192.png?v=2026-11-16a" alt="" width="34" height="34">
         <div><b>Jessica Ballassa</b><span id="homeSub">Ateliê</span></div>
       </div>
       <button class="recarregar" id="homeRecarregar" type="button" aria-label="Atualizar" title="Atualizar">&#8635;</button>
@@ -1839,6 +1847,11 @@ body.em-conferencia main, body.em-conferencia section{padding-bottom:84px;}
     <button class="big ghost hide" id="btnEncomendas">
       <span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 13.2h15v6.3a1.3 1.3 0 0 1-1.3 1.3H5.8a1.3 1.3 0 0 1-1.3-1.3z"/><path d="M4.5 13.2c1.3 0 1.3 1.3 2.5 1.3s1.3-1.3 2.5-1.3 1.3 1.3 2.5 1.3 1.3-1.3 2.5-1.3 1.3 1.3 2.5 1.3 1.2-1.3 2.5-1.3"/><path d="M6.2 13.2V9.7h11.6v3.5"/><path d="M12 9.7V6.4"/><path d="M12 3.4c.9.9.9 2 0 3-.9-1-.9-2.1 0-3z"/></svg></span>
       <span class="tx"><span class="t">Encomendas de bolo</span><span class="s" id="encSub">Pedidos do site, por data de retirada</span></span>
+      <span class="seta" aria-hidden="true">&#8250;</span>
+    </button>
+    <button class="big ghost hide" id="btnParcerias">
+      <span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20.5s-7.5-4.4-7.5-10a4.2 4.2 0 0 1 7.5-2.6 4.2 4.2 0 0 1 7.5 2.6c0 5.6-7.5 10-7.5 10z"/><path d="M18.6 2.8l.5 1.4 1.4.5-1.4.5-.5 1.4-.5-1.4-1.4-.5 1.4-.5z"/></svg></span>
+      <span class="tx"><span class="t">Parcerias e collabs</span><span class="s" id="parcSub">Marcas e perfis que querem fazer algo com a JB</span></span>
       <span class="seta" aria-hidden="true">&#8250;</span>
     </button>
     </div>
@@ -2107,6 +2120,13 @@ body.em-conferencia main, body.em-conferencia section{padding-bottom:84px;}
   </section>
 
   <!-- ================= ENCOMENDAS (só gestor) ================= -->
+  <!-- ================= PARCERIAS E COLLABS (só gestor) ================= -->
+  <section id="scParc" class="hide">
+    <p class="tip">Os pedidos que marcas e perfis mandam pela página de parcerias do site. Responda, mude o status e anote o combinado.</p>
+    <div id="parcMsg"></div>
+    <div id="parcLista"></div>
+  </section>
+
   <section id="scEnc" class="hide">
     <div class="abas">
       <button id="abaEncPedidos" aria-pressed="true">Pedidos</button>
@@ -2260,28 +2280,29 @@ body.em-conferencia main, body.em-conferencia section{padding-bottom:84px;}
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.116.0/dist/umd/supabase.min.js"></script>
-<script src="js/00-base.js?v=2026-11-15a"></script>
-<script src="js/10-entrada.js?v=2026-11-15a"></script>
-<script src="js/12-freela.js?v=2026-11-15a"></script>
-<script src="js/20-custos.js?v=2026-11-15a"></script>
-<script src="js/25-promo.js?v=2026-11-15a"></script>
-<script src="js/30-mes.js?v=2026-11-15a"></script>
-<script src="js/35-saude.js?v=2026-11-15a"></script>
-<script src="js/40-producao.js?v=2026-11-15a"></script>
-<script src="js/42-quanto.js?v=2026-11-15a"></script>
-<script src="js/44-geladeira.js?v=2026-11-15a"></script>
-<script src="js/46-conferencia-saipos.js?v=2026-11-15a"></script>
-<script src="js/50-contagem.js?v=2026-11-15a"></script>
-<script src="js/60-afazeres.js?v=2026-11-15a"></script>
-<script src="js/70-dias.js?v=2026-11-15a"></script>
-<script src="js/72-equipe.js?v=2026-11-15a"></script>
-<script src="js/74-bolsa.js?v=2026-11-15a"></script>
-<script src="js/76-conferencia.js?v=2026-11-15a"></script>
-<script src="js/80-estoque.js?v=2026-11-15a"></script>
-<script src="js/82-compra.js?v=2026-11-15a"></script>
-<script src="js/85-encomendas.js?v=2026-11-15a"></script>
-<script src="js/88-contas.js?v=2026-11-15a"></script>
-<script src="js/89-contador.js?v=2026-11-15a"></script>
-<script src="js/90-ligacoes.js?v=2026-11-15a"></script>
+<script src="js/00-base.js?v=2026-11-16a"></script>
+<script src="js/10-entrada.js?v=2026-11-16a"></script>
+<script src="js/12-freela.js?v=2026-11-16a"></script>
+<script src="js/20-custos.js?v=2026-11-16a"></script>
+<script src="js/25-promo.js?v=2026-11-16a"></script>
+<script src="js/30-mes.js?v=2026-11-16a"></script>
+<script src="js/35-saude.js?v=2026-11-16a"></script>
+<script src="js/40-producao.js?v=2026-11-16a"></script>
+<script src="js/42-quanto.js?v=2026-11-16a"></script>
+<script src="js/44-geladeira.js?v=2026-11-16a"></script>
+<script src="js/46-conferencia-saipos.js?v=2026-11-16a"></script>
+<script src="js/50-contagem.js?v=2026-11-16a"></script>
+<script src="js/60-afazeres.js?v=2026-11-16a"></script>
+<script src="js/70-dias.js?v=2026-11-16a"></script>
+<script src="js/72-equipe.js?v=2026-11-16a"></script>
+<script src="js/74-bolsa.js?v=2026-11-16a"></script>
+<script src="js/76-conferencia.js?v=2026-11-16a"></script>
+<script src="js/80-estoque.js?v=2026-11-16a"></script>
+<script src="js/82-compra.js?v=2026-11-16a"></script>
+<script src="js/85-encomendas.js?v=2026-11-16a"></script>
+<script src="js/86-parcerias.js?v=2026-11-16a"></script>
+<script src="js/88-contas.js?v=2026-11-16a"></script>
+<script src="js/89-contador.js?v=2026-11-16a"></script>
+<script src="js/90-ligacoes.js?v=2026-11-16a"></script>
 </body>
 </html>
