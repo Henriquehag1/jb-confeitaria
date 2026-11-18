@@ -3,6 +3,8 @@
 //   ler        { fotos: ["notas/..."] }            lê a nota com IA e devolve as linhas, já ligadas aos insumos
 //   cartoes    {}                                   cartões que a confeitaria usa, vindos do Nosso Financeiro
 //   financeiro { compra_id, forcar? }               lança a compra no Nosso Financeiro sem duplicar
+//   pagamento  { pagamento_id }                     pagamento da diarista (18/11/2026): diárias em Pessoas e
+//                                                   cada compra que ela fez na categoria da compra, na data do Pix
 // A chave da Anthropic fica só aqui (secret ANTHROPIC_API_KEY); nunca vai para o navegador.
 const SB_URL = Deno.env.get("SUPABASE_URL")!;
 const SB_ANON = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -135,7 +137,7 @@ async function ler(auth: string, body: any) {
   if (!AI_KEY) return json({ erro: "A leitura por IA ainda não está ligada (falta a chave no servidor)." }, 503);
   const fotos: string[] = Array.isArray(body.fotos) ? body.fotos.slice(0, MAX_FOTOS) : [];
   if (!fotos.length) return json({ erro: "Mande pelo menos uma foto." }, 400);
-  if (fotos.some(f => typeof f !== "string" || !/^notas\/[\w.\-]+$/.test(f))) return json({ erro: "Caminho de foto inválido." }, 400);
+  if (fotos.some(f => typeof f !== "string" || !/^(notas\/[\w.\-]+|reembolso\/[0-9a-f-]{36}\/[\w.\-]+)$/.test(f))) return json({ erro: "Caminho de foto inválido." }, 400);
 
   const conteudo: any[] = [];
   for (const f of fotos) {
@@ -257,6 +259,62 @@ async function financeiro(auth: string, body: any) {
   return json(res);
 }
 
+// Pagamento da diarista (jb_pagamento_diarista, gravado por jb_pagar_diarista).
+// Diárias: jb_receber_pagamento (Pessoas). Compras dela: jb_receber_compra com a data do Pix.
+async function pagamento(auth: string, body: any) {
+  const id = Number(body.pagamento_id);
+  if (!Number.isInteger(id) || id <= 0) return json({ erro: "pagamento_id inválido" }, 400);
+  const rp = await sbUser(auth, "/rest/v1/jb_pagamento_diarista?select=*&id=eq." + id);
+  const pg = (rp.ok ? await rp.json() : [])[0];
+  if (!pg) return json({ erro: "Pagamento não encontrado." }, 404);
+  const ru = await sbUser(auth, "/rest/v1/jb_usuario?select=nome&user_id=eq." + pg.user_id);
+  const nome = ((ru.ok ? await ru.json() : [])[0] || {}).nome || "diarista";
+  const tok = await tokenSync();
+  const linhas: any[] = [];
+  let erro: string | null = null;
+  const br = (iso: string) => iso.slice(8, 10) + "/" + iso.slice(5, 7);
+  if (Number(pg.diarias) > 0) {
+    try {
+      const dias = (pg.dias || []).map(br).join(", ");
+      const r = await nf("jb_receber_pagamento", { p_token: tok, p: {
+        pagamento_id: id, valor: pg.diarias, data: pg.data, categoria_id: 50,
+        descricao: "Diárias " + nome + ((pg.dias || []).length ? " (" + dias + ")" : ""),
+      } });
+      linhas.push({ tipo: "diarias", valor: Number(pg.diarias), status: r.status });
+    } catch (e) { erro = recadoFin(String((e as Error).message || e)); linhas.push({ tipo: "diarias", valor: Number(pg.diarias), status: "erro" }); }
+  }
+  const ids = (pg.contas || []).map(Number).filter((x: number) => x > 0);
+  if (ids.length) {
+    const rc = await sbUser(auth, "/rest/v1/jb_conta?select=id,valor,compra_id,descricao&id=in.(" + ids.join(",") + ")");
+    const contas = rc.ok ? await rc.json() : [];
+    for (const c of contas) {
+      if (!c.compra_id) { linhas.push({ tipo: "conta", conta_id: c.id, valor: Number(c.valor), status: "sem_compra" }); continue; }
+      const rq = await sbUser(auth, "/rest/v1/jb_compra?select=id,fornecedor,documento,fin_categoria,fin_status&id=eq." + c.compra_id);
+      const q = (rq.ok ? await rq.json() : [])[0];
+      if (!q) continue;
+      if (["lancado", "ja_existia", "ja_lancado"].includes(q.fin_status)) { linhas.push({ tipo: "compra", compra_id: q.id, valor: Number(c.valor), status: "ja_lancado" }); continue; }
+      try {
+        const r = await nf("jb_receber_compra", { p_token: tok, p_forcar: true, p: {
+          compra_id: q.id, valor: c.valor, data: pg.data, parcelas: 1, forma: "pix", cartao: null,
+          categoria_id: q.fin_categoria || 47,
+          descricao: "Reembolso " + nome + ": " + (q.fornecedor || "compra") + (q.documento ? " (nota " + q.documento + ")" : ""),
+          obs: "compra paga por " + nome + " e devolvida no pagamento dela",
+        } });
+        const ref = r.status === "lancado" ? "jbos compra " + q.id : (r.evento ? "evento " + r.evento.id : null);
+        await sbUser(auth, "/rest/v1/jb_compra?id=eq." + q.id, { method: "PATCH", body: JSON.stringify({ fin_status: r.status, fin_ref: ref, fin_em: new Date().toISOString() }) });
+        linhas.push({ tipo: "compra", compra_id: q.id, valor: Number(c.valor), status: r.status });
+      } catch (e) {
+        erro = recadoFin(String((e as Error).message || e));
+        await sbUser(auth, "/rest/v1/jb_compra?id=eq." + q.id, { method: "PATCH", body: JSON.stringify({ fin_status: "erro", fin_em: new Date().toISOString() }) });
+        linhas.push({ tipo: "compra", compra_id: q.id, valor: Number(c.valor), status: "erro" });
+      }
+    }
+  }
+  await sbUser(auth, "/rest/v1/jb_pagamento_diarista?id=eq." + id, { method: "PATCH", body: JSON.stringify({
+    fin_status: erro ? "erro" : "lancado", fin_ref: "jbos pagamento " + id, fin_em: new Date().toISOString() }) });
+  return json({ status: erro ? "erro" : "lancado", erro, linhas });
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (req.method !== "POST") return json({ erro: "Use POST." }, 405);
@@ -267,6 +325,7 @@ Deno.serve(async (req) => {
     if (body.acao === "ler") return await ler(auth, body);
     if (body.acao === "cartoes") return await cartoes();
     if (body.acao === "financeiro") return await financeiro(auth, body);
+    if (body.acao === "pagamento") return await pagamento(auth, body);
     return json({ erro: "Ação desconhecida." }, 400);
   } catch (e) {
     return json({ erro: String((e as Error).message || e) }, 500);

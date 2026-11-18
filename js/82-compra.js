@@ -25,7 +25,7 @@ const CF_FOTO_MAX = 2000;   // lado maior da foto que sobe, em pixels: lê bem e
 let CF = null;              // estado da tela
 
 function cfNovo(){
-  return { etapa: "foto", fotos: [], nota: null, ia: null, linhas: [], cab: {}, pag: { forma: null, cartao: null, parcelas: 1, categoria: 48 },
+  return { etapa: "foto", fotos: [], nota: null, ia: null, linhas: [], cab: {}, pag: { forma: null, cartao: null, parcelas: 1, categoria: 48, quem: null },
            insumos: [], cartoes: [], conferiuSoma: false, erro: null, res: null, fin: null };
 }
 
@@ -209,6 +209,19 @@ function cfRevisarNota(nota, hoje){
   return { nota: n, avisos };
 }
 
+/* quem pode ter pago do próprio bolso: as diaristas com acordo vigente (hoje a Eliana) */
+async function cfDiaristas(){
+  const [a, u] = await Promise.all([
+    sb.from("jb_acordo").select("user_id,regime,inicio,fim").eq("regime", "diaria"),
+    sb.from("jb_usuario").select("user_id,nome")
+  ]);
+  const hoje = hojeSP(), nomes = {};
+  ((u && u.data) || []).forEach(x => { nomes[x.user_id] = x.nome; });
+  return [...new Set(((a && a.data) || []).filter(x => x.inicio <= hoje && (!x.fim || x.fim >= hoje)).map(x => x.user_id))]
+    .map(id => ({ user_id: id, nome: nomes[id] || "Diarista" }));
+}
+function cfNomeQuem(){ const d = (CF.diaristas || []).find(x => x.user_id === CF.pag.quem); return d ? d.nome : (CF.reemb ? CF.reemb.nome : "ela"); }
+
 /* O que vai para o banco. */
 function cfPayload(st){
   const porId = {};
@@ -219,8 +232,8 @@ function cfPayload(st){
     chave: st.cab.chave || null, cnpj_dest: st.cab.dest || null,
     valor_total: sc.soma, desconto: Number(st.cab.desconto || 0), valor_pago: st.cab.valor_pago,
     obs: Number(st.cab.frete || 0) ? "frete R$ " + moeda(st.cab.frete) : null,
-    forma: st.pag.forma, cartao: st.pag.forma === "cartao" ? st.pag.cartao : null,
-    parcelas: st.pag.forma === "cartao" ? st.pag.parcelas : 1, fin_categoria: st.pag.categoria,
+    forma: st.pag.quem ? "pix" : st.pag.forma, cartao: !st.pag.quem && st.pag.forma === "cartao" ? st.pag.cartao : null,
+    parcelas: !st.pag.quem && st.pag.forma === "cartao" ? st.pag.parcelas : 1, fin_categoria: st.pag.categoria,
     fotos: st.fotos.map(f => f.caminho), ia: st.ia,
     alertas: { destinatario: cfDestinatario(st.cab.dest, st.cab.destNome).tipo, soma_fecha: sc.fecha, dif: sc.dif },
     forcar: !!st.forcar,
@@ -450,8 +463,9 @@ async function cfLer(){
       sb.from("jb_insumo").select("id,nome,unidade,custo_unit,categoria,ativo").eq("ativo", true).order("nome"),
       sb.from("jb_compra").select("id,data,fornecedor,cnpj,forma,cartao").order("id", { ascending: false }).limit(300),
       sb.from("jb_compra_item").select("id,compra_id,codigo_forn,descricao,qtd,qtd_base,insumo_id,destino").order("id", { ascending: false }).limit(1500),
-      cfInvocar({ acao: "cartoes" }).catch(() => ({ cartoes: [] }))
-    ]);
+      cfInvocar({ acao: "cartoes" }).catch(() => ({ cartoes: [] })),
+      cfDiaristas().catch(() => [])
+    ]).then(x => { CF.diaristas = x.pop(); return x; });
     if(ins.error) throw new Error("Não consegui carregar os insumos.");
     const rev = cfRevisarNota(lido.nota || {}, hojeSP());
     const nota = rev.nota;
@@ -470,7 +484,13 @@ async function cfLer(){
     /* forma: o que a nota diz; o cartão, o último usado */
     const ult = (comp.data || []).find(c => c.forma === "cartao" && c.cartao);
     CF.pag = { forma: cfFormaDaNota(nota.pagamento_na_nota), cartao: ult ? ult.cartao : (CF.cartoes.includes("Santander Unique Visa") ? "Santander Unique Visa" : null),
-               parcelas: 1, categoria: cfCategoria(CF.linhas, CF.insumos) };
+               parcelas: 1, categoria: cfCategoria(CF.linhas, CF.insumos), quem: CF.pag.quem || null };
+    /* compra que a diarista mandou: o que a leitura não achou vem do que ela escreveu */
+    if(CF.reemb){
+      if(!(CF.cab.valor_pago > 0)) CF.cab.valor_pago = CF.reemb.valor;
+      if(!CF.cab.data) CF.cab.data = CF.reemb.data;
+      if(!String(CF.cab.fornecedor || "").trim() && CF.reemb.loja) CF.cab.fornecedor = CF.reemb.loja;
+    }
     CF.etapa = "conferir";
   } catch(e){
     CF.etapa = "foto"; CF.erro = e.message || "A leitura falhou. Tente de novo.";
@@ -495,6 +515,9 @@ function cfTelaConferir(box){
   CF.insumos.forEach(i => { porId[i.id] = i; });
 
   /* avisos do topo */
+  if(CF.reemb) box.appendChild(cfEl("div", "msg ok cf-reemb", "Compra que " + CF.reemb.nome + " mandou: R$ " + moeda(CF.reemb.valor)
+    + (CF.reemb.loja ? " em " + CF.reemb.loja : "") + ", " + dataCurta(CF.reemb.data) + (CF.reemb.obs ? " (" + CF.reemb.obs + ")" : "")
+    + ". Confira as linhas: ao gravar, o valor entra no pagamento dela."));
   const avisos = cfEl("div", "cf-avisos"); avisos.id = "cfAvisos";
   box.appendChild(avisos);
 
@@ -621,6 +644,31 @@ function cfPintarCusto(l, el, ins){
 function cfDesenharPag(pg){
   if(!pg) return;
   pg.innerHTML = "";
+  if((CF.diaristas || []).length || CF.pag.quem){
+    pg.appendChild(cfEl("small", "cf-quem-tit", "Quem pagou"));
+    const qc = cfEl("div", "chips cf-quem");
+    const opc = [[null, "A JB"]].concat((CF.diaristas || []).map(d => [d.user_id, d.nome + ", do bolso dela"]));
+    if(CF.pag.quem && !opc.some(o => o[0] === CF.pag.quem)) opc.push([CF.pag.quem, cfNomeQuem() + ", do bolso dela"]);
+    opc.forEach(([v, n]) => {
+      const b = cfEl("button", null, n); b.type = "button";
+      b.setAttribute("aria-pressed", String((CF.pag.quem || null) === v));
+      b.onclick = () => { CF.pag.quem = v; cfDesenharPag(pg); cfAtualizar(); };
+      qc.appendChild(b);
+    });
+    pg.appendChild(qc);
+  }
+  if(CF.pag.quem){
+    pg.appendChild(cfEl("p", "tip", "A JB devolve para " + cfNomeQuem() + " no próximo pagamento dela, junto com as diárias. O Nosso Financeiro recebe esta compra no dia do Pix, na categoria abaixo."));
+    const f0 = cfEl("div", "novoing");
+    const l0 = cfEl("label", "wide", "Categoria no Nosso Financeiro");
+    const s0 = document.createElement("select"); s0.id = "cfCategoria";
+    CF_CATEGORIAS.forEach(([v, n]) => { const o = document.createElement("option"); o.value = v; o.textContent = n; s0.appendChild(o); });
+    s0.value = String(CF.pag.categoria);
+    s0.onchange = () => { CF.pag.categoria = Number(s0.value); CF.pagCatManual = true; };
+    l0.appendChild(s0); f0.appendChild(l0);
+    pg.appendChild(f0);
+    return;
+  }
   const ch = cfEl("div", "chips");
   CF_FORMAS.forEach(([v, n]) => {
     const b = cfEl("button", null, n); b.type = "button";
@@ -688,8 +736,8 @@ function cfAtualizar(){
   else if(cfDataForaDoLimite(CF.cab.data, hojeSP())) falta.push("corrigir a data");
   if(!(CF.cab.valor_pago > 0)) falta.push("o valor pago");
   if(CF.linhas.some(l => l.valor_total == null)) falta.push("o valor de alguma linha");
-  if(!CF.pag.forma) falta.push("como foi pago");
-  if(CF.pag.forma === "cartao" && !CF.pag.cartao) falta.push("o cartão");
+  if(!CF.pag.quem && !CF.pag.forma) falta.push("como foi pago");
+  if(!CF.pag.quem && CF.pag.forma === "cartao" && !CF.pag.cartao) falta.push("o cartão");
   if(sc.pago != null && !sc.fecha && !CF.conferiuSoma) falta.push("conferir a soma");
   const g = $("cfGravar");
   if(g){
@@ -718,7 +766,11 @@ async function cfGravar(){
   }
   CF.res = data;
   INSUMOS_CACHE = null; CATALOGO = [];
-  await cfFinanceiro(false);
+  if(CF.pag.quem){
+    /* comprado do bolso da diarista: vira reembolso dela; o financeiro recebe no dia do Pix */
+    const rr = await sb.rpc("jb_reembolso_conferir", { p_compra: data.compra_id, p_user: CF.pag.quem, p_reembolso: CF.reemb ? CF.reemb.id : null });
+    CF.reembRes = rr.error ? { erro: rr.error.message || "falhou" } : rr.data;
+  } else await cfFinanceiro(false);
   CF.etapa = "feito";
   cfDesenhar();
 }
@@ -758,9 +810,16 @@ function cfTelaFeito(box){
   }
   if(!mg.prejuizo.length && !mg.cruzou.length && !mg.piorou.length) m.appendChild(cfEl("p", null, "Nenhum produto caiu abaixo da meta por causa desta compra."));
 
-  const f = sec("Nosso Financeiro");
+  const f = sec(CF.pag.quem ? "Pagamento de " + cfNomeQuem() : "Nosso Financeiro");
   const fin = CF.fin || {};
-  if(fin.status === "lancado"){
+  if(CF.pag.quem){
+    const rr = CF.reembRes || {};
+    if(rr.erro) f.appendChild(cfEl("p", "cf-ruim", "A compra está gravada, mas não consegui ligar ao pagamento de " + cfNomeQuem() + ": " + rr.erro + ". Lance em Contas a pagar."));
+    else {
+      f.appendChild(cfEl("p", null, "Entrou no pagamento de " + cfNomeQuem() + ": R$ " + moeda(rr.valor) + ", junto com as diárias (acerto até " + dataCurta(rr.vencimento) + ")."));
+      f.appendChild(cfEl("small", null, "O Nosso Financeiro recebe esta compra no dia do Pix, quando vocês tocarem em Paguei no Quem veio."));
+    }
+  } else if(fin.status === "lancado"){
     const n = fin.parcelas || 1;
     f.appendChild(cfEl("p", null, "Lançado: R$ " + moeda(fin.valor) + (n > 1 ? " em " + n + "x" : "")
       + (CF.pag.forma === "cartao" ? " no " + CF.pag.cartao + ", aguardando a fatura. A fatura casa com este lançamento." : " em " + (CF_FORMAS.find(x => x[0] === CF.pag.forma) || [, ""])[1] + ".")));
@@ -784,5 +843,10 @@ function cfTelaFeito(box){
   const outra = cfEl("button", "big"); outra.type = "button"; outra.id = "cfOutra";
   outra.innerHTML = '<span class="tx"><span class="t">Lançar outra nota</span><span class="s">Embaixo ficam as notas lançadas, para conferir depois</span></span>';
   outra.onclick = abrirCompraFoto;
+  if(CF.reemb){
+    outra.querySelector(".t").textContent = "Voltar às compras da equipe";
+    outra.querySelector(".s").textContent = "Conferir outra que esteja esperando";
+    outra.onclick = abrirReembolso;
+  }
   box.appendChild(outra);
 }

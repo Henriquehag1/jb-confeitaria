@@ -65,6 +65,8 @@ function baseDB(agora){
       { id:"mas_brownie", grupo:"massa", nome:"Brownie", ordem:40, ativo:true, premium:true, preco_pp:64, preco_p:64, preco_m:88, preco_g:88 },
       { id:"rec_kinder", grupo:"recheio", nome:"Kinder Bueno", ordem:50, ativo:true, premium:true, preco_pp:45, preco_p:45, preco_m:68, preco_g:68 }
     ],
+    jb_reembolso: [],
+    jb_pagamento_diarista: [],
     jb_parceria: [
       { id: 1, codigo:"PC1001", criado_em: new Date(Date.now() - 2 * 36e5).toISOString(), com_quem:"jessica", tipo:"publi",
         nome:"Marina Souza", marca:"Granola Boa", instagram:"granolaboa", contato:"11988887777", quando:"dezembro", formato:"permuta",
@@ -537,9 +539,10 @@ ${agora ? "window.__AGORA=" + JSON.stringify(agora) + ";" : ""}
                       "jb_custo_fixo_total","jb_volume_calculado","jb_giro_produto","jb_insumo","jb_preco","jb_margem","jb_promo_teto","jb_canal","jb_config","jb_vale_taxa","jb_meio_pagamento",
                       "jb_mes","jb_faturamento","jb_ficha","jb_ficha_item","jb_subreceita","jb_subreceita_item","jb_uso_ingrediente",
                       "jb_insumo_ultimo_pago","jb_insumo_historico","jb_ficha_alertas","jb_compra","jb_compra_item","jb_estoque_contagem","jb_estoque_item","jb_estoque_sugestao",
-                      "jb_kpi_mes","jb_kpi_destino","jb_dia_vendas","jb_encomenda","jb_parceria","jb_bolo_opcao","jb_ocorrencia","jb_conta","jb_falta","jb_freela","jb_banco_horas","jb_imposto_regra","jb_parametro","jb_contador_mes","jb_cartao_fatura","jb_freela_acesso","jb_quanto_param","jb_quanto_meta","jb_freela_pessoa"];
+                      "jb_kpi_mes","jb_kpi_destino","jb_dia_vendas","jb_encomenda","jb_parceria","jb_pagamento_diarista","jb_bolo_opcao","jb_ocorrencia","jb_conta","jb_falta","jb_freela","jb_banco_horas","jb_imposto_regra","jb_parametro","jb_contador_mes","jb_cartao_fatura","jb_freela_acesso","jb_quanto_param","jb_quanto_meta","jb_freela_pessoa"];
     if(soGestor.includes(t) && !gestor()) return [];
     if(t === "jb_dia_trabalhado" && !gestor()) return (DB[t]||[]).filter(r => r.user_id === window.__UID);
+    if(t === "jb_reembolso" && !gestor()) return (DB[t]||[]).filter(r => r.user_id === window.__UID);
     if(t === "jb_contagem_mov" && !gestor()) return [];
     if(t === "jb_adendo" && !gestor()) return (DB[t]||[]).filter(r => r.registrado_por === window.__UID);
     if(t === "jb_usuario" && !gestor()) return (DB[t]||[]).filter(r => r.user_id === window.__UID);
@@ -955,6 +958,43 @@ ${agora ? "window.__AGORA=" + JSON.stringify(agora) + ";" : ""}
       return { data:{ ok:true, compra_id:id, aplicados, nao_aplicados:nao, margem_abaixo: DB.__margemAbaixo || [], alvo: 0.2 }, error:null };
     }
     if(nome === "jb_renomear_ingrediente"){ return { data:null, error:null }; }
+    /* compras da diarista para o ateliê (18/11/2026) */
+    if(nome === "jb_reembolso_conferir"){
+      if(!gestor()) return { data:null, error:{ message:"so gestor", code:"42501" } };
+      const c = (DB.jb_compra || []).find(x => x.id === args.p_compra);
+      if(!c) return { data:null, error:{ message:"compra" } };
+      const u = (DB.jb_usuario || []).find(x => x.user_id === args.p_user) || {};
+      const d = new Date(c.data + "T12:00:00Z"); const venc = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 10)).toISOString().slice(0, 10);
+      const id = nextId("jb_conta");
+      DB.jb_conta = DB.jb_conta || [];
+      DB.jb_conta.push({ id, tipo:"equipe", descricao: u.nome + ": reembolso de " + c.fornecedor + " de " + c.data.slice(8,10) + "/" + c.data.slice(5,7),
+        competencia: c.data.slice(0,8) + "01", vencimento: venc, valor: Number(c.valor_pago), compra_id: c.id, equipe_user_id: args.p_user,
+        pago_em:null, valor_pago:null, pago_por:null, arquivada:false, abatimentos:[] });
+      c.fin_status = "no_pagamento";
+      if(args.p_reembolso){ const r = DB.jb_reembolso.find(x => x.id === args.p_reembolso); if(r){ r.status = "conferido"; r.compra_id = c.id; r.conta_id = id; } }
+      return { data:{ conta_id:id, valor:Number(c.valor_pago), vencimento:venc, nome:u.nome }, error:null };
+    }
+    if(nome === "jb_reembolso_recusar"){
+      if(!gestor()) return { data:null, error:{ message:"so gestor", code:"42501" } };
+      const r = DB.jb_reembolso.find(x => x.id === args.p_id && x.status === "enviado");
+      if(r){ r.status = "recusado"; r.motivo = args.p_motivo || null; }
+      return { data:null, error:null };
+    }
+    if(nome === "jb_pagar_diarista"){
+      if(!gestor()) return { data:null, error:{ message:"so gestor", code:"42501" } };
+      const ac = (DB.jb_acordo || []).find(a => a.user_id === args.p_user && a.regime === "diaria");
+      if(!ac) return { data:null, error:{ message:"nao e diarista" } };
+      const dias = (DB.jb_dia_trabalhado || []).filter(d => d.user_id === args.p_user && d.status === "confirmado" && !d.pago_em && d.data <= args.p_data);
+      const contas = (DB.jb_conta || []).filter(c => c.equipe_user_id === args.p_user && c.tipo === "equipe" && !c.pago_em && !c.arquivada && Number(c.valor) > 0);
+      const total = Math.round((dias.length * Number(ac.valor) + contas.reduce((t, c) => t + Number(c.valor), 0)) * 100) / 100;
+      if(Math.abs(total - Number(args.p_valor)) > 0.02) return { data:null, error:{ message:"valor: o total em aberto é " + total } };
+      const id = nextId("jb_pagamento_diarista");
+      DB.jb_pagamento_diarista.push({ id, user_id:args.p_user, data:args.p_data, valor:total, diarias: dias.length * Number(ac.valor), dias: dias.map(d => d.data), contas: contas.map(c => c.id) });
+      dias.forEach(d => { d.pago_em = args.p_data + "T15:00:00Z"; d.pago_por = window.__UID; });
+      contas.forEach(c => { c.pago_em = args.p_data; c.valor_pago = c.valor; c.pago_por = "manual"; });
+      (DB.jb_reembolso || []).forEach(r => { if(contas.some(c => c.id === r.conta_id) && r.status === "conferido") r.status = "pago"; });
+      return { data:{ pagamento_id:id, total, diarias: dias.length * Number(ac.valor), dias: dias.map(d => d.data), contas: contas.map(c => c.id) }, error:null };
+    }
     return { data:null, error:{ message:"rpc desconhecida " + nome } };
   }
 
@@ -984,7 +1024,8 @@ ${agora ? "window.__AGORA=" + JSON.stringify(agora) + ";" : ""}
     storage: {
       from: (balde) => ({
         upload: async (caminho, blob, opts) => {
-          if(!gestor()) return { data:null, error:{ message:"new row violates row-level security policy" } };
+          const propria = membro() && String(caminho).startsWith("reembolso/" + window.__UID + "/");
+          if(!gestor() && !propria) return { data:null, error:{ message:"new row violates row-level security policy" } };
           if(window.__FALHA && window.__FALHA.upload) return { data:null, error:{ message:"Failed to fetch" } };
           window.__LOG.push(["upload", balde, caminho, blob ? blob.size : 0, (opts||{}).contentType]);
           return { data:{ path: caminho }, error:null };
