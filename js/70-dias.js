@@ -750,6 +750,7 @@ function montarCalendarioDias(){
     const comb = res ? res.dias_combinados : 0;
     /* diarista não tem mais dias fixos: conta só os dias que veio e o que está em aberto */
     const diarista = !!(ac && ac.regime === "diaria");
+    let totalPagar = 0;
     sub.innerHTML = "";
     const s1 = document.createElement("b");
     s1.textContent = diarista ? veio + (veio === 1 ? " dia" : " dias") : veio + " de " + comb;
@@ -767,6 +768,7 @@ function montarCalendarioDias(){
       const extras = EXTRAS.filter(c => c.equipe_user_id === uid);
       const totEx = extras.reduce((t, c) => t + Number(c.valor), 0);
       const partes = (abertos.length ? [listaDiasTx(abertos)] : []).concat(extras.map(c => extraTexto(c, nome)));
+      totalPagar = Math.round((abertos.length * Number(ac.valor) + totEx) * 100) / 100;
       sub.appendChild(document.createElement("br"));
       const s3 = document.createElement("span"); s3.className = "a-pagar";
       s3.textContent = partes.length
@@ -834,6 +836,7 @@ function montarCalendarioDias(){
     bloco.appendChild(cal);
     bloco.appendChild(blocoSugeridos(uid));
     if(ac && ac.regime === "semanal") bloco.appendChild(blocoFaltas(uid, ac));
+    if(diarista) bloco.appendChild(rbBlocoPagar(uid, nome, totalPagar));
     bloco.appendChild(blocoPagamento(uid, ac));
     if(ac && ac.regime === "semanal") bloco.appendChild(blocoRelatorio(uid, ac));
     bloco.appendChild(blocoChegadas(uid));

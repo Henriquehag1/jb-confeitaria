@@ -165,6 +165,7 @@ async function carregarHome(){
     $("btnFreelaHoje").classList.add("hide");
     $("btnEncomendas").classList.add("hide");
     $("btnParcerias").classList.add("hide");
+    await montarReembolsoHome().catch(() => {});
     $("btnContas").classList.add("hide");
     $("btnSaude").classList.add("hide");
     $("btnContador").classList.add("hide");
@@ -265,6 +266,7 @@ async function carregarHome(){
   $("btnContador").classList.toggle("hide", EU.papel !== "gestor");
   $("btnCompra").classList.toggle("hide", EU.papel !== "gestor");
   await montarParceriasHome(gestor).catch(() => {});
+  await montarReembolsoHome().catch(() => {});
   await montarConferenciaHome(gestor).catch(() => {});
   await montarGeladeiraHome(gestor).catch(() => {});
   await montarFreezerHome(gestor);
