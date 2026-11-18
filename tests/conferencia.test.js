@@ -169,6 +169,27 @@ test("Eliana sem dias fixos: mostra só o que está em aberto, com os dias", asy
   await a.fechar();
 });
 
+test("reembolso da diarista soma no A pagar agora do cartão e da Home", async () => {
+  const a = await abrir("uHen", { agora: "2026-11-18T15:00:00Z", db: db => {
+    db.jb_pessoal_mes = [{ user_id: "uEli", nome: "Eliana", mes: "2026-11-01", dias_combinados: 0, dias_veio: 4, dias_pendentes: 0, custo: 560 }];
+    db.jb_dia_trabalhado = ["2026-11-12", "2026-11-13", "2026-11-17", "2026-11-18"].map((d, i) => ({
+      id: 950 + i, user_id: "uEli", data: d, status: "confirmado", origem: "manual", pago_em: null }));
+    db.jb_conta = (db.jb_conta || []).concat([
+      { id: 68, tipo: "equipe", descricao: "Eliana: reembolso do leite em pó de 17/11", competencia: "2026-11-01", vencimento: "2026-12-10", valor: 696.99,
+        equipe_user_id: "uEli", pago_em: null, valor_pago: null, pago_por: null, arquivada: false, abatimentos: [] },
+      { id: 69, tipo: "equipe", descricao: "Eliana: acerto já pago", competencia: "2026-11-01", vencimento: "2026-11-10", valor: 50,
+        equipe_user_id: "uEli", pago_em: "2026-11-10", valor_pago: 50, pago_por: "manual", arquivada: false, abatimentos: [] }]);
+    return db; } });
+  const home = await a.texto("#btnDias .s");
+  assert.match(home, /A pagar agora: R\$ 1\.256,99/);
+  await a.page.click("#btnDias"); await a.espera(1200);
+  const t = await a.page.locator(`.pessoa:has(h3:text-is("Eliana"))`).first().innerText();
+  assert.match(t, /A pagar agora: R\$ 1\.256,99 \(12, 13, 17 e 18\/11 \+ reembolso do leite em pó de 17\/11 R\$ 696,99\)/);
+  assert.doesNotMatch(t, /acerto já pago/);
+  assert.deepEqual(a.erros, []);
+  await a.fechar();
+});
+
 test("Bela e Bella são a Isabella Freitas: o Pix com o apelido casa com a diária dela", async () => {
   const a = await abrir("uHen", { agora: AGORA });
   const r = await a.page.evaluate(() => ({
