@@ -12,6 +12,7 @@ let DIAS_RES = [];       // resumo por pessoa vindo de jb_pessoal_mes
 let ATRASOS  = [];       // linhas de jb_atraso_dia do mês: hora de chegada, entrada da escala, minutos
 let LEMBRETES = [];      // jb_ocorrencia do mês ainda abertas: o que o gestor não pode esquecer (ex.: atraso sem data)
 let PAGOS    = [];       // dias do mês já marcados como pagos (jb_dia_pago, só gestor lê)
+let EXTRAS   = [];       // contas da equipe em aberto ligadas a uma diarista (ex.: reembolso de compra): somam no "A pagar agora"
 const PAG_ABERTO = {};   // por pessoa: a lista de pagamento fica aberta depois de salvar
 
 const DOW = ["dom","seg","ter","qua","qui","sex","sáb"];
@@ -65,7 +66,20 @@ async function avisarPendencias(){
     : (n === 1 ? "1 dia esperando você confirmar" : n + " dias esperando você confirmar") + (txPagar ? " · " + txPagar : "");
 }
 
-/* o que está em aberto no mês: dias da diarista sem pagamento e diárias de freela sem pagamento */
+/* reembolsos e acertos da diarista: conta da equipe em aberto ligada a ela (equipe_user_id).
+   Ex.: 17/11, a Eliana pagou o leite em pó e a JB devolve junto com as diárias do mês. */
+async function extrasDiarista(){
+  const r = await sb.from("jb_conta").select("id,descricao,valor,vencimento,equipe_user_id,pago_em,arquivada")
+    .eq("tipo", "equipe").eq("arquivada", false).is("pago_em", null);
+  if(!r || r.error) return [];
+  return (r.data || []).filter(c => c.equipe_user_id && Number(c.valor) > 0);
+}
+function extraTexto(c, nome){
+  const d = String(c.descricao || "").replace(new RegExp("^" + String(nome || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\s*:\\s*", "i"), "");
+  return d + " R$ " + moeda(c.valor);
+}
+
+/* o que está em aberto no mês: dias da diarista sem pagamento, reembolsos dela e diárias de freela sem pagamento */
 async function resumoAPagarHome(){
   const mes = primeiroDia(hojeSP()), fim = ultimoDia(mes);
   const [ac, dt, dp, fr, us] = await Promise.all([
@@ -79,9 +93,12 @@ async function resumoAPagarHome(){
   const pagos = new Set(((dp && dp.data) || []).map(x => x.id));
   const nomes = {}; ((us && us.data) || []).forEach(u => { nomes[u.user_id] = u.nome; });
   const quem = {}; let total = 0;
+  const extras = await extrasDiarista().catch(() => []);
   ((ac && ac.data) || []).filter(a => a.inicio <= fim && (!a.fim || a.fim >= mes)).forEach(a => {
     const n = (dt.data || []).filter(d => d.user_id === a.user_id && !pagos.has(d.id)).length;
-    if(n){ const v = n * Number(a.valor); total += v; quem[nomes[a.user_id] || "Diarista"] = (quem[nomes[a.user_id]] || 0) + v; }
+    const ex = extras.filter(c => c.equipe_user_id === a.user_id).reduce((t, c) => t + Number(c.valor), 0);
+    const v = n * Number(a.valor) + ex;
+    if(v > 0){ total += v; quem[nomes[a.user_id] || "Diarista"] = (quem[nomes[a.user_id]] || 0) + v; }
   });
   const ids = (fr.data || []).map(f => f.conta_id).filter(Boolean);
   if(ids.length){
@@ -273,8 +290,9 @@ async function abrirDias(){
     sb.from("jb_atraso_dia").select("id,user_id,data,chegada,chegada_origem,hora_chegada,entrada_prevista,atraso_min,saida,saida_origem,hora_saida,saida_prevista,saiu_antes_min,minutos_no_atelie")
       .gte("data", ini).lte("data", fim),
     sb.from("jb_ocorrencia").select("id,user_id,mes,texto,resolvida").eq("mes", ini).eq("resolvida", false),
-    sb.from("jb_dia_pago").select("id,user_id,data,pago_em").gte("data", ini).lte("data", fim)
-  ]);
+    sb.from("jb_dia_pago").select("id,user_id,data,pago_em").gte("data", ini).lte("data", fim),
+    extrasDiarista()
+  ]).then(r => { EXTRAS = r.pop(); return r; });
   if(ac.error || dt.error){
     aviso("diasMsg","Não consegui carregar os dias agora. Toque em atualizar.","err");
     show("scDias"); return;
@@ -746,10 +764,13 @@ function montarCalendarioDias(){
     }
     if(diarista && ac.valor != null){
       const abertos = DIAS.filter(d => d.user_id === uid && d.status === "confirmado" && !PAGOS.some(p => p.id === d.id)).map(d => d.data);
+      const extras = EXTRAS.filter(c => c.equipe_user_id === uid);
+      const totEx = extras.reduce((t, c) => t + Number(c.valor), 0);
+      const partes = (abertos.length ? [listaDiasTx(abertos)] : []).concat(extras.map(c => extraTexto(c, nome)));
       sub.appendChild(document.createElement("br"));
       const s3 = document.createElement("span"); s3.className = "a-pagar";
-      s3.textContent = abertos.length
-        ? "A pagar agora: R$ " + moeda(abertos.length * Number(ac.valor)) + " (" + listaDiasTx(abertos) + ")"
+      s3.textContent = partes.length
+        ? "A pagar agora: R$ " + moeda(abertos.length * Number(ac.valor) + totEx) + " (" + partes.join(" + ") + ")"
         : (veio ? "Nada em aberto: tudo o que veio está pago." : "");
       sub.appendChild(s3);
     } else if(res && res.custo != null){
