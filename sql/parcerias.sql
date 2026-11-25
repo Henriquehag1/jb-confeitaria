@@ -44,7 +44,6 @@ declare
   v_marca   text := left(nullif(btrim(coalesce(p->>'marca','')),''), 80);
   v_insta   text := nullif(btrim(coalesce(p->>'instagram','')),'');
   v_cont    text := btrim(coalesce(p->>'contato',''));
-  v_dig     text;
   v_quando  text := left(nullif(btrim(coalesce(p->>'quando','')),''), 60);
   v_form    text := nullif(p->>'formato','');
   v_ideia   text := btrim(coalesce(p->>'ideia',''));
@@ -63,13 +62,9 @@ begin
   end if;
   if length(v_nome) < 2 or length(v_nome) > 80 then raise exception 'nome'; end if;
 
-  -- contato: e-mail ou telefone com DDD
-  v_dig := regexp_replace(v_cont, '\D', '', 'g');
+  -- contato: só e-mail (desde 25/11/2026 a resposta de parceria é sempre por e-mail)
   if v_cont ~* '^[^@\s]+@[^@\s]+\.[a-z]{2,}$' and length(v_cont) <= 120 then
     v_cont := lower(v_cont);
-  elsif v_cont !~ '[A-Za-z@]' and length(v_dig) between 10 and 13 then
-    if v_dig ~ '^55\d{10,11}$' then v_dig := substr(v_dig, 3); end if;
-    v_cont := v_dig;
   else
     raise exception 'contato';
   end if;
