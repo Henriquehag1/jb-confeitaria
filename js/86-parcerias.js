@@ -24,6 +24,38 @@ const PARC_FORMATO = { pago: "Pago", permuta: "Permuta", a_combinar: "A combinar
 
 const parcEmail = c => /@/.test(String(c || ""));
 
+/* Régua de parcerias (25/11/2026): a análise automática do Claude grava em avaliacao a nota
+   de 0 a 12, o veredito, a nota de cada ponto e três mensagens prontas. Aqui a Jessica vê
+   tudo e responde com um toque pelo e-mail de parcerias da JB (ou WhatsApp, se for telefone). */
+const PARC_EMAIL_JB = "jbconfeitariaparcerias@gmail.com";
+const PARC_VEREDITO = {
+  sim:       { rot: "sim",                cls: "ok",   tx: "Vale a pena. Responder rápido." },
+  condicoes: { rot: "sim com condições",  cls: "conv", tx: "Só vale ajustando o que puxa a nota para baixo." },
+  nao_agora: { rot: "não agora",          cls: "nagora", tx: "Responder com gentileza e deixar a porta aberta." },
+  nao:       { rot: "não",                cls: "nao",  tx: "Não vale a pena. Recusar com educação." }
+};
+const PARC_CRIT = [
+  ["dinheiro", "Dinheiro para a JB",  "pago vale 2, permuta útil 1, nada 0"],
+  ["alcance",  "Alcance para a JB",   "público maior que o da JB vale 2, de 1/5 até o mesmo tamanho 1, menor 0"],
+  ["venda",    "Venda que pode gerar","pedido direto vale 2, indireta 1, nenhuma 0"],
+  ["marca",    "Combina com a marca", "reforça a JB vale 2, neutro 1, diferente 0"],
+  ["trabalho", "Trabalho da Jessica", "quase nada vale 2, algumas horas fora do pico 1, muito ou em dezembro 0"],
+  ["custo",    "Custo e risco",       "custo zero vale 2, pequeno dentro do limite de permuta 1, alto 0"]
+];
+const PARC_LEGENDA = [
+  ["9 a 12", "sim", "vale a pena, responder rápido"],
+  ["6 a 8", "sim com condições", "aceitar só ajustando o que puxa a nota para baixo"],
+  ["4 a 5", "não agora", "resposta gentil, porta aberta, sem compromisso"],
+  ["0 a 3", "não", "recusar com educação"]
+];
+const PARC_VERSOES = [["curta", "Curta"], ["media", "Média"], ["emocional", "Emocional"]];
+
+function parcLinkEmailJB(para, assunto, corpo){
+  return "https://mail.google.com/mail/?authuser=" + encodeURIComponent(PARC_EMAIL_JB)
+    + "&view=cm&fs=1&to=" + encodeURIComponent(para)
+    + "&su=" + encodeURIComponent(assunto) + "&body=" + encodeURIComponent(corpo);
+}
+
 /* Home: o botão muda de cor quando chega pedido novo */
 async function montarParceriasHome(gestor){
   const bt = $("btnParcerias");
@@ -148,20 +180,9 @@ function detalheParceria(x){
   });
   d.appendChild(dl);
 
-  /* responder já com o texto do jeito da Jessica */
   const primeiro = String(x.nome || "").split(" ")[0];
-  const tipo = (PARC_TIPO[x.tipo] || "parceria").toLowerCase();
-  const txt = "oi, " + primeiro + "! aqui é a Jessica, da JB :) recebi a sua ideia de " + tipo + " (" + x.codigo + ").. obrigada por pensar na gente! vamos conversar?";
-  const fala = document.createElement("a");
-  fala.className = "enc-wa"; fala.target = "_blank"; fala.rel = "noopener";
-  if(parcEmail(x.contato)){
-    fala.href = "mailto:" + x.contato + "?subject=" + encodeURIComponent("Parceria com a JB · " + x.codigo) + "&body=" + encodeURIComponent(txt);
-    fala.textContent = "Responder " + primeiro + " por e-mail";
-  } else {
-    fala.href = "https://wa.me/55" + String(x.contato).replace(/\D/g, "") + "?text=" + encodeURIComponent(txt);
-    fala.textContent = "Responder " + primeiro + " no WhatsApp";
-  }
-  d.appendChild(fala);
+  d.appendChild(reguaParceria(x));
+  d.appendChild(respostaParceria(x));
 
   if(x.status === "fechada"){
     const dica = document.createElement("p"); dica.className = "parc-dica";
@@ -214,3 +235,161 @@ async function mudarParceria(x, status, recado){
   toast(recado);
   montarParcerias();
 }
+
+/* A nota da régua, cada ponto com o motivo, e a legenda do que a nota quer dizer */
+function reguaParceria(x){
+  const box = document.createElement("div"); box.className = "parc-regua";
+  const av = x.avaliacao;
+  if(!av || av.nota == null){
+    const p = document.createElement("p"); p.className = "pr-sem";
+    p.textContent = "Ainda sem nota. A análise da régua roda sozinha toda manhã e aparece aqui; se tiver pressa, peça ao Claude.";
+    box.appendChild(p);
+    box.appendChild(legendaParceria());
+    return box;
+  }
+  const v = PARC_VEREDITO[av.veredito] || PARC_VEREDITO.nao_agora;
+  const topo = document.createElement("div"); topo.className = "pr-topo";
+  const nota = document.createElement("b"); nota.className = "pr-nota " + v.cls;
+  nota.textContent = String(av.nota);
+  const de = document.createElement("small"); de.textContent = "/12"; nota.appendChild(de);
+  const lado = document.createElement("div");
+  const chip = document.createElement("span"); chip.className = "enc-chip " + v.cls; chip.textContent = v.rot;
+  const tx = document.createElement("p"); tx.className = "pr-resumo"; tx.textContent = av.resumo || v.tx;
+  lado.append(chip, tx);
+  topo.append(nota, lado);
+  box.appendChild(topo);
+  if(av.corte){
+    const c = document.createElement("p"); c.className = "pr-corte";
+    c.textContent = "Corte automático: " + av.corte;
+    box.appendChild(c);
+  }
+  const ul = document.createElement("ul"); ul.className = "pr-crit";
+  PARC_CRIT.forEach(([k, nome]) => {
+    const it = (av.criterios || {})[k] || {};
+    const n = Math.max(0, Math.min(2, Number(it.n) || 0));
+    const li = document.createElement("li");
+    const nm = document.createElement("span"); nm.className = "pr-nome"; nm.textContent = nome;
+    const pts = document.createElement("span"); pts.className = "pr-pts";
+    for(let i = 0; i < 2; i++){ const b = document.createElement("i"); if(i < n) b.className = "on"; pts.appendChild(b); }
+    const num = document.createElement("em"); num.textContent = n + "/2";
+    li.append(nm, pts, num);
+    if(it.porque){ const pq = document.createElement("small"); pq.textContent = it.porque; li.appendChild(pq); }
+    ul.appendChild(li);
+  });
+  box.appendChild(ul);
+  box.appendChild(legendaParceria());
+  return box;
+}
+
+function legendaParceria(){
+  const det = document.createElement("details"); det.className = "pr-legenda";
+  const sm = document.createElement("summary"); sm.textContent = "O que a nota significa";
+  det.appendChild(sm);
+  const ul = document.createElement("ul");
+  PARC_LEGENDA.forEach(([faixa, rot, tx]) => {
+    const li = document.createElement("li");
+    const b = document.createElement("b"); b.textContent = faixa + ": " + rot;
+    li.append(b, document.createTextNode(", " + tx + "."));
+    ul.appendChild(li);
+  });
+  det.appendChild(ul);
+  const p = document.createElement("p");
+  p.textContent = "Cada um dos seis pontos vale de 0 a 2: " + PARC_CRIT.map(([, nome, como]) => nome.charAt(0).toLowerCase() + nome.slice(1) + " (" + como + ")").join("; ") + ".";
+  det.appendChild(p);
+  const p2 = document.createElement("p");
+  p2.textContent = "É não na hora quando pede dinheiro da JB, exclusividade, receita ou fornecedor, usa a marca JB sem aprovação, pede doces em permuta sem público comprovado ou vai contra as regras dos apps. Permuta até R$ 300 por mês e nada novo em dezembro que não seja pago.";
+  det.appendChild(p2);
+  return det;
+}
+
+/* Resposta pronta: três versões, a recomendada já escolhida, editável, e um toque abre
+   o e-mail de parcerias da JB (ou o WhatsApp) com tudo preenchido. A Jessica só confere e envia. */
+function respostaParceria(x){
+  const box = document.createElement("div"); box.className = "parc-resp";
+  const av = x.avaliacao || {};
+  const primeiro = String(x.nome || "").split(" ")[0];
+  const tipo = (PARC_TIPO[x.tipo] || "parceria").toLowerCase();
+  const padrao = "oi, " + primeiro + "! aqui é a Jessica, da JB :) recebi a sua ideia de " + tipo + " (" + x.codigo + ").. obrigada por pensar na gente! vamos conversar?";
+  const msgs = Object.assign({}, av.mensagens || {});
+  const temVersoes = PARC_VERSOES.some(([k]) => msgs[k]);
+  if(!temVersoes) msgs.curta = padrao;
+  let versao = (av.recomendada && msgs[av.recomendada]) ? av.recomendada : (PARC_VERSOES.find(([k]) => msgs[k]) || ["curta"])[0];
+  const assunto = av.assunto || ("Parceria com a JB · " + x.codigo);
+  const email = parcEmail(x.contato);
+
+  const tit = document.createElement("p"); tit.className = "pr-tit";
+  tit.textContent = temVersoes ? "Resposta recomendada" : "Resposta";
+  box.appendChild(tit);
+
+  const ta = document.createElement("textarea"); ta.className = "pr-texto"; ta.rows = 7;
+  if(temVersoes){
+    const grupo = document.createElement("div"); grupo.className = "pr-versoes"; grupo.setAttribute("role", "group");
+    PARC_VERSOES.forEach(([k, rot]) => {
+      if(!msgs[k]) return;
+      const b = document.createElement("button"); b.type = "button"; b.dataset.v = k;
+      b.textContent = rot + (k === av.recomendada ? " ★" : "");
+      b.setAttribute("aria-pressed", String(k === versao));
+      b.onclick = () => {
+        versao = k; ta.value = msgs[k];
+        grupo.querySelectorAll("button").forEach(o => o.setAttribute("aria-pressed", String(o.dataset.v === k)));
+        ligar();
+      };
+      grupo.appendChild(b);
+    });
+    box.appendChild(grupo);
+  }
+  ta.value = msgs[versao] || padrao;
+  box.appendChild(ta);
+
+  const ir = document.createElement("a"); ir.className = "enc-wa"; ir.target = "_blank"; ir.rel = "noopener";
+  const mais = document.createElement("p"); mais.className = "pr-mais";
+  const app = document.createElement("a"); app.className = "pr-app";
+  const copiar = document.createElement("button"); copiar.type = "button"; copiar.className = "pr-copiar"; copiar.textContent = "copiar o texto";
+  function ligar(){
+    const corpo = ta.value.trim();
+    if(email){
+      ir.href = parcLinkEmailJB(x.contato, assunto, corpo);
+      ir.textContent = "Responder " + primeiro + " pelo e-mail da JB";
+      app.href = "mailto:" + x.contato + "?subject=" + encodeURIComponent(assunto) + "&body=" + encodeURIComponent(corpo);
+      app.textContent = "usar o app de e-mail";
+    } else {
+      ir.href = "https://wa.me/55" + String(x.contato).replace(/\D/g, "") + "?text=" + encodeURIComponent(corpo);
+      ir.textContent = "Responder " + primeiro + " no WhatsApp";
+    }
+  }
+  ta.addEventListener("input", ligar);
+  ligar();
+  ir.addEventListener("click", () => marcarRespondida(x, email ? "email" : "whatsapp", versao));
+  app.addEventListener("click", () => marcarRespondida(x, "app_email", versao));
+  copiar.onclick = async () => {
+    try { await navigator.clipboard.writeText(ta.value.trim()); toast("Texto copiado."); }
+    catch(e){ ta.select(); toast("Selecionei o texto: é só copiar."); }
+  };
+  box.appendChild(ir);
+  if(email) mais.append(app, document.createTextNode(" · "));
+  mais.appendChild(copiar);
+  box.appendChild(mais);
+  if(email){
+    const ob = document.createElement("p"); ob.className = "pr-obs";
+    ob.textContent = "Abre o Gmail na conta " + PARC_EMAIL_JB + " com tudo preenchido. É só conferir e tocar em Enviar.";
+    box.appendChild(ob);
+  }
+  if(x.respondido_em){
+    const q = encQuando(x.respondido_em);
+    const r = document.createElement("p"); r.className = "pr-respondido";
+    r.textContent = "Resposta aberta em " + dataCurta(q.dia).replace(".", "") + " às " + q.hora
+      + ({ email: " pelo e-mail da JB", whatsapp: " no WhatsApp", app_email: " pelo app de e-mail" }[x.resposta_canal] || "") + ".";
+    box.appendChild(r);
+  }
+  return box;
+}
+
+async function marcarRespondida(x, canal, versao){
+  const agora = new Date().toISOString();
+  const { error } = await sb.from("jb_parceria")
+    .update({ respondido_em: agora, resposta_canal: canal, resposta_versao: versao, atualizado_em: agora }).eq("id", x.id);
+  if(error) return;
+  x.respondido_em = agora; x.resposta_canal = canal; x.resposta_versao = versao;
+  toast("Depois de enviar, marque o status aqui embaixo.");
+}
+
