@@ -60,10 +60,51 @@ test("parcerias: o cartão aberto mostra a ideia e responde no WhatsApp ou no e-
   const insta = await a.page.getAttribute("#parcLista .enc-info a", "href");
   assert.equal(insta, "https://www.instagram.com/granolaboa/");
 
+  assert.match(await a.texto("#parcLista .pr-sem"), /Ainda sem nota/);
+  assert.equal(await a.page.locator("#parcLista .pr-versoes").count(), 0, "sem análise, só a resposta padrão");
+
   await abrirCartao(a, "PC1002"); await a.espera(150);
   const mail = await a.page.getAttribute("#parcLista .enc-wa", "href");
-  assert.match(mail, /^mailto:rh@agencianorte\.com\.br\?subject=/);
-  assert.equal(await a.texto("#parcLista .enc-wa"), "Responder Carlos por e-mail");
+  assert.match(mail, /^https:\/\/mail\.google\.com\/mail\/\?authuser=jbconfeitariaparcerias%40gmail\.com&view=cm&fs=1&to=rh%40agencianorte\.com\.br&su=/);
+  assert.equal(await a.texto("#parcLista .enc-wa"), "Responder Carlos pelo e-mail da JB");
+  assert.match(await a.page.getAttribute("#parcLista .pr-app", "href"), /^mailto:rh@agencianorte\.com\.br\?subject=/);
+  semErros(a); await a.fechar();
+});
+
+test("parcerias: a régua mostra a nota, cada ponto, a legenda, e a resposta recomendada abre no e-mail da JB", async () => {
+  const a = await abrir("uJes");
+  await abrirParc(a);
+  await abrirCartao(a, "PC1002"); await a.espera(150);
+  assert.equal(await a.texto("#parcLista .pr-nota"), "10/12");
+  assert.equal(await a.texto("#parcLista .parc-regua .enc-chip"), "sim");
+  assert.equal(await a.texto("#parcLista .pr-resumo"), "Pedido pago e grande, com data fora do pico.");
+  const pontos = await a.page.evaluate(() => [...document.querySelectorAll("#parcLista .pr-crit li")].map(li =>
+    li.querySelector(".pr-nome").textContent + " " + li.querySelector("em").textContent + " " + li.querySelectorAll(".pr-pts i.on").length));
+  assert.deepEqual(pontos, ["Dinheiro para a JB 2/2 2", "Alcance para a JB 1/2 1", "Venda que pode gerar 2/2 2",
+    "Combina com a marca 2/2 2", "Trabalho da Jessica 1/2 1", "Custo e risco 2/2 2"]);
+  const legenda = await a.page.evaluate(() => [...document.querySelectorAll("#parcLista .pr-legenda li b")].map(b => b.textContent));
+  assert.deepEqual(legenda, ["9 a 12: sim", "6 a 8: sim com condições", "4 a 5: não agora", "0 a 3: não"]);
+
+  const versoes = await a.page.evaluate(() => [...document.querySelectorAll("#parcLista .pr-versoes button")].map(b => b.textContent + (b.getAttribute("aria-pressed") === "true" ? " (escolhida)" : "")));
+  assert.deepEqual(versoes, ["Curta", "Média ★ (escolhida)", "Emocional"]);
+  assert.equal(await a.page.inputValue("#parcLista .pr-texto"), "oi, Carlos, tudo bem? os kits ficam lindos..");
+  let href = decodeURIComponent(await a.page.getAttribute("#parcLista .enc-wa", "href"));
+  assert.match(href, /su=Kits de fim de ano da JB&body=oi, Carlos, tudo bem\? os kits ficam lindos\.\.$/);
+
+  await a.page.evaluate(() => [...document.querySelectorAll("#parcLista .pr-versoes button")].find(b => b.textContent === "Curta").click());
+  assert.equal(await a.page.inputValue("#parcLista .pr-texto"), "oi, Carlos! topamos sim :)");
+  await a.page.fill("#parcLista .pr-texto", "oi, Carlos! topamos sim, me manda as datas :)");
+  href = decodeURIComponent(await a.page.getAttribute("#parcLista .enc-wa", "href"));
+  assert.match(href, /body=oi, Carlos! topamos sim, me manda as datas :\)$/);
+
+  await a.page.evaluate(() => { const l = document.querySelector("#parcLista .enc-wa"); l.addEventListener("click", e => e.preventDefault()); l.click(); });
+  await a.espera(250);
+  const db = await a.db("jb_parceria");
+  const p2 = db.find(p => p.codigo === "PC1002");
+  assert.equal(p2.resposta_canal, "email");
+  assert.equal(p2.resposta_versao, "curta");
+  assert.ok(p2.respondido_em);
+  assert.equal(p2.status, "conversando", "abrir a resposta não muda o status sozinho");
   semErros(a); await a.fechar();
 });
 
